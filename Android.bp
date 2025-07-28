@@ -39,6 +39,7 @@ android_app {
         "androidx.annotation_annotation",
         "com_android_crossdevicesync_flags_lib",
         "dagger2",
+        "guava",
         "jsr330",
     ],
     platform_apis: true,
