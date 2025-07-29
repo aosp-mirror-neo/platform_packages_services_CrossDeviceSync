@@ -19,8 +19,16 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 
+import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import javax.inject.Inject;
+
 /** The main service hosting cross device sync features. */
+@SyncServiceSingleton
 public class SyncService extends Service {
+
+    @Inject
+    public SyncService() {}
 
     public IBinder onBind(Intent intent) {
         // Not supported.
