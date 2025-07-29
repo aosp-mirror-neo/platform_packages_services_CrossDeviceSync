@@ -19,6 +19,7 @@ import android.annotation.Nullable;
 import android.app.AppComponentFactory;
 import android.app.Application;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.util.Log;
 
@@ -39,6 +40,7 @@ public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
 
     @Nullable private CrossDeviceSyncApplication mApplication;
     @Nullable @Inject Map<Class<?>, Provider<Service>> mServiceProviders;
+    @Nullable @Inject Map<Class<?>, Provider<BroadcastReceiver>> mReceiverProviders;
 
     @Override
     public Application instantiateApplication(ClassLoader cl, String className)
@@ -58,22 +60,45 @@ public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
         return super.instantiateService(cl, className, intent);
     }
 
+    @Override
+    public BroadcastReceiver instantiateReceiver(ClassLoader cl, String className, Intent intent)
+            throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        BroadcastReceiver receiver = resolveReceiver(className);
+        if (receiver != null) {
+            return receiver;
+        }
+        return super.instantiateReceiver(cl, className, intent);
+    }
+
+    private void injectBindings() {
+        if (mApplication == null) {
+            Log.e(TAG, "injectBindings: no application!");
+            return;
+        }
+        ApplicationComponent component = mApplication.getApplicationComponent();
+        if (component == null) {
+            Log.e(TAG, "injectBindings: unable to get dagger application component!");
+            return;
+        }
+        component.inject(this);
+    }
+
     @Nullable
     private Map<Class<?>, Provider<Service>> getServiceProviders() {
         if (mServiceProviders != null) {
             return mServiceProviders;
         }
-        if (mApplication == null) {
-            Log.e(TAG, "getServiceProviders: no application!");
-            return null;
-        }
-        ApplicationComponent component = mApplication.getApplicationComponent();
-        if (component == null) {
-            Log.e(TAG, "getServiceProviders: unable to get dagger application component!");
-            return null;
-        }
-        component.inject(this);
+        injectBindings();
         return mServiceProviders;
+    }
+
+    @Nullable
+    private Map<Class<?>, Provider<BroadcastReceiver>> getReceiverProviders() {
+        if (mReceiverProviders != null) {
+            return mReceiverProviders;
+        }
+        injectBindings();
+        return mReceiverProviders;
     }
 
     @Nullable
@@ -85,6 +110,21 @@ public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
         try {
             Class<?> clazz = Class.forName(className);
             Provider<Service> provider = serviceProviders.get(clazz);
+            return provider == null ? null : provider.get();
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private BroadcastReceiver resolveReceiver(String className) {
+        Map<Class<?>, Provider<BroadcastReceiver>> receiverProviders = getReceiverProviders();
+        if (receiverProviders == null) {
+            return null;
+        }
+        try {
+            Class<?> clazz = Class.forName(className);
+            Provider<BroadcastReceiver> provider = receiverProviders.get(clazz);
             return provider == null ? null : provider.get();
         } catch (ClassNotFoundException e) {
             return null;

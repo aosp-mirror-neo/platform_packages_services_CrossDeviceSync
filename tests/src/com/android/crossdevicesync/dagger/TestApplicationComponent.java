@@ -15,6 +15,7 @@
  */
 package com.android.crossdevicesync.dagger;
 
+import com.android.crossdevicesync.BootReceiver;
 import com.android.crossdevicesync.services.dagger.TestSyncServiceComponent;
 
 import dagger.Component;
@@ -39,4 +40,7 @@ public interface TestApplicationComponent extends ApplicationComponent {
 
     /** Get a {@link TestSyncServiceComponent.Builder} that can be used in tests. */
     TestSyncServiceComponent.Builder getTestSyncServiceComponentBuilder();
+
+    /** Get a {@link BootReceiver} that can be used in tests. */
+    BootReceiver getBootReceiver();
 }

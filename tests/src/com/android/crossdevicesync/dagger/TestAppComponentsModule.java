@@ -16,10 +16,13 @@
 package com.android.crossdevicesync.dagger;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 
+import com.android.crossdevicesync.BootReceiver;
 import com.android.crossdevicesync.services.SyncService;
 import com.android.crossdevicesync.services.dagger.TestSyncServiceComponent;
 
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.ClassKey;
@@ -36,4 +39,10 @@ public abstract class TestAppComponentsModule {
     static Service provideSyncService(TestSyncServiceComponent.Builder builder) {
         return builder.build().getSyncService();
     }
+
+    /** Binds a BootReceiver instance. */
+    @Binds
+    @IntoMap
+    @ClassKey(BootReceiver.class)
+    abstract BroadcastReceiver bindBootReceiver(BootReceiver receiver);
 }

@@ -73,6 +73,7 @@ android_test {
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.core",
+        "mockito-target-minus-junit4",
         "truth",
         "dagger2",
         "jsr330",
