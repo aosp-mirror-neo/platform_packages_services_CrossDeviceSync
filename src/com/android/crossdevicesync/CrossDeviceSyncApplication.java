@@ -30,7 +30,12 @@ public class CrossDeviceSyncApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        mAppComponent = DaggerApplicationComponent.builder().application(this).build();
+        mAppComponent = createDaggerComponent();
+    }
+
+    /** Create an {@link ApplicationComponent}. Overridable by tests. */
+    protected ApplicationComponent createDaggerComponent() {
+        return DaggerApplicationComponent.builder().application(this).build();
     }
 
     @Nullable

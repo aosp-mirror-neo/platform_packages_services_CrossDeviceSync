@@ -17,7 +17,11 @@ package com.android.crossdevicesync.services;
 
 import android.app.Service;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
+
+import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
@@ -26,12 +30,36 @@ import javax.inject.Inject;
 /** The main service hosting cross device sync features. */
 @SyncServiceSingleton
 public class SyncService extends Service {
+    private static final String TAG = "SyncService";
+
+    /** Action for test binding. Only used by instrumentation tests. */
+    @VisibleForTesting
+    public static final String ACTION_BIND_FOR_TESTING =
+            "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
     @Inject
     public SyncService() {}
 
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Log.i(TAG, "onCreate()");
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
-        // Not supported.
+        if (ACTION_BIND_FOR_TESTING.equals(intent.getAction())) {
+            return new TestBinder();
+        }
+        // Binding is not supported unless in tests.
         return null;
+    }
+
+    /** Binder for instrumentation tests. */
+    @VisibleForTesting
+    public class TestBinder extends Binder {
+        public SyncService getService() {
+            return SyncService.this;
+        }
     }
 }
