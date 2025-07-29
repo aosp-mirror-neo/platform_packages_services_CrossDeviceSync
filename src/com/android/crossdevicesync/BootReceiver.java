@@ -20,6 +20,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import com.android.crossdevicesync.flags.Flags;
 import com.android.crossdevicesync.services.SyncService;
 
 import javax.inject.Inject;
@@ -34,7 +35,8 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "onReceive: " + intent);
-        if (Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
+        if (Flags.startSyncServiceOnBoot()
+                && Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
             Log.d(TAG, "Starting SyncService.");
             context.startService(new Intent(context, SyncService.class));
         }

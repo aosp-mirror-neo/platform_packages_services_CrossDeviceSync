@@ -1,0 +1,9 @@
+package: "com.android.crossdevicesync.flags"
+container: "system"
+
+flag {
+    name: "start_sync_service_on_boot"
+    namespace: "wear_frameworks"
+    description: "Start sync service on boot."
+    bug: "308482106"
+}

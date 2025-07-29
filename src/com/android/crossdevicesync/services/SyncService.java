@@ -15,6 +15,7 @@
  */
 package com.android.crossdevicesync.services;
 
+import android.annotation.Nullable;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
@@ -24,6 +25,9 @@ import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
@@ -37,6 +41,8 @@ public class SyncService extends Service {
     public static final String ACTION_BIND_FOR_TESTING =
             "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
+    @Nullable private CountDownLatch mDestroyLatch;
+
     @Inject
     public SyncService() {}
 
@@ -47,12 +53,31 @@ public class SyncService extends Service {
     }
 
     @Override
+    public void onDestroy() {
+        super.onDestroy();
+        Log.i(TAG, "onDestroy()");
+        if (mDestroyLatch != null) {
+            mDestroyLatch.countDown();
+            mDestroyLatch = null;
+        }
+    }
+
+    @Override
     public IBinder onBind(Intent intent) {
         if (ACTION_BIND_FOR_TESTING.equals(intent.getAction())) {
             return new TestBinder();
         }
         // Binding is not supported unless in tests.
         return null;
+    }
+
+    @VisibleForTesting
+    /** Stop the service and wait for onDestroy() to be called. */
+    public void stopAndWait(long timeout, TimeUnit unit) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        mDestroyLatch = latch;
+        stopSelf();
+        latch.await(timeout, unit);
     }
 
     /** Binder for instrumentation tests. */

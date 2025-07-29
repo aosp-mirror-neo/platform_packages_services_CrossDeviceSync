@@ -37,6 +37,7 @@ android_app {
     srcs: ["src/**/*.java"],
     static_libs: [
         "androidx.annotation_annotation",
+        "com_android_crossdevicesync_flags_lib",
         "dagger2",
         "jsr330",
     ],
@@ -73,6 +74,8 @@ android_test {
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.core",
+        "com_android_crossdevicesync_flags_lib",
+        "flag-junit",
         "mockito-target-minus-junit4",
         "truth",
         "dagger2",
