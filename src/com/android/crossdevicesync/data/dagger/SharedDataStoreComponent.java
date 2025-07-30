@@ -15,6 +15,7 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import dagger.BindsInstance;
 import dagger.Subcomponent;
 
 /**
@@ -26,9 +27,17 @@ import dagger.Subcomponent;
  */
 @Subcomponent(modules = {SharedDataStoreModule.class})
 public interface SharedDataStoreComponent {
+
     /** Builder interface for SharedDataStoreComponent. */
     @Subcomponent.Builder
     interface Builder {
+
+        /**
+         * Set the name of the data store. This will affect the database name so should not change
+         * afterwards.
+         */
+        @BindsInstance
+        Builder name(@DataStoreName String name);
 
         /** Build an instance of this component. */
         SharedDataStoreComponent build();

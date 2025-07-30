@@ -15,8 +15,22 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.IStorage;
+import com.android.crossdevicesync.data.RoomStorage;
+
+import com.google.android.submerge.StorageInterface;
+
+import dagger.Binds;
 import dagger.Module;
 
 /** Dagger module for injecting objects in the {@link SharedDataStoreSingleton} scope. */
 @Module
-public abstract class SharedDataStoreModule {}
+public abstract class SharedDataStoreModule {
+    @SharedDataStoreSingleton
+    @Binds
+    abstract StorageInterface bindsStorageInterface(IStorage storage);
+
+    @SharedDataStoreSingleton
+    @Binds
+    abstract IStorage bindsIStorage(RoomStorage storage);
+}

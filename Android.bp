@@ -37,10 +37,13 @@ android_app {
     srcs: ["src/**/*.java"],
     static_libs: [
         "androidx.annotation_annotation",
+        "androidx.room_room-runtime",
         "com_android_crossdevicesync_flags_lib",
         "dagger2",
+        "data-protos-lite",
         "guava",
         "jsr330",
+        "submerge_java",
     ],
     platform_apis: true,
     generate_product_characteristics_rro: true,
@@ -52,6 +55,7 @@ android_app {
         optimized_shrink_resources: true,
     },
     plugins: [
+        "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
     ],
     javacflags: [
@@ -59,6 +63,7 @@ android_app {
         "-J-Xmx8192M",
         "-Adagger.explicitBindingConflictsWithInject=ERROR",
         "-Adagger.strictMultibindingValidation=enabled",
+        "-Aroom.schemaLocation=packages/services/CrossDeviceSync/schemas",
     ],
 }
 
@@ -72,12 +77,15 @@ android_test {
     ],
     static_libs: [
         "androidx.annotation_annotation",
+        "androidx.room_room-runtime",
         "androidx.test.runner",
         "androidx.test.rules",
         "androidx.test.core",
         "com_android_crossdevicesync_flags_lib",
+        "data-protos-lite",
         "flag-junit",
         "mockito-target-minus-junit4",
+        "submerge_java",
         "truth",
         "dagger2",
         "jsr330",
@@ -88,6 +96,7 @@ android_test {
     manifest: "tests/AndroidManifest.xml",
     additional_manifests: ["AndroidManifest.xml"],
     plugins: [
+        "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
     ],
     javacflags: [
@@ -95,5 +104,6 @@ android_test {
         "-J-Xmx8192M",
         "-Adagger.explicitBindingConflictsWithInject=ERROR",
         "-Adagger.strictMultibindingValidation=enabled",
+        "-Aroom.schemaLocation=packages/services/CrossDeviceSync/schemas",
     ],
 }
