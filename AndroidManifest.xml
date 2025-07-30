@@ -14,9 +14,11 @@
      limitations under the License.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     package="com.android.crossdevicesync"
     coreApp="true">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".CrossDeviceSyncApplication"
         android:persistent="true"
@@ -24,8 +26,14 @@
         android:label="@string/app_label"
         android:allowBackup="false"
         android:directBootAware="true"
-        tools:replace="android:appComponentFactory"
-        android:appComponentFactory=".CrossDeviceSyncAppComponentFactory">
-        <service android:name=".services.SyncService"/>
+        android:appComponentFactory="com.android.crossdevicesync.CrossDeviceSyncAppComponentFactory">
+        <service android:name="com.android.crossdevicesync.services.SyncService"/>
+        <receiver
+            android:name="com.android.crossdevicesync.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

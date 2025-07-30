@@ -15,20 +15,13 @@
  */
 package com.android.crossdevicesync.dagger;
 
-import android.app.Application;
-import android.content.Context;
-
-import dagger.Binds;
 import dagger.Module;
 
-import javax.inject.Singleton;
-
-/** Dagger module for the {@link ApplicationComponent}. */
-@Module(includes = {AppComponentsModule.class})
-public abstract class ApplicationModule {
-
-    /** Dagger binding for application context. */
-    @Binds
-    @Singleton
-    abstract Context bindApplicationContext(Application app);
-}
+/**
+ * Dagger module for the {@link ApplicationComponent}. Production-only bindings should live here.
+ *
+ * <p>Note: if a binding is needed in both production and test code, please put it in {@link
+ * ApplicationBaseModule} instead.
+ */
+@Module(includes = {ApplicationBaseModule.class})
+public abstract class ApplicationModule {}
