@@ -15,12 +15,9 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.FakeStorage;
 import com.android.crossdevicesync.data.FakeTimestampProvider;
-import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
-import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.TimestampProvider;
 
 import dagger.Binds;
@@ -33,5 +30,4 @@ public abstract class TestDataModule {
     @SyncServiceSingleton
     @Binds
     abstract TimestampProvider bindsTimestampProvider(FakeTimestampProvider fakeProvider);
-
 }
