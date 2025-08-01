@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data;
+package com.android.crossdevicesync.data.fake;
 
 import android.annotation.Nullable;
 
+import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
 
 import com.google.android.submerge.StorageInterface;

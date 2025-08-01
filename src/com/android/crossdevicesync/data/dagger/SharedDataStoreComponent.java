@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
+
 import dagger.BindsInstance;
 import dagger.Subcomponent;
 

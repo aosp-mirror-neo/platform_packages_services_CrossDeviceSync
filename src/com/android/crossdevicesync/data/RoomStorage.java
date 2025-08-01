@@ -31,8 +31,8 @@ import androidx.room.RoomDatabase;
 import androidx.room.Transaction;
 import androidx.room.Update;
 
-import com.android.crossdevicesync.data.dagger.DataStoreName;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 
 import javax.inject.Inject;
 

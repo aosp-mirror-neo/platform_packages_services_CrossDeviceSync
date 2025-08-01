@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data.dagger;
+package com.android.crossdevicesync.data.dagger.qualifier;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
