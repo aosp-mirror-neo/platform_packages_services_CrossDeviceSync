@@ -17,6 +17,8 @@ package com.android.crossdevicesync.services.dagger;
 
 import com.android.crossdevicesync.data.dagger.TestDataModule;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
+import com.android.crossdevicesync.services.SyncService;
+import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import dagger.Subcomponent;
 
@@ -37,4 +39,7 @@ public interface TestSyncServiceComponent extends SyncServiceComponent {
 
     /** Get a {@link TestSharedDataStoreComponent.Builder} that can be used in tests. */
     TestSharedDataStoreComponent.Builder getTestSharedDataStoreComponentBuilder();
+
+    /** Inject dagger bindings into test. */
+    void inject(SyncServiceComponentTestBase test);
 }

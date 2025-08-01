@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.SharedStorageComponentBaseTest;
+import com.android.crossdevicesync.data.SharedStorageComponentTestBase;
 
 import dagger.Subcomponent;
 
@@ -36,5 +36,5 @@ public interface TestSharedDataStoreComponent extends SharedDataStoreComponent {
     }
 
     /** Inject dagger bindings into the test case. */
-    void inject(SharedStorageComponentBaseTest test);
+    void inject(SharedStorageComponentTestBase test);
 }

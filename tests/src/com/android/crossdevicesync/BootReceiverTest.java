@@ -22,7 +22,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 
 import android.annotation.Nullable;
-import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
@@ -30,9 +29,8 @@ import android.platform.test.annotations.DisableFlags;
 import android.platform.test.annotations.EnableFlags;
 import android.platform.test.flag.junit.SetFlagsRule;
 
-import androidx.test.core.app.ApplicationProvider;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
-import androidx.test.runner.AndroidJUnit4;
 
 import com.android.crossdevicesync.services.SyncService;
 
@@ -49,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @RunWith(AndroidJUnit4.class)
-public final class BootReceiverTest {
+public final class BootReceiverTest extends ApplicationComponentTestBase {
     private static final long STOP_SERVICE_TIMEOUT_SEC = 5;
 
     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
@@ -58,14 +56,11 @@ public final class BootReceiverTest {
 
     @Mock private ServiceConnection mConnection;
 
-    private Context mContext;
-    private BootReceiver mReceiver;
     @Nullable private SyncService mService;
 
     @Before
     public void setUp() {
-        mContext = ApplicationProvider.getApplicationContext();
-        mReceiver = ((TestApplication) mContext).getApplicationComponent().getBootReceiver();
+        super.setUp();
     }
 
     @After
@@ -81,7 +76,7 @@ public final class BootReceiverTest {
     public void testLockedBootCompleted_syncServiceStarted() throws TimeoutException {
         Intent intent = new Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED);
 
-        mReceiver.onReceive(mContext, intent);
+        mBootReceiver.onReceive(mContext, intent);
 
         IBinder binder =
                 mServiceRule.bindService(getSyncServiceIntent(), mConnection, /* flags= */ 0);
@@ -94,7 +89,7 @@ public final class BootReceiverTest {
     public void testLockedBootCompleted_flagDisabled_syncServiceNotStarted() {
         Intent intent = new Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED);
 
-        mReceiver.onReceive(mContext, intent);
+        mBootReceiver.onReceive(mContext, intent);
 
         assertThrows(
                 TimeoutException.class,
