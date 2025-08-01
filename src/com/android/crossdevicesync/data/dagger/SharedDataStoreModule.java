@@ -18,7 +18,6 @@ package com.android.crossdevicesync.data.dagger;
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.RoomStorage;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;

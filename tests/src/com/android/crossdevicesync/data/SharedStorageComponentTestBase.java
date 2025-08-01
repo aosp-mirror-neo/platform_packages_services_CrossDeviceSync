@@ -16,6 +16,8 @@
 package com.android.crossdevicesync.data;
 
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
+import com.android.crossdevicesync.data.fake.FakeNetwork;
+import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import javax.inject.Inject;
@@ -25,6 +27,8 @@ public abstract class SharedStorageComponentTestBase extends SyncServiceComponen
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
     @Inject protected RoomStorage mRoomStorage;
+    @Inject protected FakeStorage mFakeStorage;
+    @Inject protected FakeNetwork mFakeNetwork;
 
     @Override
     public void setUp() {
@@ -38,6 +42,7 @@ public abstract class SharedStorageComponentTestBase extends SyncServiceComponen
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
                         .name(dataStoreName)
+                        .converter(mStringConverter)
                         .build();
     }
 }

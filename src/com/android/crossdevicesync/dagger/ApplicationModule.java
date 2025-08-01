@@ -15,7 +15,13 @@
  */
 package com.android.crossdevicesync.dagger;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
 import dagger.Module;
+import dagger.Provides;
+
+import javax.inject.Singleton;
 
 /**
  * Dagger module for the {@link ApplicationComponent}. Production-only bindings should live here.
@@ -24,4 +30,13 @@ import dagger.Module;
  * ApplicationBaseModule} instead.
  */
 @Module(includes = {ApplicationBaseModule.class})
-public abstract class ApplicationModule {}
+public abstract class ApplicationModule {
+    private static final String DEFAULT_SHARED_PREFS_FILE_NAME = "cross_device_sync_prefs";
+
+    /** Provides the application level default shared prefs. */
+    @Singleton
+    @Provides
+    static SharedPreferences provideDefaultSharedPrefs(Context context) {
+        return context.getSharedPreferences(DEFAULT_SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
+    }
+}

@@ -15,8 +15,9 @@
  */
 package com.android.crossdevicesync.services;
 
-
 import com.android.crossdevicesync.ApplicationComponentTestBase;
+import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
+import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.services.dagger.TestSyncServiceComponent;
 
 import javax.inject.Inject;
@@ -24,8 +25,9 @@ import javax.inject.Inject;
 /** Base class for tests that depend on the {@link TestSyncServiceComponent} */
 public abstract class SyncServiceComponentTestBase extends ApplicationComponentTestBase {
     protected TestSyncServiceComponent mSyncServiceComponent;
-    @Inject
-    protected SyncService mSyncService;
+    @Inject protected SyncService mSyncService;
+    @Inject protected StringConverter mStringConverter;
+    @Inject protected FakeDeviceNodeIdProvider mDeviceNodeIdProvider;
 
     @Override
     public void setUp() {

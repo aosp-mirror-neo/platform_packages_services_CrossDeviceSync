@@ -27,7 +27,7 @@ import dagger.Subcomponent;
  * lifecycle of {@link SyncService}.
  */
 @SyncServiceSingleton
-@Subcomponent(modules = {TestDataModule.class})
+@Subcomponent(modules = {TestSyncServiceModule.class, TestDataModule.class})
 public interface TestSyncServiceComponent extends SyncServiceComponent {
 
     /** Builder interface for TestSyncServiceComponent. */

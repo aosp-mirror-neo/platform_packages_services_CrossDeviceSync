@@ -17,6 +17,8 @@ package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 
+import com.google.android.submerge.Converter;
+
 import dagger.BindsInstance;
 import dagger.Subcomponent;
 
@@ -33,6 +35,10 @@ public interface SharedDataStoreComponent {
     /** Builder interface for SharedDataStoreComponent. */
     @Subcomponent.Builder
     interface Builder {
+
+        /** Binds a {@link Converter} that can be used to serialize/deserialize the data. */
+        @BindsInstance
+        Builder converter(Converter<?> converter);
 
         /**
          * Set the name of the data store. This will affect the database name so should not change
