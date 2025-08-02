@@ -31,7 +31,7 @@ import org.junit.runner.RunWith;
 import java.util.Arrays;
 
 @RunWith(AndroidJUnit4.class)
-public final class RoomStorageTest extends SharedStorageComponentTestBase {
+public final class RoomStorageTest extends SharedDataStoreComponentTestBase {
 
     @Before
     public void setUp() {

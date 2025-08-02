@@ -23,7 +23,7 @@ import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 import javax.inject.Inject;
 
 /** Base class for tests dependent on the shared storage component. */
-public abstract class SharedStorageComponentTestBase extends SyncServiceComponentTestBase {
+public abstract class SharedDataStoreComponentTestBase extends SyncServiceComponentTestBase {
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
     @Inject protected RoomStorage mRoomStorage;
