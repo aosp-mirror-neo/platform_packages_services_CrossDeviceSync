@@ -53,8 +53,12 @@ public class RoomStorage implements IStorage {
         mName = name;
     }
 
-    /** Init the database. */
+    @Override
     public void init() {
+        if (mDatabase != null) {
+            Log.w(TAG, "init: already initialized!");
+            return;
+        }
         mDatabase = Room.databaseBuilder(mContext, DocumentDB.class, mName).build();
         mDao = mDatabase.documentDao();
     }
@@ -109,15 +113,25 @@ public class RoomStorage implements IStorage {
         }
     }
 
+    @Override
+    public void close() {
+        if (mDatabase == null) {
+            Log.e(TAG, "close: database is null!");
+            return;
+        }
+        mDatabase.close();
+        mDatabase = null;
+        mDao = null;
+    }
+
+    @Override
     public void deleteDatabase() {
         if (mDatabase == null) {
             Log.e(TAG, "deleteDatabase: database is null!");
             return;
         }
-        mDatabase.close();
+        close();
         mContext.deleteDatabase(mName);
-        mDatabase = null;
-        mDao = null;
         Log.i(TAG, "deleteDatabase: database is deleted!");
     }
 

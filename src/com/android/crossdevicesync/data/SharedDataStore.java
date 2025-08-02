@@ -30,7 +30,7 @@ import java.util.concurrent.Executor;
  *
  * @param <T> the data type that this data store manages.
  */
-public interface SharedDataStore<T> {
+public interface SharedDataStore<T> extends AutoCloseable {
 
     /**
      * Gets the local device node id. This is a unique string representing a device that
@@ -58,6 +58,9 @@ public interface SharedDataStore<T> {
 
     /** Unregister a {@link OnRemoteChangeListener}. */
     void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener);
+
+    /** Close the data store. Any further interactions with this data store will fail. */
+    void close();
 
     /**
      * A document that can be used to access data.

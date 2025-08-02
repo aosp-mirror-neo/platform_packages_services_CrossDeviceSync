@@ -67,6 +67,18 @@ public final class RoomStorageTest extends SharedStorageComponentTestBase {
     }
 
     @Test
+    public void onNewUpdate_dataPersistedAcrossClose() throws StorageException {
+        String id = "id";
+        byte[] doc = new byte[] {1, 2, 3, 4};
+        mRoomStorage.onNewUpdate(id, doc);
+
+        mRoomStorage.close();
+        mRoomStorage.init();
+
+        assertThat(Arrays.equals(doc, mRoomStorage.readFromStorage(id))).isTrue();
+    }
+
+    @Test
     public void persistMetadata_docInserted() throws StorageException {
         String id = "id";
         byte[] metadata = new byte[] {1, 2, 3, 4};
@@ -84,6 +96,18 @@ public final class RoomStorageTest extends SharedStorageComponentTestBase {
 
         metadata = new byte[] {5, 6, 7, 8};
         mRoomStorage.persistMetadata(id, metadata);
+
+        assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id))).isTrue();
+    }
+
+    @Test
+    public void persistMetadata_dataPersistedAcrossClose() throws StorageException {
+        String id = "id";
+        byte[] metadata = new byte[] {1, 2, 3, 4};
+        mRoomStorage.persistMetadata(id, metadata);
+
+        mRoomStorage.close();
+        mRoomStorage.init();
 
         assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id))).isTrue();
     }
@@ -139,12 +163,26 @@ public final class RoomStorageTest extends SharedStorageComponentTestBase {
     }
 
     @Test
-    public void deleteDatabase_notAccessibleAfterwards() throws StorageException {
+    public void deleteDatabase_persistedDataDeleted() throws StorageException {
         String id = "id";
         byte[] metadata = new byte[] {1, 2, 3, 4};
         mRoomStorage.persistMetadata(id, metadata);
 
         mRoomStorage.deleteDatabase();
+        // Re-initialize the db.
+        mRoomStorage.init();
+
+        assertThat(mRoomStorage.readFromStorage("id")).isNull();
+        assertThat(mRoomStorage.getMetadata("id")).isNull();
+    }
+
+    @Test
+    public void close_notAccessibleAfterwards() throws StorageException {
+        String id = "id";
+        byte[] metadata = new byte[] {1, 2, 3, 4};
+        mRoomStorage.persistMetadata(id, metadata);
+
+        mRoomStorage.close();
 
         assertThrows(StorageException.class, () -> mRoomStorage.readFromStorage("id"));
         assertThrows(StorageException.class, () -> mRoomStorage.getMetadata("id"));
