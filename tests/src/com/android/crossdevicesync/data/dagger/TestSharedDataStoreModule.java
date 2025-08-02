@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,29 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.data.IStorage;
+import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
+import com.android.crossdevicesync.data.fake.FakeStorage;
+import com.android.crossdevicesync.data.fake.SynchronousExecutorService;
 
-import com.google.android.submerge.StorageInterface;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
 /** Test-only dagger module for injecting objects in the {@link SharedDataStoreSingleton} scope. */
-@Module
+@Module(includes = {SharedDataStoreBaseModule.class})
 public abstract class TestSharedDataStoreModule {
     @SharedDataStoreSingleton
     @Binds
-    abstract StorageInterface bindsStorageInterface(IStorage storage);
+    abstract IStorage bindsIStorage(FakeStorage storage);
 
     @SharedDataStoreSingleton
-    @Binds
-    abstract IStorage bindsIStorage(FakeStorage storage);
+    @IOThread
+    @Provides
+    static ListeningExecutorService provideIOThreadListeningExecutorService() {
+        return MoreExecutors.listeningDecorator(new SynchronousExecutorService());
+    }
 }
