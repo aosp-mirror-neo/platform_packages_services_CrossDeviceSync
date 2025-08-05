@@ -28,10 +28,11 @@ import javax.inject.Singleton;
  * Dagger component for the {@link Singleton} scope. This corresponds to the application life cycle.
  */
 @Singleton
-@Component(modules = {
-    ApplicationModule.class,
-    AppComponentsModule.class,
-})
+@Component(
+        modules = {
+            ApplicationModule.class,
+            AppComponentsModule.class,
+        })
 public interface ApplicationComponent {
 
     /** Builder for {@link ApplicationComponent}. */

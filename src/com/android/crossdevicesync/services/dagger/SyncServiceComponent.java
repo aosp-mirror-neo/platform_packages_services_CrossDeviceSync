@@ -15,6 +15,7 @@
  */
 package com.android.crossdevicesync.services.dagger;
 
+import com.android.crossdevicesync.data.dagger.DataModule;
 import com.android.crossdevicesync.services.SyncService;
 
 import dagger.Subcomponent;
@@ -24,7 +25,7 @@ import dagger.Subcomponent;
  * {@link SyncService}.
  */
 @SyncServiceSingleton
-@Subcomponent
+@Subcomponent(modules = {DataModule.class})
 public interface SyncServiceComponent {
 
     /** Builder interface for SyncServiceComponent. */

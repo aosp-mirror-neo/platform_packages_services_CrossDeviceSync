@@ -33,17 +33,17 @@
         <option name="run-command" value="wm dismiss-keyguard" />
     </target_preparer>
 
-    <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
+    <test class="com.android.tradefed.testtype.AndroidJUnitTest">
         <option name="package" value="com.android.crossdevicesync.tests" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
         <option name="test-filter-dir" value="/data/data/com.android.crossdevicesync.tests" />
-        <option name="hidden-api-checks" value="false"/>
+        <option name="hidden-api-checks" value="false" />
     </test>
 
     <metrics_collector class="com.android.tradefed.device.metric.FilePullerLogCollector">
         <option name="directory-keys"
-            value="/data/user/0/com.android.crossdevicesync.tests/files"/>
-        <option name="collect-on-run-ended-only" value="true"/>
+            value="/data/user/0/com.android.crossdevicesync.tests/files" />
+        <option name="collect-on-run-ended-only" value="true" />
         <option name="clean-up" value="false" />
     </metrics_collector>
 </configuration>

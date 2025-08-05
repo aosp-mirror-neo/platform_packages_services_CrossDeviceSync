@@ -16,15 +16,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.android.crossdevicesync.tests">
+
     <application
         android:name="com.android.crossdevicesync.TestApplication"
         android:debuggable="true"
         android:testOnly="true"
         tools:replace="android:name">
-        <uses-library android:name="android.test.runner"/>
+        <uses-library android:name="android.test.runner" />
     </application>
-    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
-        android:targetPackage="com.android.crossdevicesync.tests"
-        android:label="Tests for CrossDeviceSync">
-    </instrumentation>
+    <instrumentation
+        android:name="androidx.test.runner.AndroidJUnitRunner"
+        android:label="Tests for CrossDeviceSync"
+        android:targetPackage="com.android.crossdevicesync.tests" />
 </manifest>

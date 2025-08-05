@@ -27,7 +27,7 @@
         android:allowBackup="false"
         android:directBootAware="true"
         android:appComponentFactory="com.android.crossdevicesync.CrossDeviceSyncAppComponentFactory">
-        <service android:name="com.android.crossdevicesync.services.SyncService"/>
+        <service android:name="com.android.crossdevicesync.services.SyncService" />
         <receiver
             android:name="com.android.crossdevicesync.BootReceiver"
             android:exported="true">
