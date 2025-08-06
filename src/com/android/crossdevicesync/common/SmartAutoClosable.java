@@ -1,11 +1,11 @@
 /*
- * Copyright 2025 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +33,8 @@ import androidx.annotation.Nullable;
  *       }
  *     }
  * }
+ *
+ * @param <T> the type of the inner object.
  */
 public class SmartAutoClosable<T extends AutoCloseable> implements AutoCloseable {
     @Nullable private final T mInner;
@@ -42,6 +44,7 @@ public class SmartAutoClosable<T extends AutoCloseable> implements AutoCloseable
         mInner = inner;
     }
 
+    /** Set whether the inner object should be kept open. */
     public void setkeepOpen(boolean keepOpen) {
         mKeepOpen = keepOpen;
     }
