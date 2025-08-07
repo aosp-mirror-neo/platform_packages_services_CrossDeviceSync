@@ -34,6 +34,6 @@ message RecordMetadata {
   // Path of the data record.
   string path = 1;
 
-  // The id of the device that last modified this record.
-  optional string last_modified_device_node_id = 2;
+  // If this path is last modified by this local device as opposed by a remote device.
+  optional bool last_modified_by_local_device = 2;
 }

@@ -22,6 +22,7 @@ import static org.junit.Assert.fail;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.crossdevicesync.proto.DocMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
@@ -51,7 +52,13 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         mFakeStorage.init();
         mTransaction =
                 (DocumentTransaction<String>) mSubmergeDataStore.newDocumentTransaction(DOC_ID);
-        mDocument = new SubmergeDocument<>(mDataStoreName, DOC_ID, mTransaction);
+        mDocument =
+                new SubmergeDocument<>(
+                        mDataStoreName,
+                        DOC_ID,
+                        mTransaction,
+                        mDeviceNodeId,
+                        DocMetadata.DocumentMetadata.newBuilder().build());
         mDeviceNodeId = mDeviceNodeIdProvider.getLocalDeviceNodeId();
     }
 
