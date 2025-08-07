@@ -15,6 +15,10 @@
  */
 package com.android.crossdevicesync.data;
 
+import android.util.Log;
+
+import androidx.annotation.Nullable;
+
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.Converter;
@@ -23,19 +27,54 @@ import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
 
-/** Class responsible for serializing/deserializing strings. */
+/** Class responsible for serializing/deserializing @Nullable strings. */
 @SyncServiceSingleton
 public class StringConverter implements Converter<String> {
+    private static final String TAG = "StringConverter";
+    private static final byte FLAG_NULL = 0x00;
+    private static final byte FLAG_NON_NULL = 0x01;
+
     @Inject
     StringConverter() {}
 
+    @Nullable
     @Override
     public String deserialize(byte[] bytes) {
-        return new String(bytes, StandardCharsets.UTF_8);
+        if (bytes == null) {
+            // Submerge uses null byte[] when there is no data in persistent storage. So
+            // gracefully handle this case instead of crashing.
+            Log.w(TAG, "Trying to deserialize a null byte array. Fallback to null string.");
+            return null;
+        }
+        if (bytes.length == 0) {
+            throw new IllegalArgumentException("Invalid byte array length.");
+        }
+        byte flag = bytes[0];
+        if (flag == FLAG_NULL) {
+            return null; // Original string was null
+        } else if (flag == FLAG_NON_NULL) {
+            if (bytes.length > 1) {
+                // Decode the rest of the byte array as the string
+                return new String(bytes, 1, bytes.length - 1, StandardCharsets.UTF_8);
+            } else {
+                // The rest of the byte array is empty.
+                return new String(new byte[0], StandardCharsets.UTF_8);
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid encoding flag: " + flag);
+        }
     }
 
     @Override
-    public byte[] serialize(String value) {
-        return value.getBytes(StandardCharsets.UTF_8);
+    public byte[] serialize(@Nullable String value) {
+        if (value == null) {
+            return new byte[] {FLAG_NULL}; // Flag for null, no string data follows
+        } else {
+            byte[] stringBytes = value.getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = new byte[1 + stringBytes.length];
+            bytes[0] = FLAG_NON_NULL; // Flag for non-null
+            System.arraycopy(stringBytes, 0, bytes, 1, stringBytes.length);
+            return bytes;
+        }
     }
 }
