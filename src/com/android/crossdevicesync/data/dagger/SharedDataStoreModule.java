@@ -17,20 +17,34 @@ package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.RoomStorage;
+import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 
-import com.google.android.submerge.StorageInterface;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
-/** Dagger module for injecting objects in the {@link SharedDataStoreSingleton} scope. */
-@Module
+import java.util.concurrent.Executors;
+
+/**
+ * Dagger module for injecting objects in the {@link SharedDataStoreSingleton} scope.Production-only
+ * bindings should live here.
+ *
+ * <p>Note: if a binding is needed in both production and test code, please put it in {@link
+ * SharedDataStoreBaseModule} instead.
+ */
+@Module(includes = {SharedDataStoreBaseModule.class})
 public abstract class SharedDataStoreModule {
     @SharedDataStoreSingleton
     @Binds
-    abstract StorageInterface bindsStorageInterface(IStorage storage);
-
-    @SharedDataStoreSingleton
-    @Binds
     abstract IStorage bindsIStorage(RoomStorage storage);
+
+    @IOThread
+    @SharedDataStoreSingleton
+    @Provides
+    static ListeningExecutorService provideIOThreadListeningExecutorService() {
+        return MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+    }
 }

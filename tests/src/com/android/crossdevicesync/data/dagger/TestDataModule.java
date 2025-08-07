@@ -15,7 +15,9 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.FakeTimestampProvider;
+import com.android.crossdevicesync.data.DeviceNodeIdProvider;
+import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
+import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.TimestampProvider;
@@ -23,11 +25,18 @@ import com.google.android.submerge.TimestampProvider;
 import dagger.Binds;
 import dagger.Module;
 
-/** Test-only dagger module for injecting data related bindings. */
-@Module(subcomponents = {TestSharedDataStoreComponent.class})
+/** Test-only dagger module for injecting data related bindings into the sync service scope. */
+@Module(
+        includes = {DataBaseModule.class},
+        subcomponents = {TestSharedDataStoreComponent.class})
 public abstract class TestDataModule {
 
     @SyncServiceSingleton
     @Binds
     abstract TimestampProvider bindsTimestampProvider(FakeTimestampProvider fakeProvider);
+
+    @SyncServiceSingleton
+    @Binds
+    abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(
+            FakeDeviceNodeIdProvider fakeDeviceNodeIdProvider);
 }

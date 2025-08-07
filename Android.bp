@@ -78,7 +78,7 @@ android_test {
     static_libs: [
         "androidx.annotation_annotation",
         "androidx.room_room-runtime",
-        "androidx.test.runner",
+        "androidx.test.ext.junit",
         "androidx.test.rules",
         "androidx.test.core",
         "com_android_crossdevicesync_flags_lib",

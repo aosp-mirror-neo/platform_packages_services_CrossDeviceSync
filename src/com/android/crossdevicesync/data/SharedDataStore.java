@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import java.util.concurrent.Executor;
  *
  * @param <T> the data type that this data store manages.
  */
-public interface SharedDataStore<T> {
+public interface SharedDataStore<T> extends AutoCloseable {
 
     /**
      * Gets the local device node id. This is a unique string representing a device that
@@ -40,7 +40,7 @@ public interface SharedDataStore<T> {
 
     /**
      * Request a transaction. The supplied {@link TransactionApplier} will be asynchronously invoked
-     * in a background thread after the transaction is successfully open. Any interactions with
+     * in the background IO thread after the transaction is successfully open. Any interactions with
      * {@link Document} should be done in the {@link TransactionApplier#transact(Document)} method
      * synchronously. After the method returns, the transaction will be committed if no error
      * occurs. The calling thread will be notified the transaction result via a {@link
@@ -58,6 +58,9 @@ public interface SharedDataStore<T> {
 
     /** Unregister a {@link OnRemoteChangeListener}. */
     void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener);
+
+    /** Close the data store. Any further interactions with this data store will fail. */
+    void close();
 
     /**
      * A document that can be used to access data.

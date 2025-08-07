@@ -13,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data.dagger;
+package com.android.crossdevicesync.data;
 
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
+/** Interface that provides unique id that identifies current device in sync network. */
+public interface DeviceNodeIdProvider {
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.Retention;
-
-import javax.inject.Qualifier;
-
-/** Qualifier to annotate name of data store. */
-@Qualifier
-@Documented
-@Retention(RUNTIME)
-public @interface DataStoreName {}
+    /**
+     * Get a unique string that identifies current device in the sync network. This will be used by
+     * shared data store for data consistency management, and is independent of the association id
+     * in companion device manager.
+     */
+    String getLocalDeviceNodeId();
+}

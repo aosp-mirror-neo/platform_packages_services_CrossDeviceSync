@@ -20,7 +20,10 @@ import android.annotation.Nullable;
 import com.google.android.submerge.StorageInterface;
 
 /** Interface representing a persistent storage. */
-public interface IStorage extends StorageInterface {
+public interface IStorage extends StorageInterface, AutoCloseable {
+
+    /** Init the storage. */
+    void init();
 
     /** Get the serialized metadata of a document. */
     @Nullable
@@ -28,4 +31,10 @@ public interface IStorage extends StorageInterface {
 
     /** Save the serialized document metadata into the persistent storage. */
     void persistMetadata(String docId, byte[] metadata) throws StorageException;
+
+    /** Delete the database. */
+    void deleteDatabase();
+
+    /** Close the database. */
+    void close();
 }

@@ -25,7 +25,7 @@ import dagger.Subcomponent;
  * {@link SyncService}.
  */
 @SyncServiceSingleton
-@Subcomponent(modules = {DataModule.class})
+@Subcomponent(modules = {SyncServiceModule.class, DataModule.class})
 public interface SyncServiceComponent {
 
     /** Builder interface for SyncServiceComponent. */

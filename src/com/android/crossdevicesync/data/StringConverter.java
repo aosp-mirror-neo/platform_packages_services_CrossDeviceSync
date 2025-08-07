@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +17,25 @@ package com.android.crossdevicesync.data;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
-import com.google.android.submerge.TimestampProvider;
+import com.google.android.submerge.Converter;
+
+import java.nio.charset.StandardCharsets;
 
 import javax.inject.Inject;
 
-/** Fake implementation of {@link TimestampProvider}. */
+/** Class responsible for serializing/deserializing strings. */
 @SyncServiceSingleton
-public class FakeTimestampProvider implements TimestampProvider {
-    private long mTimestamp;
-
+public class StringConverter implements Converter<String> {
     @Inject
-    FakeTimestampProvider() {}
+    StringConverter() {}
 
     @Override
-    public long now() {
-        return mTimestamp;
+    public String deserialize(byte[] bytes) {
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    public void setTimeStamp(long timestamp) {
-        mTimestamp = timestamp;
+    @Override
+    public byte[] serialize(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
     }
 }

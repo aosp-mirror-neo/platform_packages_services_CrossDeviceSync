@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data;
+package com.android.crossdevicesync.data.fake;
 
 import android.annotation.Nullable;
 
+import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
 
 import com.google.android.submerge.StorageInterface;
@@ -32,29 +33,59 @@ public class FakeStorage implements IStorage {
 
     private final Map<String, byte[]> mDocuments = new HashMap<>();
     private final Map<String, byte[]> mMetadata = new HashMap<>();
+    private boolean mInitialized;
 
     @Inject
     FakeStorage() {}
 
     @Override
+    public void init() {
+        mInitialized = true;
+    }
+
+    @Override
     public void onNewUpdate(String docId, byte[] serializedDoc) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
         mDocuments.put(docId, serializedDoc);
     }
 
     @Override
     @Nullable
     public byte[] readFromStorage(String docId) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
         return mDocuments.get(docId);
     }
 
     @Override
     @Nullable
     public byte[] getMetadata(String docId) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
         return mMetadata.get(docId);
     }
 
     @Override
     public void persistMetadata(String docId, byte[] metadata) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
         mMetadata.put(docId, metadata);
+    }
+
+    @Override
+    public void close() {
+        mInitialized = false;
+    }
+
+    @Override
+    public void deleteDatabase() {
+        close();
+        mDocuments.clear();
+        mMetadata.clear();
     }
 }
