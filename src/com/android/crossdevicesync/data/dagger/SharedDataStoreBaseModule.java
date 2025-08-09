@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,12 +15,19 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.DeviceNodeIdProvider;
+import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 
+import com.google.android.submerge.Converter;
+import com.google.android.submerge.DataStore;
+import com.google.android.submerge.NetworkInterface;
+import com.google.android.submerge.TimestampProvider;
 import com.google.common.util.concurrent.ListeningExecutorService;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +38,23 @@ import java.util.concurrent.ExecutorService;
  */
 @Module
 public abstract class SharedDataStoreBaseModule {
+
+    @SuppressWarnings("MustBeClosedChecker")
+    @SharedDataStoreSingleton
+    @Provides
+    static DataStore<?> provideSubmergeDataStore(
+            DeviceNodeIdProvider deviceNodeIdProvider,
+            NetworkInterface networkInterface,
+            IStorage storage,
+            TimestampProvider timestampProvider,
+            Converter<?> converter) {
+        return new DataStore<>(
+                deviceNodeIdProvider.getLocalDeviceNodeId(),
+                networkInterface,
+                storage,
+                timestampProvider,
+                converter);
+    }
 
     @SharedDataStoreSingleton
     @IOThread

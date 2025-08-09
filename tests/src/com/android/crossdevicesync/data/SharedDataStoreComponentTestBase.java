@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      https://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,12 @@
 package com.android.crossdevicesync.data;
 
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.fake.FakeNetwork;
 import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+
+import com.google.android.submerge.DataStore;
 
 import javax.inject.Inject;
 
@@ -29,6 +32,8 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     @Inject protected RoomStorage mRoomStorage;
     @Inject protected FakeStorage mFakeStorage;
     @Inject protected FakeNetwork mFakeNetwork;
+    @Inject protected DataStore<?> mSubmergeDataStore;
+    @Inject @DataStoreName protected String mDataStoreName;
 
     @Override
     public void setUp() {
