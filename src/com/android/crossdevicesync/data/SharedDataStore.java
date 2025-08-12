@@ -109,8 +109,8 @@ public interface SharedDataStore<T> extends AutoCloseable {
         /**
          * Add an empty {@link SetRecord} in a path.
          *
-         * @throws IllegalArgumentException if the path is already used for base {@link Record} or
-         *     {@link UnmergedRecord}, or if the path is not a leaf.
+         * @throws IllegalArgumentException if the path is already used, or if the path is not a
+         *     leaf.
          */
         void addEmptySet(String path) throws IllegalArgumentException;
 
@@ -159,8 +159,8 @@ public interface SharedDataStore<T> extends AutoCloseable {
     /** Metadata of a data record. */
     interface Metadata {
 
-        /** Get the device node id that lastly modified this record. */
-        String getLastModifiedByDevice();
+        /** If this record is last modified by this local device instead of by a remote device. */
+        boolean isLastModifiedByLocalDevice();
     }
 
     /**

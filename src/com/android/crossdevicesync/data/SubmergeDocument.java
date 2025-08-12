@@ -23,14 +23,22 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
+import com.android.crossdevicesync.proto.DocMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
 import com.google.android.submerge.DocumentTransaction;
 import com.google.android.submerge.SubmergeDataType;
 import com.google.android.submerge.SubmergeMap;
+import com.google.android.submerge.SubmergeRegister;
+import com.google.android.submerge.SubmergeSet;
+import com.google.android.submerge.SubmergeVectorData;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 
 /**
  * An implementation of the {@link SharedDataStore.Document} using submerge {@link
@@ -45,12 +53,22 @@ public class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoClo
     private final String mDataStoreName;
     private final String mDocId;
     private final DocumentTransaction<T> mTransaction;
+    private final String mLocalDeviceNodeId;
+    private final DocMetadata.DocumentMetadata.Builder mDocMetadata;
     private volatile boolean mClosed;
 
-    SubmergeDocument(String dataStoreName, String docId, DocumentTransaction<T> transaction) {
+    SubmergeDocument(
+            String dataStoreName,
+            String docId,
+            DocumentTransaction<T> transaction,
+            String localDeviceNodeId,
+            DocMetadata.DocumentMetadata docMetadata) {
         mDataStoreName = dataStoreName;
         mDocId = docId;
         mTransaction = transaction;
+        mLocalDeviceNodeId = localDeviceNodeId;
+        // Get builder so that this becomes mutable.
+        mDocMetadata = docMetadata.toBuilder();
     }
 
     @Nullable
@@ -105,6 +123,65 @@ public class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoClo
 
     private static String normalizedPath(String path) {
         return "/" + String.join("/", normalizedKeys(path));
+    }
+
+    private void setPathLastModifiedByLocalDevice(String path, boolean lastModifiedByLocalDevice) {
+        DocMetadata.RecordMetadata recordMetadata =
+                DocMetadata.RecordMetadata.newBuilder()
+                        .setPath(path)
+                        .setLastModifiedByLocalDevice(lastModifiedByLocalDevice)
+                        .build();
+        updateRecordMetaData(recordMetadata);
+    }
+
+    private void updateRecordMetaData(DocMetadata.RecordMetadata recordMetadata) {
+        removeMatchedRecordMetadata(recordMetadata.getPath());
+        mDocMetadata.addRecordMetadata(recordMetadata);
+    }
+
+    @Nullable
+    private DocMetadata.RecordMetadata getRecordMetadata(String path) {
+        for (DocMetadata.RecordMetadata recordMetadata : mDocMetadata.getRecordMetadataList()) {
+            if (recordMetadata.getPath().equals(path)) {
+                return recordMetadata;
+            }
+        }
+        return null;
+    }
+
+    private DocMetadata.RecordMetadata getOrCreateRecordMetadata(String path) {
+        DocMetadata.RecordMetadata metadata = getRecordMetadata(path);
+        if (metadata != null) {
+            return metadata;
+        }
+        // We always explicitly set the "last modified by local device" bit when we create a record.
+        // If we have a record but don't have a metadata, it's assumed to be created by a remote
+        // device.
+        metadata =
+                DocMetadata.RecordMetadata.newBuilder()
+                        .setPath(path)
+                        .setLastModifiedByLocalDevice(false)
+                        .build();
+        mDocMetadata.addRecordMetadata(metadata);
+        return metadata;
+    }
+
+    /**
+     * Remove all metadata whose path starts with given prefix.
+     *
+     * @return a list of removed metadata instances.
+     */
+    private List<DocMetadata.RecordMetadata> removeMatchedRecordMetadata(String pathPrefix) {
+        List<DocMetadata.RecordMetadata> removed = new ArrayList<>();
+        List<DocMetadata.RecordMetadata> metadataList = mDocMetadata.getRecordMetadataList();
+        for (int i = metadataList.size() - 1; i >= 0; i--) {
+            DocMetadata.RecordMetadata metadata = metadataList.get(i);
+            if (metadata.getPath().startsWith(pathPrefix)) {
+                mDocMetadata.removeRecordMetadata(i);
+            }
+            removed.add(metadata);
+        }
+        return removed;
     }
 
     /**
@@ -295,5 +372,111 @@ public class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoClo
 
     private void logWarning(String message) {
         Log.w(TAG, getDebugIdentityString() + " - " + message);
+    }
+
+    private abstract class SubmergeRecord implements AutoCloseable {
+        protected final SubmergeDataType<T> mSubmergeData;
+        protected final String mPath;
+        private volatile boolean mClosed;
+
+        SubmergeRecord(SubmergeDataType<T> submergeData, String path) {
+            mSubmergeData = submergeData;
+            mPath = path;
+        }
+
+        @Override
+        public void close() {
+            if (mClosed) {
+                return;
+            }
+            mClosed = true;
+            mSubmergeData.close();
+        }
+
+        public SharedDataStore.Metadata getMetadata() {
+            requireRecordOpen();
+            return new RecordMetadata(getOrCreateRecordMetadata(mPath));
+        }
+
+        protected void requireRecordOpen() {
+            if (mClosed) {
+                throw new IllegalStateException(getDebugIdentityString() + " - record is closed.");
+            }
+        }
+
+        public abstract SharedDataStore.Record<T> asSharedDataStoreRecord();
+    }
+
+    private class SubmergeRegisterRecord extends SubmergeRecord
+            implements SharedDataStore.Record<T> {
+        SubmergeRegisterRecord(SubmergeRegister<T> submergeRegister, String path) {
+            super(submergeRegister, path);
+        }
+
+        @Nullable
+        @Override
+        public T get() {
+            requireRecordOpen();
+            return ((SubmergeRegister<T>) mSubmergeData).get();
+        }
+
+        @Override
+        public SharedDataStore.Record<T> asSharedDataStoreRecord() {
+            return this;
+        }
+    }
+
+    private class SubmergeSetRecord extends SubmergeRecord implements SharedDataStore.SetRecord<T> {
+        SubmergeSetRecord(SubmergeSet<T> submergeSet, String path) {
+            super(submergeSet, path);
+        }
+
+        @Override
+        public Set<T> entries() {
+            requireRecordOpen();
+            return ((SubmergeSet<T>) mSubmergeData).entries();
+        }
+
+        @Override
+        public SharedDataStore.SetRecord<T> asSharedDataStoreRecord() {
+            return this;
+        }
+    }
+
+    private class SubmergeVectorRecord extends SubmergeRecord
+            implements SharedDataStore.UnmergedRecord<T> {
+        SubmergeVectorRecord(SubmergeVectorData<T> submergeVectorData, String path) {
+            super(submergeVectorData, path);
+        }
+
+        @Override
+        public Map<String, T> entries() {
+            requireRecordOpen();
+            return ((SubmergeVectorData<T>) mSubmergeData).entries();
+        }
+
+        @Nullable
+        @Override
+        public T get() {
+            return get(mLocalDeviceNodeId);
+        }
+
+        @Override
+        public SharedDataStore.UnmergedRecord<T> asSharedDataStoreRecord() {
+            return this;
+        }
+    }
+
+    private static class RecordMetadata implements SharedDataStore.Metadata {
+        private final DocMetadata.RecordMetadata mMetadata;
+
+        RecordMetadata(DocMetadata.RecordMetadata metadata) {
+            this.mMetadata = metadata;
+        }
+
+        @Override
+        public boolean isLastModifiedByLocalDevice() {
+            return mMetadata.getLastModifiedByLocalDevice();
+        }
     }
 }
