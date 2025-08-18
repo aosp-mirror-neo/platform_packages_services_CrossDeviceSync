@@ -25,12 +25,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
-import com.android.crossdevicesync.proto.DocMetadata;
-import com.android.crossdevicesync.proto.DocMetadata.RecordMetadata;
+import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.crossdevicesync.data.proto.DocMetadata.RecordMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
+import com.google.android.submerge.DataStore;
 import com.google.android.submerge.DocumentTransaction;
+import com.google.android.submerge.NetworkInterface;
 import com.google.android.submerge.SubmergeDataType;
 import com.google.android.submerge.SubmergeMap;
 import com.google.android.submerge.SubmergeRegister;
@@ -39,12 +41,20 @@ import com.google.android.submerge.SubmergeVectorData;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @RunWith(AndroidJUnit4.class)
 public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     private static final String DOC_ID = "test_doc";
+
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Mock private NetworkInterface mNetworkInterface;
+    private DataStore<String> mSubmergeDataStore;
     private SubmergeDocument<String> mDocument;
     private DocumentTransaction<String> mTransaction;
     private String mDeviceNodeId;
@@ -54,9 +64,15 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     public void setUp() {
         super.setUp();
         mFakeStorage.init();
-        mTransaction =
-                (DocumentTransaction<String>) mSubmergeDataStore.newDocumentTransaction(DOC_ID);
         mDeviceNodeId = mDeviceNodeIdProvider.getLocalDeviceNodeId();
+        mSubmergeDataStore =
+                new DataStore<>(
+                        mDeviceNodeId,
+                        mNetworkInterface,
+                        mFakeStorage,
+                        mTimestampProvider,
+                        mStringConverter);
+        mTransaction = mSubmergeDataStore.newDocumentTransaction(DOC_ID);
         mDocument =
                 new SubmergeDocument<>(
                         mDataStoreName,
@@ -69,6 +85,8 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     @After
     public void tearDown() {
         mDocument.close();
+        mSubmergeDataStore.close();
+        mFakeStorage.close();
     }
 
     @Test
@@ -259,9 +277,10 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThrows(
                 IllegalArgumentException.class, () -> mDocument.putData("/foo/bar/bla", "abc"));
         assertThrows(IllegalArgumentException.class, () -> mDocument.putData("/", "abc"));
+        assertThrows(IllegalArgumentException.class, () -> mDocument.putData("/foo/baz", "abc"));
 
         // Illegal type.
-        mDocument.putUnmergedData("/unmerged", "abc");
+        mDocument.addUnmergedSchema("/unmerged");
         assertThrows(IllegalArgumentException.class, () -> mDocument.putData("/unmerged", "abc"));
     }
 
@@ -281,18 +300,17 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
                 IllegalArgumentException.class,
                 () -> mDocument.putUnmergedData("/foo/bar/bla", "abc"));
         assertThrows(IllegalArgumentException.class, () -> mDocument.putUnmergedData("/", "abc"));
+        assertThrows(
+                IllegalArgumentException.class, () -> mDocument.putUnmergedData("/foo/baz", "abc"));
 
         // Illegal type.
-        mDocument.putData("/merged", "abc");
+        mDocument.addRegisterSchema("/merged");
         assertThrows(
                 IllegalArgumentException.class, () -> mDocument.putUnmergedData("/merged", "abc"));
     }
 
     @Test
     public void testSetApis() throws Exception {
-        // Add a new empty set.
-        validateAddEmptySetAndGet("/foo/bar");
-
         // Add a value to the set.
         validateAddToSetAndGet("/foo/bar", "abc");
 
@@ -319,27 +337,23 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
                 IllegalArgumentException.class,
                 () -> mDocument.addDataToSet("/foo/bar/bla", "abc"));
         assertThrows(IllegalArgumentException.class, () -> mDocument.addDataToSet("/", "abc"));
+        assertThrows(
+                IllegalArgumentException.class, () -> mDocument.addDataToSet("/foo/baz", "abc"));
+        assertThrows(
+                IllegalArgumentException.class, () -> mDocument.removeDataFromSet("/foo", "abc"));
 
         // Illegal type.
-        mDocument.putData("/merged", "abc");
-        assertThrows(IllegalArgumentException.class, () -> mDocument.addEmptySet("/merged"));
+        mDocument.addRegisterSchema("/merged");
         assertThrows(
                 IllegalArgumentException.class, () -> mDocument.addDataToSet("/merged", "abc"));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> mDocument.removeDataFromSet("/merged", "abc"));
-
-        // Illegal set operation - add empty set to an existing set.
-        assertThrows(IllegalArgumentException.class, () -> mDocument.addEmptySet("/foo/bar"));
-
-        // Illegal set operation - remove from a non-existing set.
-        assertThrows(
-                IllegalArgumentException.class, () -> mDocument.removeDataFromSet("/foo", "abc"));
     }
 
     @Test
     public void testContains() throws Exception {
-        mDocument.putData("/foo/bar", "abc");
+        mDocument.addRegisterSchema("/foo/bar");
 
         assertThat(mDocument.containsPath("/foo/bar")).isTrue();
         assertThat(mDocument.containsPath("/foo/baz")).isFalse();
@@ -350,16 +364,44 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     }
 
     @Test
+    public void testAddSchema() throws Exception {
+        // Empty doc. Put data should throw.
+        assertThrows(IllegalArgumentException.class, () -> mDocument.putData("/foo/bar", "abc"));
+
+        // Add a schema.
+        mDocument.addRegisterSchema("/foo/bar");
+        assertThat(mDocument.getRecord("/foo/bar")).isInstanceOf(Record.class);
+
+        // Put data should no longer throw.
+        mDocument.putData("/foo/bar", "abc");
+        assertThat(mDocument.getRecord("/foo/bar").get()).isEqualTo("abc");
+
+        // Add another incompatible schema should throw.
+        assertThrows(IllegalArgumentException.class, () -> mDocument.addSetSchema("/foo/bar"));
+
+        // Add schema to wrong path should throw.
+        assertThrows(IllegalArgumentException.class, () -> mDocument.addUnmergedSchema("/"));
+        assertThrows(
+                IllegalArgumentException.class, () -> mDocument.addRegisterSchema("/foo/bar/baz"));
+
+        // Add schema to a valid path should not throw.
+        mDocument.addSetSchema("/foo/set");
+        assertThat(mDocument.getRecord("/foo/set")).isInstanceOf(SetRecord.class);
+        mDocument.addUnmergedSchema("/foo/unmerged");
+        assertThat(mDocument.getRecord("/foo/unmerged")).isInstanceOf(UnmergedRecord.class);
+    }
+
+    @Test
     public void testRemovePath() throws Exception {
         // Build a balanced binary tree
-        mDocument.putData("/root/1/1/1", "abc");
-        mDocument.putData("/root/1/1/2", "abc");
-        mDocument.putData("/root/1/2/3", "abc");
-        mDocument.putData("/root/1/2/4", "abc");
-        mDocument.putData("/root/2/3/5", "abc");
-        mDocument.putData("/root/2/3/6", "abc");
-        mDocument.putData("/root/2/4/7", "abc");
-        mDocument.putData("/root/2/4/8", "abc");
+        mDocument.addRegisterSchema("/root/1/1/1");
+        mDocument.addRegisterSchema("/root/1/1/2");
+        mDocument.addRegisterSchema("/root/1/2/3");
+        mDocument.addRegisterSchema("/root/1/2/4");
+        mDocument.addRegisterSchema("/root/2/3/5");
+        mDocument.addRegisterSchema("/root/2/3/6");
+        mDocument.addRegisterSchema("/root/2/4/7");
+        mDocument.addRegisterSchema("/root/2/4/8");
 
         // Remove a leaf and verify it can be reused by another type.
         mDocument.removePath("/root/1/1/1");
@@ -369,7 +411,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         // Remove another leaf and verify it can be reused as intermediate node.
         mDocument.removePath("/root/1/1/2");
         assertThat(mDocument.containsPath("/root/1/1/2")).isFalse();
-        validateAddEmptySetAndGet("/root/1/1/2/1");
+        validateAddToSetAndGet("/root/1/1/2/1", "abc");
 
         // Remove intermediate node and verify all children are gone and closed.
         Record<String> r1 = mDocument.getRecord("/root/1/2/3");
@@ -390,10 +432,10 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
     @Test
     public void testClose() throws Exception {
-        // Add some data
-        mDocument.putData("/register", "data");
-        mDocument.putUnmergedData("/vector", "data");
-        mDocument.addDataToSet("/set", "data");
+        // Add some schema
+        mDocument.addRegisterSchema("/register");
+        mDocument.addUnmergedSchema("/vector");
+        mDocument.addSetSchema("/set");
 
         // Get record references
         Record<String> registerRecord = mDocument.getRecord("/register");
@@ -416,24 +458,26 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThrows(IllegalStateException.class, setRecord::getMetadata);
 
         // Verify document APIs throw
-        assertThrows(IllegalStateException.class, () -> mDocument.putData("/new", "data"));
+        assertThrows(IllegalStateException.class, () -> mDocument.putData("/register", "data"));
         assertThrows(IllegalStateException.class, () -> mDocument.getRecord("/register"));
         assertThrows(IllegalStateException.class, () -> mDocument.containsPath("/register"));
         assertThrows(IllegalStateException.class, () -> mDocument.removePath("/register"));
         assertThrows(
-                IllegalStateException.class, () -> mDocument.putUnmergedData("/unmerged", "data"));
-        assertThrows(IllegalStateException.class, () -> mDocument.addEmptySet("/set"));
+                IllegalStateException.class, () -> mDocument.putUnmergedData("/vector", "data"));
         assertThrows(IllegalStateException.class, () -> mDocument.addDataToSet("/set", "data"));
         assertThrows(
                 IllegalStateException.class, () -> mDocument.removeDataFromSet("/set", "data"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addRegisterSchema("/new"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addSetSchema("/new"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addUnmergedSchema("/new"));
     }
 
     @Test
     public void testCommit() throws Exception {
-        // Add some data
-        mDocument.putData("/register", "data");
-        mDocument.putUnmergedData("/vector", "data");
-        mDocument.addDataToSet("/set", "data");
+        // Add some schema
+        mDocument.addRegisterSchema("/register");
+        mDocument.addUnmergedSchema("/vector");
+        mDocument.addSetSchema("/set");
 
         // Get record references
         Record<String> registerRecord = mDocument.getRecord("/register");
@@ -456,16 +500,18 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThrows(IllegalStateException.class, setRecord::getMetadata);
 
         // Verify document APIs throw
-        assertThrows(IllegalStateException.class, () -> mDocument.putData("/new", "data"));
+        assertThrows(IllegalStateException.class, () -> mDocument.putData("/register", "data"));
         assertThrows(IllegalStateException.class, () -> mDocument.getRecord("/register"));
         assertThrows(IllegalStateException.class, () -> mDocument.containsPath("/register"));
         assertThrows(IllegalStateException.class, () -> mDocument.removePath("/register"));
         assertThrows(
-                IllegalStateException.class, () -> mDocument.putUnmergedData("/unmerged", "data"));
-        assertThrows(IllegalStateException.class, () -> mDocument.addEmptySet("/set"));
+                IllegalStateException.class, () -> mDocument.putUnmergedData("/vector", "data"));
         assertThrows(IllegalStateException.class, () -> mDocument.addDataToSet("/set", "data"));
         assertThrows(
                 IllegalStateException.class, () -> mDocument.removeDataFromSet("/set", "data"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addRegisterSchema("/new"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addSetSchema("/new"));
+        assertThrows(IllegalStateException.class, () -> mDocument.addUnmergedSchema("/new"));
     }
 
     @Test
@@ -484,9 +530,9 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
     @Test
     public void testGetMetaData_metadataUpdatedCorrectly() throws Exception {
-        mDocument.putData("/register", null);
-        mDocument.putUnmergedData("/vector", null);
-        mDocument.addDataToSet("/set", null);
+        mDocument.addRegisterSchema("/register");
+        mDocument.addUnmergedSchema("/vector");
+        mDocument.addSetSchema("/set");
 
         assertThat(mDocument.getMetaData().getRecordMetadataCount()).isEqualTo(3);
         for (RecordMetadata recordMetadata : mDocument.getMetaData().getRecordMetadataList()) {
@@ -505,9 +551,11 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
     @Test
     public void testPathNormalization() throws Exception {
-        mDocument.putData(" foo //bar/", "abc");
-        mDocument.putUnmergedData(" foo / baz / bla ", "abc");
-        mDocument.addEmptySet(" set");
+        mDocument.addRegisterSchema(" foo //bar/");
+        mDocument.putData(" foo / bar", "abc");
+        mDocument.addUnmergedSchema(" foo / baz / bla ");
+        mDocument.putUnmergedData(" // / foo / baz / bla ", "abc");
+        mDocument.addSetSchema(" set");
 
         Record<String> r1 = mDocument.getRecord("/foo/bar");
         Record<String> r2 = mDocument.getRecord("/foo/baz/bla");
@@ -528,12 +576,24 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThat(mDocument.containsPath("/set")).isFalse();
 
         // Adds a record at root.
+        mDocument.addRegisterSchema("/");
         mDocument.putData("/////  //  //  ", "abc");
 
         Record<String> root = mDocument.getRecord("/");
 
         assertThat(root).isNotNull();
         assertThat(root.get()).isEqualTo("abc");
+    }
+
+    @Test
+    public void testSetSchemaVersion() {
+        mDocument.setSchemaVersion(1);
+
+        assertThat(mDocument.getSchemaVersion()).isEqualTo(1);
+
+        mDocument.setSchemaVersion(2);
+
+        assertThat(mDocument.getSchemaVersion()).isEqualTo(2);
     }
 
     private void validateRawGetOrInsertRegisterNode(String path) throws Exception {
@@ -577,6 +637,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     }
 
     private void validatePutAndGet(String path, String data) throws Exception {
+        mDocument.addRegisterSchema(path);
         mDocument.putData(path, data);
 
         Record<String> record = mDocument.getRecord(path);
@@ -588,6 +649,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     }
 
     private void validatePutUnmergedAndGet(String path, String data) throws Exception {
+        mDocument.addUnmergedSchema(path);
         mDocument.putUnmergedData(path, data);
 
         UnmergedRecord<String> record = (UnmergedRecord<String>) mDocument.getRecord(path);
@@ -600,6 +662,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     }
 
     private void validateAddToSetAndGet(String path, String data) throws Exception {
+        mDocument.addSetSchema(path);
         mDocument.addDataToSet(path, data);
 
         SetRecord<String> record = (SetRecord<String>) mDocument.getRecord(path);
@@ -611,22 +674,13 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     }
 
     private void validateRemoveFromSetAndGet(String path, String data) throws Exception {
+        mDocument.addSetSchema(path);
         mDocument.removeDataFromSet(path, data);
 
         SetRecord<String> record = (SetRecord<String>) mDocument.getRecord(path);
 
         assertThat(record).isNotNull();
         assertThat(record.entries().contains(data)).isFalse();
-        assertThat(record.getMetadata().isLastModifiedByLocalDevice()).isTrue();
-        assertThat(mDocument.containsPath(path)).isTrue();
-    }
-
-    private void validateAddEmptySetAndGet(String path) throws Exception {
-        mDocument.addEmptySet(path);
-
-        SetRecord<String> record = (SetRecord<String>) mDocument.getRecord(path);
-        assertThat(record).isNotNull();
-        assertThat(record.entries().isEmpty()).isTrue();
         assertThat(record.getMetadata().isLastModifiedByLocalDevice()).isTrue();
         assertThat(mDocument.containsPath(path)).isTrue();
     }

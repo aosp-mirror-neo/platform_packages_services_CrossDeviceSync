@@ -32,6 +32,9 @@ import java.util.concurrent.Executor;
  */
 public interface SharedDataStore<T> extends AutoCloseable {
 
+    /** Initialize the data store. A data store is usable only after this method is called. */
+    void init();
+
     /**
      * Gets the local device node id. This is a unique string representing a device that
      * participates sync in this data store.
@@ -41,17 +44,19 @@ public interface SharedDataStore<T> extends AutoCloseable {
     /**
      * Request a transaction. The supplied {@link TransactionApplier} will be asynchronously invoked
      * in the background IO thread after the transaction is successfully open. Any interactions with
-     * {@link Document} should be done in the {@link TransactionApplier#transact(Document)} method
-     * synchronously. After the method returns, the transaction will be committed if no error
+     * {@link Document} should be done in the {@link TransactionApplier#transact(MutableDocument)}
+     * method synchronously. After the method returns, the transaction will be committed if no error
      * occurs. The calling thread will be notified the transaction result via a {@link
      * ListenableFuture}.
      *
+     * @param <R> the type of return value of the transaction.
      * @param docId id of the document to interact with. If the document doesn't exist, a new
      *     document will be lazily created by this transaction.
      * @return a listenable future to get notified when the transaction is done or aborted due to
-     *     error.
+     *     error. The applier can optionally return a result, which will be delivered to the
+     *     listenable future.
      */
-    ListenableFuture<?> transact(String docId, TransactionApplier<T> applier);
+    <R> ListenableFuture<R> transact(String docId, TransactionApplier<T, R> applier);
 
     /** Register a listener for monitoring remote change. */
     void registerOnRemoteChangeListener(Executor executor, OnRemoteChangeListener listener);
@@ -72,11 +77,17 @@ public interface SharedDataStore<T> extends AutoCloseable {
      * <p>For example, if a data record is organized under "first_key" and "second_key", it can be
      * accessed via path "/first_key/second_key".
      *
-     * <p>Note: a document can only be accessed within {@link TransactionApplier#transact(Document)}
-     * method. Any interactions with the document after transaction will lead to {@link
-     * IllegalStateException}.
+     * <p>Note: a document can only be accessed within {@link
+     * TransactionApplier#transact(MutableDocument)} method. Any interactions with the document
+     * after transaction will lead to {@link IllegalStateException}.
      */
     interface Document<T> {
+
+        /** Get the id of this document. */
+        String getDocId();
+
+        /** Get the schema version of this document. */
+        int getSchemaVersion();
 
         /**
          * Get a record from a path.
@@ -89,37 +100,31 @@ public interface SharedDataStore<T> extends AutoCloseable {
 
         /** Check if a path exists. */
         boolean containsPath(String path);
+    }
+
+    /** A mutable interface of {@link Document} which supports mutations. */
+    interface MutableDocument<T> extends Document<T> {
 
         /**
-         * Add or update the data in a path.
+         * Put a data into a {@link Record} in the path.
          *
-         * @throws IllegalArgumentException if the path is already used for {@link SetRecord} or
-         *     {@link UnmergedRecord}, or if the path is not a leaf.
+         * @throws IllegalArgumentException if the path doesn't exist or is not a base {@link
+         *     Record}.
          */
         void putData(String path, @Nullable T data) throws IllegalArgumentException;
 
         /**
-         * Add or update the unmerged data in a path.
+         * Put a data into an {@link UnmergedRecord} in the path.
          *
-         * @throws IllegalArgumentException if the path is already used for {@link SetRecord} or
-         *     base {@link Record}, or if the path is not a leaf.
+         * @throws IllegalArgumentException if the path doesn't exist or is not an {@link
+         *     UnmergedRecord}.
          */
         void putUnmergedData(String path, @Nullable T data) throws IllegalArgumentException;
 
         /**
-         * Add an empty {@link SetRecord} in a path.
+         * Add a data to a {@link SetRecord} in a path.
          *
-         * @throws IllegalArgumentException if the path is already used, or if the path is not a
-         *     leaf.
-         */
-        void addEmptySet(String path) throws IllegalArgumentException;
-
-        /**
-         * Add a data to a {@link SetRecord} in a path. If the path is empty, also creates a {@link
-         * SetRecord} in that path.
-         *
-         * @throws IllegalArgumentException if the path is already used for base {@link Record} or
-         *     {@link UnmergedRecord}, or if the path is not a leaf.
+         * @throws IllegalArgumentException if the path doesn't exist or is not a {@link SetRecord}.
          */
         void addDataToSet(String path, T data) throws IllegalArgumentException;
 
@@ -127,16 +132,9 @@ public interface SharedDataStore<T> extends AutoCloseable {
          * Remove a data from a {@link SetRecord} in a path. Do nothing if the data doesn't exist in
          * the target set.
          *
-         * @throws IllegalArgumentException if the path is not a {@link SetRecord}.
+         * @throws IllegalArgumentException if the path doesn't exist or is not a {@link SetRecord}.
          */
         void removeDataFromSet(String path, T data) throws IllegalArgumentException;
-
-        /**
-         * Removes a record from the path.
-         *
-         * @throws IllegalArgumentException if the path doesn't exist.
-         */
-        void removePath(String path) throws IllegalArgumentException;
     }
 
     /**
@@ -220,16 +218,22 @@ public interface SharedDataStore<T> extends AutoCloseable {
         void onRemoteChange(String path);
     }
 
-    /** An interface that interacts with a document in a transaction. */
-    interface TransactionApplier<T> {
+    /**
+     * An interface that interacts with a document in a transaction.
+     *
+     * @param <T> the type of data in the document.
+     * @param <R> the type of return value of the transaction.
+     */
+    interface TransactionApplier<T, R> {
 
         /**
          * Access or modify a document. Modifications to the document will be applied after the
          * method returns. Interactions with the document after the method returns will lead to
          * {@link IllegalStateException}.
          *
+         * @return the result of the transaction.
          * @throws Exception if the transaction should be aborted.
          */
-        void transact(Document<T> document) throws Exception;
+        R transact(MutableDocument<T> document) throws Exception;
     }
 }
