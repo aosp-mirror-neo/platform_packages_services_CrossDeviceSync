@@ -17,6 +17,8 @@ package com.android.crossdevicesync.data;
 
 import android.annotation.Nullable;
 
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
+
 import com.google.android.submerge.StorageInterface;
 
 /** Interface representing a persistent storage. */
@@ -31,6 +33,11 @@ public interface IStorage extends StorageInterface, AutoCloseable {
 
     /** Save the serialized document metadata into the persistent storage. */
     void persistMetadata(String docId, byte[] metadata) throws StorageException;
+
+    /**
+     * Open a database transaction and apply the given transaction applier within the transaction.
+     */
+    void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException;
 
     /** Delete the database. */
     void deleteDatabase();

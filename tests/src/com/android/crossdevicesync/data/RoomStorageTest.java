@@ -189,4 +189,40 @@ public final class RoomStorageTest extends SharedDataStoreComponentTestBase {
         assertThrows(StorageException.class, () -> mRoomStorage.onNewUpdate("id", new byte[0]));
         assertThrows(StorageException.class, () -> mRoomStorage.persistMetadata("id", new byte[0]));
     }
+
+    @Test
+    public void transact_metadataRolledBackOnFailure() throws StorageException {
+        String id = "id";
+        byte[] metadata = new byte[] {1, 2, 3, 4};
+
+        try {
+            mRoomStorage.transact(
+                    storage -> {
+                        mRoomStorage.persistMetadata(id, metadata);
+                        throw new RuntimeException();
+                    });
+        } catch (StorageException e) {
+            // Do nothing.
+        }
+
+        assertThat(mRoomStorage.getMetadata(id)).isNull();
+    }
+
+    @Test
+    public void transact_contentRolledBackOnFailure() throws StorageException {
+        String id = "id";
+        byte[] content = new byte[] {1, 2, 3, 4};
+
+        try {
+            mRoomStorage.transact(
+                    storage -> {
+                        mRoomStorage.onNewUpdate(id, content);
+                        throw new RuntimeException();
+                    });
+        } catch (StorageException e) {
+            // Do nothing.
+        }
+
+        assertThat(mRoomStorage.readFromStorage(id)).isNull();
+    }
 }

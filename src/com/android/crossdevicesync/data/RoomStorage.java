@@ -33,6 +33,10 @@ import androidx.room.Update;
 
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
+import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
+
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -114,6 +118,15 @@ public class RoomStorage implements IStorage {
     }
 
     @Override
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException {
+        try {
+            mDao.transact(() -> transactionApplier.acceptOrThrow(this));
+        } catch (Exception e) {
+            throw new StorageException();
+        }
+    }
+
+    @Override
     public void close() {
         if (mDatabase == null) {
             Log.e(TAG, "close: database is null!");
@@ -155,6 +168,9 @@ public class RoomStorage implements IStorage {
         @Update
         abstract void update(Document document);
 
+        @Query(("SELECT docId from document"))
+        abstract List<String> getAllDocIds();
+
         @Transaction
         void createOrUpdateContent(String docId, @Nullable byte[] content) {
             Document doc = get(docId);
@@ -181,6 +197,11 @@ public class RoomStorage implements IStorage {
                 doc.metadata = metadata;
                 update(doc);
             }
+        }
+
+        @Transaction
+        void transact(ThrowingRunnable runnable) {
+            runnable.run();
         }
     }
 
