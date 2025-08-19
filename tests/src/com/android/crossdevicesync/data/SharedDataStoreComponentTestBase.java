@@ -21,8 +21,6 @@ import com.android.crossdevicesync.data.fake.FakeNetwork;
 import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
-import com.google.android.submerge.DataStore;
-
 import javax.inject.Inject;
 
 /** Base class for tests dependent on the shared storage component. */
@@ -32,7 +30,6 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     @Inject protected RoomStorage mRoomStorage;
     @Inject protected FakeStorage mFakeStorage;
     @Inject protected FakeNetwork mFakeNetwork;
-    @Inject protected DataStore<?> mSubmergeDataStore;
     @Inject @DataStoreName protected String mDataStoreName;
 
     @Override

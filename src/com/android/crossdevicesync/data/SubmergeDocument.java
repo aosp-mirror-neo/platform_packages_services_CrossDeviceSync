@@ -24,7 +24,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
-import com.android.crossdevicesync.proto.DocMetadata;
+import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
@@ -48,12 +48,12 @@ import java.util.Queue;
 import java.util.Set;
 
 /**
- * An implementation of the {@link SharedDataStore.Document} using submerge {@link
+ * An implementation of the {@link SharedDataStore.MutableDocument} using submerge {@link
  * DocumentTransaction}.
  *
  * @param <T> the data type that this document manages.
  */
-class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable {
+class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoCloseable {
     private static final boolean DEBUG = true;
     private static final String TAG = "SubmergeDocument";
 
@@ -77,6 +77,21 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         mLocalDeviceNodeId = localDeviceNodeId;
         // Get builder so that this becomes mutable.
         mDocMetadata = docMetadata.toBuilder();
+    }
+
+    @Override
+    public String getDocId() {
+        return mDocId;
+    }
+
+    @Override
+    public int getSchemaVersion() {
+        return getMetaData().getSchemaVersion();
+    }
+
+    void setSchemaVersion(int version) {
+        requireDocumentOpen();
+        mDocMetadata.setSchemaVersion(version);
     }
 
     @Nullable
@@ -116,9 +131,8 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     public void putData(String path, @Nullable T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newRegister,
                 node -> {
                     SubmergeRegister<T> r = (SubmergeRegister<T>) node;
                     boolean changed = !Objects.equals(r.get(), data);
@@ -133,9 +147,8 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     public void putUnmergedData(String path, @Nullable T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newVectorData,
                 node -> {
                     SubmergeVectorData<T> v = (SubmergeVectorData<T>) node;
                     boolean changed = v.set(data);
@@ -146,29 +159,11 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     }
 
     @Override
-    public void addEmptySet(String path) throws IllegalArgumentException {
-        requireDocumentOpen();
-        String normalizedPath = normalizedPath(path);
-        if (containsPath(normalizedPath)) {
-            throw new IllegalArgumentException(
-                    getDebugIdentityString()
-                            + " - addEmptyPath: path \""
-                            + getDebugStringForPath(normalizedPath)
-                            + "\" already exists.");
-        }
-        findOrCreateLeafSafely(
-                normalizedPath,
-                mTransaction::newSet,
-                node -> setPathLastModifiedByLocalDevice(normalizedPath, true));
-    }
-
-    @Override
     public void addDataToSet(String path, T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newSet,
                 node -> {
                     SubmergeSet<T> s = (SubmergeSet<T>) node;
                     boolean changed = s.add(data);
@@ -194,7 +189,67 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     }
 
     @Override
-    public void removePath(String path) throws IllegalArgumentException {
+    public void close() {
+        if (mClosed) {
+            logWarning("close: already closed.");
+            return;
+        }
+        mClosed = true;
+        // Close all records, then close transaction.
+        try (mTransaction) {
+            mSubmergeRecordRefs
+                    .values()
+                    .forEach(
+                            ref -> {
+                                SubmergeRecord r = ref.get();
+                                if (r != null) {
+                                    r.close();
+                                }
+                            });
+            mSubmergeRecordRefs.clear();
+        }
+    }
+
+    void addSetSchema(String path) throws IllegalArgumentException {
+        addSchemaToPath(path, mTransaction::newSet, SubmergeSet.class);
+    }
+
+    void addRegisterSchema(String path) throws IllegalArgumentException {
+        addSchemaToPath(path, mTransaction::newRegister, SubmergeRegister.class);
+    }
+
+    void addUnmergedSchema(String path) throws IllegalArgumentException {
+        addSchemaToPath(path, mTransaction::newVectorData, SubmergeVectorData.class);
+    }
+
+    private void addSchemaToPath(
+            String path,
+            ThrowingSupplier<SubmergeDataType<T>> nodeCreator,
+            Class<? extends SubmergeDataType> type)
+            throws IllegalArgumentException {
+        requireDocumentOpen();
+        String normalizedPath = normalizedPath(path);
+        try (SubmergeDataType<T> node = findSubmergeNode(normalizedPath)) {
+            if (type.isInstance(node)) {
+                // Schema already exists. Nothing to add.
+                return;
+            }
+        }
+        findOrCreateLeafSafely(
+                normalizedPath,
+                nodeCreator,
+                node -> {
+                    if (!type.isInstance(node)) {
+                        throw new IllegalArgumentException(
+                                "addSchemaToPath: path "
+                                        + getDebugStringForPath(normalizedPath)
+                                        + " is unavailable for adding schema.");
+                    }
+                    setPathLastModifiedByLocalDevice(normalizedPath, true);
+                });
+    }
+
+    void removePath(String path) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
         ArrayDeque<String> keys = normalizedKeys(normalizedPath);
@@ -243,27 +298,6 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         }
     }
 
-    @Override
-    public void close() {
-        if (mClosed) {
-            logWarning("close: already closed.");
-            return;
-        }
-        mClosed = true;
-        // Close all records, then close transaction.
-        try (mTransaction) {
-            mSubmergeRecordRefs
-                    .values()
-                    .forEach(
-                            ref -> {
-                                SubmergeRecord r = ref.get();
-                                if (r != null) {
-                                    r.close();
-                                }
-                            });
-            mSubmergeRecordRefs.clear();
-        }
-    }
 
     private static ArrayDeque<String> normalizedKeys(String path) {
         ArrayDeque<String> normalizedKeys = new ArrayDeque<>();
@@ -371,7 +405,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         if (r != null) {
             // Cache hit.
             try {
-                consumer.accept(r.mSubmergeData);
+                consumer.acceptOrThrow(r.mSubmergeData);
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
@@ -403,7 +437,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         if (r != null) {
             // Cache hit.
             try {
-                consumer.accept(r.mSubmergeData);
+                consumer.acceptOrThrow(r.mSubmergeData);
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
@@ -412,7 +446,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         } else {
             // Cache miss.
             try (SubmergeDataType<T> node = findSubmergeNode(path)) {
-                consumer.accept(requireNonNull(node));
+                consumer.acceptOrThrow(requireNonNull(node));
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
