@@ -19,6 +19,7 @@ import android.annotation.Nullable;
 
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface;
 
@@ -78,6 +79,18 @@ public class FakeStorage implements IStorage {
     }
 
     @Override
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
+        try {
+            transactionApplier.acceptOrThrow(this);
+        } catch (Exception e) {
+            throw new StorageException();
+        }
+    }
+
+    @Override
     public void close() {
         mInitialized = false;
     }
@@ -87,5 +100,9 @@ public class FakeStorage implements IStorage {
         close();
         mDocuments.clear();
         mMetadata.clear();
+    }
+
+    public boolean isOpen() {
+        return mInitialized;
     }
 }
