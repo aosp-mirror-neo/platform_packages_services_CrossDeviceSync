@@ -32,7 +32,6 @@ import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
 import com.google.android.submerge.DataStore;
-import com.google.android.submerge.DocumentTransaction;
 import com.google.android.submerge.NetworkInterface;
 import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.SubmergeDataType;
@@ -50,48 +49,23 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.util.List;
+
 @RunWith(AndroidJUnit4.class)
 public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NetworkInterface mNetworkInterface;
     private DataStore<String> mSubmergeDataStore;
     private SubmergeDocument<String> mDocument;
-    private DocumentTransaction<String> mTransaction;
     private String mDeviceNodeId;
 
-    @SuppressWarnings("MustBeClosedChecker")
     @Before
     public void setUp() {
         super.setUp();
         mFakeStorage.init();
         mDeviceNodeId = mDeviceNodeIdProvider.getLocalDeviceNodeId();
-        mSubmergeDataStore =
-                new DataStore<>(
-                        mDeviceNodeId,
-                        mNetworkInterface,
-                        new StorageInterface() {
-                            @Override
-                            public void onNewUpdate(String docId, byte[] serializedDoc)
-                                    throws StorageException {
-                                mFakeStorage.persistDocument(docId, serializedDoc);
-                            }
-
-                            @Nullable
-                            @Override
-                            public byte[] readFromStorage(String docId) throws StorageException {
-                                return mFakeStorage.getDocument(docId);
-                            }
-                        },
-                        mTimestampProvider,
-                        mStringConverter);
-        mTransaction = mSubmergeDataStore.newDocumentTransaction(DOC_ID);
-        mDocument =
-                new SubmergeDocument<>(
-                        mDataStoreName,
-                        DOC_ID,
-                        mTransaction,
-                        mDeviceNodeId,
-                        DocMetadata.DocumentMetadata.newBuilder().build());
+        mSubmergeDataStore = newDataStore(mDeviceNodeId);
+        mDocument = newDocument(mDeviceNodeId);
     }
 
     @After
@@ -530,7 +504,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     public void testGetMetaData_notModifiedByLocalDevice() throws Exception {
         // Create a new node via internal helper method, this will directly modify the submerge
         // transaction without updating the metadata.
-        mDocument.findOrCreateLeaf("/node", mTransaction::newRegister);
+        mDocument.findOrCreateLeaf("/node", mDocument.mTransaction::newRegister);
 
         // Read the record. Since the record is not created by API, it's assumed to be created by
         // remote device.
@@ -608,16 +582,99 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThat(mDocument.getSchemaVersion()).isEqualTo(2);
     }
 
+    @Test
+    public void testMergeNetworkUpdate() throws Exception {
+        mDocument.addRegisterSchema("/root/register");
+        mDocument.putData("/root/register", "abc");
+        mDocument.commitTransaction();
+        byte[] update = mSubmergeDataStore.getFullUpdateMessage(DOC_ID);
+        // Delete the database to wipe out the persisted data.
+        mFakeStorage.deleteDatabase();
+        mDocument.close();
+        mSubmergeDataStore.close();
+
+        // Create another datastore as if it's another device.
+        String newDeviceNodeId = "new_device";
+        mFakeStorage.init();
+        mSubmergeDataStore = newDataStore(newDeviceNodeId);
+        mDocument = newDocument(newDeviceNodeId);
+        List<String> changed = mDocument.mergeNetworkUpdate(update);
+
+        // Verify data is merged.
+        Record<String> r = mDocument.getRecord("/root/register");
+        assertThat(r.get()).isEqualTo("abc");
+        assertThat(r.getMetadata().isLastModifiedByLocalDevice()).isFalse();
+        assertThat(changed.get(0)).isEqualTo("/root/register");
+    }
+
+    @Test
+    public void testMergeLocalUpdate() throws Exception {
+        mDocument.addRegisterSchema("/root/register");
+        mDocument.putData("/root/register", "abc");
+        mDocument.commitTransaction();
+        byte[] update = mSubmergeDataStore.getFullUpdateMessage(DOC_ID);
+        // Delete the database to wipe out the persisted data.
+        mFakeStorage.deleteDatabase();
+        mDocument.close();
+        mSubmergeDataStore.close();
+
+        // Create another datastore as if it's another device.
+        String newDeviceNodeId = "new_device";
+        mFakeStorage.init();
+        mSubmergeDataStore = newDataStore(newDeviceNodeId);
+        mDocument = newDocument(newDeviceNodeId);
+        // Merge the update but consider the update as local.
+        List<String> changed = mDocument.mergeLocalUpdate(update);
+
+        // Verify data is merged.
+        Record<String> r = mDocument.getRecord("/root/register");
+        assertThat(r.get()).isEqualTo("abc");
+        assertThat(r.getMetadata().isLastModifiedByLocalDevice()).isTrue();
+        assertThat(changed.get(0)).isEqualTo("/root/register");
+    }
+
+    @SuppressWarnings("MustBeClosedChecker")
+    private DataStore<String> newDataStore(String nodeId) {
+        return new DataStore<>(
+                nodeId,
+                mNetworkInterface,
+                new StorageInterface() {
+                    @Override
+                    public void onNewUpdate(String docId, byte[] serializedDoc)
+                            throws StorageException {
+                        mFakeStorage.persistDocument(docId, serializedDoc);
+                    }
+
+                    @Nullable
+                    @Override
+                    public byte[] readFromStorage(String docId) throws StorageException {
+                        return mFakeStorage.getDocument(docId);
+                    }
+                },
+                mTimestampProvider,
+                mStringConverter);
+    }
+
+    @SuppressWarnings("MustBeClosedChecker")
+    private SubmergeDocument<String> newDocument(String nodeId) {
+        return new SubmergeDocument<>(
+                mDataStoreName,
+                DOC_ID,
+                mSubmergeDataStore.newDocumentTransaction(DOC_ID),
+                nodeId,
+                DocMetadata.DocumentMetadata.newBuilder().build());
+    }
+
     private void validateRawGetOrInsertRegisterNode(String path) throws Exception {
-        validateRawGetOrInsert(path, mTransaction::newRegister, new GenericValidator());
+        validateRawGetOrInsert(path, mDocument.mTransaction::newRegister, new GenericValidator());
     }
 
     private void validateRawGetOrInsertSetNode(String path) throws Exception {
-        validateRawGetOrInsert(path, mTransaction::newSet, new GenericValidator());
+        validateRawGetOrInsert(path, mDocument.mTransaction::newSet, new GenericValidator());
     }
 
     private void validateRawGetOrInsertVectorNode(String path) throws Exception {
-        validateRawGetOrInsert(path, mTransaction::newVectorData, new GenericValidator());
+        validateRawGetOrInsert(path, mDocument.mTransaction::newVectorData, new GenericValidator());
     }
 
     private void validateRawGetOrInsert(
