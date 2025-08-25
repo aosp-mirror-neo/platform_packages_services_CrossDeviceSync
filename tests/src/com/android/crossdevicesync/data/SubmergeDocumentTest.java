@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
 
+import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.data.SharedDataStore.Record;
@@ -33,6 +34,7 @@ import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 import com.google.android.submerge.DataStore;
 import com.google.android.submerge.DocumentTransaction;
 import com.google.android.submerge.NetworkInterface;
+import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.SubmergeDataType;
 import com.google.android.submerge.SubmergeMap;
 import com.google.android.submerge.SubmergeRegister;
@@ -50,8 +52,6 @@ import org.mockito.junit.MockitoRule;
 
 @RunWith(AndroidJUnit4.class)
 public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
-    private static final String DOC_ID = "test_doc";
-
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NetworkInterface mNetworkInterface;
     private DataStore<String> mSubmergeDataStore;
@@ -69,7 +69,19 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
                 new DataStore<>(
                         mDeviceNodeId,
                         mNetworkInterface,
-                        mFakeStorage,
+                        new StorageInterface() {
+                            @Override
+                            public void onNewUpdate(String docId, byte[] serializedDoc)
+                                    throws StorageException {
+                                mFakeStorage.persistDocument(docId, serializedDoc);
+                            }
+
+                            @Nullable
+                            @Override
+                            public byte[] readFromStorage(String docId) throws StorageException {
+                                return mFakeStorage.getDocument(docId);
+                            }
+                        },
                         mTimestampProvider,
                         mStringConverter);
         mTransaction = mSubmergeDataStore.newDocumentTransaction(DOC_ID);

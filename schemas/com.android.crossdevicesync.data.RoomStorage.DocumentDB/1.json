@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "c96bd156d12c0049b3890672eecc7f70",
+    "identityHash": "091e45a7b76cd885c1caf3f9c42f50c8",
     "entities": [
       {
         "tableName": "Document",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`docId` TEXT NOT NULL, `content` BLOB, `metadata` BLOB, PRIMARY KEY(`docId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`docId` TEXT NOT NULL, `content` BLOB, `schema` BLOB, `metadata` BLOB, PRIMARY KEY(`docId`))",
         "fields": [
           {
             "fieldPath": "docId",
@@ -17,6 +17,11 @@
           {
             "fieldPath": "content",
             "columnName": "content",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "schema",
+            "columnName": "schema",
             "affinity": "BLOB"
           },
           {
@@ -35,7 +40,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c96bd156d12c0049b3890672eecc7f70')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '091e45a7b76cd885c1caf3f9c42f50c8')"
     ]
   }
 }
