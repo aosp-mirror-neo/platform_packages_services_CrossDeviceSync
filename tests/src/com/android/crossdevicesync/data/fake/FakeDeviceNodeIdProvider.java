@@ -18,22 +18,31 @@ package com.android.crossdevicesync.data.fake;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import javax.inject.Inject;
 
 /** Fake implementation of {@link DeviceNodeIdProvider} for testing. */
 @SyncServiceSingleton
 public class FakeDeviceNodeIdProvider implements DeviceNodeIdProvider {
-    private String mDeviceNodeId = "test-device-node-id";
+    private final Map<String, String> mNodeIds = new HashMap<>();
 
     @Inject
     FakeDeviceNodeIdProvider() {}
 
-    @Override
-    public String getLocalDeviceNodeId() {
-        return mDeviceNodeId;
+    /** Set the node id for a data store. */
+    public void setNodeIdForDataStore(String dataStore, String nodeId) {
+        mNodeIds.put(dataStore, nodeId);
     }
 
-    public void setLocalDeviceNodeId(String deviceNodeId) {
-        mDeviceNodeId = deviceNodeId;
+    @Override
+    public String getOrCreateNodeIdForDataStore(String dataStore) {
+        return mNodeIds.computeIfAbsent(dataStore, k -> k + "_test_node");
+    }
+
+    @Override
+    public void noteDataStoreDeletion(String dataStore) {
+        mNodeIds.remove(dataStore);
     }
 }

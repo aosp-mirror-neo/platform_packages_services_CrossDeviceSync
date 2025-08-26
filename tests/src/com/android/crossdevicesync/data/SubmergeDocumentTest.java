@@ -63,7 +63,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     public void setUp() {
         super.setUp();
         mFakeStorage.init();
-        mDeviceNodeId = mDeviceNodeIdProvider.getLocalDeviceNodeId();
+        mDeviceNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mDataStoreName);
         mSubmergeDataStore = newDataStore(mDeviceNodeId);
         mDocument = newDocument(mDeviceNodeId);
     }

@@ -15,13 +15,28 @@
  */
 package com.android.crossdevicesync.data;
 
-/** Interface that provides unique id that identifies current device in sync network. */
+/** Interface that provides unique id that identifies current device in the sync network. */
 public interface DeviceNodeIdProvider {
 
     /**
      * Get a unique string that identifies current device in the sync network. This will be used by
      * shared data store for data consistency management, and is independent of the association id
      * in companion device manager.
+     *
+     * <p>Note: node id is unique per data store and is not shared across data stores. It will be
+     * initialized when a data store is first created, and will be destroyed when a data store is
+     * deleted. If the data store with the same name is initialized again after deletion, it's
+     * guaranteed to get a new node id that is different from the previous one. This is important
+     * for a distributed data base, since a re-created data store is treated as a new device in the
+     * sync network.
      */
-    String getLocalDeviceNodeId();
+    String getOrCreateNodeIdForDataStore(String dataStore);
+
+    /**
+     * Note deletion of a data store. After calling this method, the node id associated with the
+     * data store will no longer be available. The next {@link
+     * #getOrCreateNodeIdForDataStore(String)} call using the same data store name will return a new
+     * node id.
+     */
+    void noteDataStoreDeletion(String dataStore);
 }
