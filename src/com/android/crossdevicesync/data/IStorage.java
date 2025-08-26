@@ -55,7 +55,7 @@ public interface IStorage extends AutoCloseable {
     void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException;
 
     /** Delete the database. */
-    void deleteDatabase();
+    boolean deleteDatabase();
 
     /** Close the database. */
     void close();

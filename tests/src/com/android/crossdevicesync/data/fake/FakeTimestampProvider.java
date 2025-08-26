@@ -25,16 +25,39 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class FakeTimestampProvider implements TimestampProvider {
     private long mTimestamp;
+    private boolean mAutoAdvance;
 
     @Inject
-    FakeTimestampProvider() {}
+    FakeTimestampProvider() {
+        setAutoAdvance(true);
+    }
 
     @Override
     public long now() {
+        long now = mTimestamp;
+        if (mAutoAdvance) {
+            increment();
+        }
+        return now;
+    }
+
+    public long peekNow() {
         return mTimestamp;
     }
 
     public void setTimeStamp(long timestamp) {
         mTimestamp = timestamp;
+    }
+
+    public void increment() {
+        advanceBy(1);
+    }
+
+    public void advanceBy(long time) {
+        mTimestamp += time;
+    }
+
+    public void setAutoAdvance(boolean enabled) {
+        mAutoAdvance = enabled;
     }
 }

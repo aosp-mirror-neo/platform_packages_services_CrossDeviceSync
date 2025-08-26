@@ -25,6 +25,7 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
 import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.crossdevicesync.data.proto.DocMetadata.RecordMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingBiConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
@@ -213,15 +214,15 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         }
     }
 
-    void addSetSchema(String path) throws IllegalArgumentException {
+    void addSetSchema(String path) throws IllegalSchemaChangeException {
         addSchemaToPath(path, mTransaction::newSet, SubmergeSet.class);
     }
 
-    void addRegisterSchema(String path) throws IllegalArgumentException {
+    void addRegisterSchema(String path) throws IllegalSchemaChangeException {
         addSchemaToPath(path, mTransaction::newRegister, SubmergeRegister.class);
     }
 
-    void addUnmergedSchema(String path) throws IllegalArgumentException {
+    void addUnmergedSchema(String path) throws IllegalSchemaChangeException {
         addSchemaToPath(path, mTransaction::newVectorData, SubmergeVectorData.class);
     }
 
@@ -229,7 +230,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
             String path,
             ThrowingSupplier<SubmergeDataType<T>> nodeCreator,
             Class<? extends SubmergeDataType> type)
-            throws IllegalArgumentException {
+            throws IllegalSchemaChangeException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
         try (SubmergeDataType<T> node = findSubmergeNode(normalizedPath)) {
@@ -238,21 +239,27 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                 return;
             }
         }
-        findOrCreateLeafSafely(
-                normalizedPath,
-                nodeCreator,
-                node -> {
-                    if (!type.isInstance(node)) {
-                        throw new IllegalArgumentException(
-                                "addSchemaToPath: path "
-                                        + getDebugStringForPath(normalizedPath)
-                                        + " is unavailable for adding schema.");
-                    }
-                    setPathLastModifiedByLocalDevice(normalizedPath, true);
-                });
+        try {
+            findOrCreateLeafSafely(
+                    normalizedPath,
+                    nodeCreator,
+                    node -> {
+                        if (!type.isInstance(node)) {
+                            throw new IllegalSchemaChangeException(
+                                    "addSchemaToPath: path "
+                                            + getDebugStringForPath(normalizedPath)
+                                            + " is unavailable for adding schema.");
+                        }
+                        setPathLastModifiedByLocalDevice(normalizedPath, true);
+                    });
+        } catch (IllegalSchemaChangeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalSchemaChangeException(e);
+        }
     }
 
-    void removePath(String path) throws IllegalArgumentException {
+    void removePath(String path) throws IllegalSchemaChangeException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
         ArrayDeque<String> keys = normalizedKeys(normalizedPath);
@@ -260,7 +267,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
             // Remove root node.
             try (SubmergeDataType<T> root = mTransaction.getRoot()) {
                 if (root == null) {
-                    throw new IllegalArgumentException(
+                    throw new IllegalSchemaChangeException(
                             getDebugIdentityString()
                                     + " - removePath: unable to remove a null root node.");
                 }
@@ -269,21 +276,25 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                 logInfo("trying to remove root node.");
                 mTransaction.setRoot(null);
             } catch (TimestampOverflowException e) {
-                throw new IllegalArgumentException(e);
+                throw new IllegalSchemaChangeException(e);
             }
         } else {
             // Remove a leaf node.
             String lastKey = keys.pollLast();
-            findSubmergeNodeSafely(
-                    String.join("/", keys),
-                    node -> {
-                        logInfo(
-                                "trying to remove node: \""
-                                        + getDebugStringForPath(normalizedPath)
-                                        + "\"");
-                        SubmergeMap<T> m = (SubmergeMap<T>) node;
-                        m.removeChild(lastKey);
-                    });
+            try {
+                findSubmergeNodeSafely(
+                        String.join("/", keys),
+                        node -> {
+                            logInfo(
+                                    "trying to remove node: \""
+                                            + getDebugStringForPath(normalizedPath)
+                                            + "\"");
+                            SubmergeMap<T> m = (SubmergeMap<T>) node;
+                            m.removeChild(lastKey);
+                        });
+            } catch (Exception e) {
+                throw new IllegalSchemaChangeException(e);
+            }
         }
         // Remove all metadata under the path.
         List<DocMetadata.RecordMetadata> removed = removeMatchedRecordMetadata(normalizedPath);
@@ -460,30 +471,21 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
      * @param path the path to find or create leaf node.
      * @param nodeCreator a function for creating the leaf node.
      * @param consumer a function to consume the leaf node.
-     * @throws IllegalArgumentException if unable to find or create leaf node.
+     * @throws Exception if unable to find or create leaf node.
      */
     private void findOrCreateLeafSafely(
             String path,
             ThrowingSupplier<SubmergeDataType<T>> nodeCreator,
-            ThrowingConsumer<SubmergeDataType<T>> consumer) {
+            ThrowingConsumer<SubmergeDataType<T>> consumer)
+            throws Exception {
         SubmergeRecord r = getRecordFromCache(path);
         if (r != null) {
             // Cache hit.
-            try {
-                consumer.acceptOrThrow(r.mSubmergeData);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
-            }
+            consumer.acceptOrThrow(r.mSubmergeData);
         } else {
             // Cache miss.
             try (SubmergeDataType<T> node = findOrCreateLeaf(path, nodeCreator)) {
                 consumer.acceptOrThrow(node);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
             }
         }
     }
@@ -742,7 +744,8 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         return mDataStoreName + "::" + mDocId;
     }
 
-    String getDebugStringForPath(String path) {
+    @Override
+    public String getDebugStringForPath(String path) {
         return getDebugIdentityString() + ":" + path;
     }
 
