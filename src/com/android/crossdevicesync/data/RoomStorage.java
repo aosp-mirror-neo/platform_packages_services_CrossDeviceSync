@@ -36,6 +36,8 @@ import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
+import com.google.android.submerge.StorageInterface.StorageException;
+
 import java.util.List;
 
 import javax.inject.Inject;
@@ -68,28 +70,52 @@ public class RoomStorage implements IStorage {
     }
 
     @Override
-    public void onNewUpdate(String docId, byte[] serializedDoc) throws StorageException {
-        try {
-            mDao.createOrUpdateContent(docId, serializedDoc);
-        } catch (Exception e) {
-            Log.e(TAG, "onNewUpdate: failed!", e);
-            throw new StorageException();
-        }
-    }
-
-    @Override
     @Nullable
-    public byte[] readFromStorage(String docId) throws StorageException {
+    public byte[] getDocument(String docId) throws StorageException {
         try {
             Document doc = mDao.get(docId);
             if (doc != null) {
                 return doc.content;
             }
         } catch (Exception e) {
-            Log.e(TAG, "readFromStorage: failed!", e);
+            Log.e(TAG, "getDocument: failed!", e);
             throw new StorageException();
         }
         return null;
+    }
+
+    @Override
+    public void persistDocument(String docId, byte[] serializedDoc) throws StorageException {
+        try {
+            mDao.createOrUpdateContent(docId, serializedDoc);
+        } catch (Exception e) {
+            Log.e(TAG, "persistDocument: failed!", e);
+            throw new StorageException();
+        }
+    }
+
+    @Override
+    public byte[] getDocumentSchema(String docId) throws StorageException {
+        try {
+            Document doc = mDao.get(docId);
+            if (doc != null) {
+                return doc.schema;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getDocumentSchema: failed!", e);
+            throw new StorageException();
+        }
+        return null;
+    }
+
+    @Override
+    public void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException {
+        try {
+            mDao.createOrUpdateSchema(docId, documentSchema);
+        } catch (Exception e) {
+            Log.e(TAG, "persistDocumentSchema: failed!", e);
+            throw new StorageException();
+        }
     }
 
     @Override
@@ -153,6 +179,7 @@ public class RoomStorage implements IStorage {
     static class Document {
         @NonNull @PrimaryKey public String docId;
         public byte[] content;
+        public byte[] schema;
         public byte[] metadata;
     }
 
@@ -195,6 +222,20 @@ public class RoomStorage implements IStorage {
                 insert(doc);
             } else {
                 doc.metadata = metadata;
+                update(doc);
+            }
+        }
+
+        @Transaction
+        void createOrUpdateSchema(String docId, @Nullable byte[] schema) {
+            Document doc = get(docId);
+            if (doc == null) {
+                doc = new Document();
+                doc.docId = docId;
+                doc.schema = schema;
+                insert(doc);
+            } else {
+                doc.schema = schema;
                 update(doc);
             }
         }

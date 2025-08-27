@@ -25,6 +25,7 @@ import javax.inject.Inject;
 
 /** Base class for tests dependent on the shared storage component. */
 public abstract class SharedDataStoreComponentTestBase extends SyncServiceComponentTestBase {
+    public static final String DOC_ID = "test_doc";
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
     @Inject protected RoomStorage mRoomStorage;

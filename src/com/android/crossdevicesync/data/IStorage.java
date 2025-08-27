@@ -19,13 +19,28 @@ import android.annotation.Nullable;
 
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
-import com.google.android.submerge.StorageInterface;
+import com.google.android.submerge.StorageInterface.StorageException;
 
 /** Interface representing a persistent storage. */
-public interface IStorage extends StorageInterface, AutoCloseable {
+public interface IStorage extends AutoCloseable {
 
     /** Init the storage. */
     void init();
+
+    /** Get the serialized document. */
+    byte[] getDocument(String docId) throws StorageException;
+
+    /** Save the serialized document into the persistent storage. */
+    void persistDocument(String docId, byte[] document) throws StorageException;
+
+    /**
+     * Get the serialized document schema. This is a submerge document that can be merged via
+     * network update to mutate schema.
+     */
+    byte[] getDocumentSchema(String docId) throws StorageException;
+
+    /** Save the serialized document schema into the persistent storage. */
+    void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException;
 
     /** Get the serialized metadata of a document. */
     @Nullable
