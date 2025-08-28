@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.INetwork;
+import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 
 import com.google.android.submerge.Converter;
@@ -46,6 +48,14 @@ public interface SharedDataStoreComponent {
          */
         @BindsInstance
         Builder name(@DataStoreName String name);
+
+        /** Set the schema provider for the data store. */
+        @BindsInstance
+        Builder schemaProvider(SchemaProvider<?> schemaProvider);
+
+        /** Set the network factory for the data store. */
+        @BindsInstance
+        Builder networkFactory(INetwork.Factory networkFactory);
 
         /** Build an instance of this component. */
         SharedDataStoreComponent build();

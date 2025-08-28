@@ -17,11 +17,9 @@ package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
-import com.android.crossdevicesync.data.fake.FakeNetwork;
 import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.data.fake.SynchronousExecutorService;
 
-import com.google.android.submerge.NetworkInterface;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
@@ -35,10 +33,6 @@ public abstract class TestSharedDataStoreModule {
     @SharedDataStoreSingleton
     @Binds
     abstract IStorage bindsIStorage(FakeStorage storage);
-
-    @SharedDataStoreSingleton
-    @Binds
-    abstract NetworkInterface bindsNetworkInterface(FakeNetwork fakeNetwork);
 
     @SharedDataStoreSingleton
     @IOThread

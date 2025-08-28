@@ -17,6 +17,7 @@ package com.android.crossdevicesync.data;
 
 import android.annotation.Nullable;
 
+import com.google.android.submerge.StorageInterface.StorageException;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.Map;
@@ -32,8 +33,18 @@ import java.util.concurrent.Executor;
  */
 public interface SharedDataStore<T> extends AutoCloseable {
 
-    /** Initialize the data store. A data store is usable only after this method is called. */
-    void init();
+    /**
+     * Initialize the data store. A data store is usable only after this method is called.
+     *
+     * @return a listenable future to get notified when initialization is done or failed. {@link
+     *     IllegalSchemaChangeException} will be passed to the future if the schema upgrade fails
+     *     due to illegal schema. {@link SchemaValidationException} will be passed to the future if
+     *     the data store upgrade results in invalid data. {@link StorageException} will be passed
+     *     to the future if the underlying persistent data store fails. Schema related failure are
+     *     usually non-recoverable, so you may want to delete the entire data store and rebuild it
+     *     from empty state.
+     */
+    ListenableFuture<?> init();
 
     /**
      * Gets the local device node id. This is a unique string representing a device that
@@ -54,7 +65,9 @@ public interface SharedDataStore<T> extends AutoCloseable {
      *     document will be lazily created by this transaction.
      * @return a listenable future to get notified when the transaction is done or aborted due to
      *     error. The applier can optionally return a result, which will be delivered to the
-     *     listenable future.
+     *     listenable future. {@link SchemaValidationException} will be passed to the future if the
+     *     change failed schema validation. {@link StorageException} will be passed to the future if
+     *     the underlying persistent data store fails.
      */
     <R> ListenableFuture<R> transact(String docId, TransactionApplier<T, R> applier);
 
@@ -66,6 +79,12 @@ public interface SharedDataStore<T> extends AutoCloseable {
 
     /** Close the data store. Any further interactions with this data store will fail. */
     void close();
+
+    /** Check if the data store is open. */
+    boolean isOpen();
+
+    /** Permanently delete the data store and its content. This operation is non-recoverable. */
+    void delete();
 
     /**
      * A document that can be used to access data.
@@ -100,6 +119,9 @@ public interface SharedDataStore<T> extends AutoCloseable {
 
         /** Check if a path exists. */
         boolean containsPath(String path);
+
+        /** Get a user readable string for a path. */
+        String getDebugStringForPath(String path);
     }
 
     /** A mutable interface of {@link Document} which supports mutations. */

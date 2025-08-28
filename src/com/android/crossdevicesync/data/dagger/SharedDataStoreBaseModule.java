@@ -15,12 +15,22 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.DeviceNodeIdProvider;
+import com.android.crossdevicesync.data.INetwork;
+import com.android.crossdevicesync.data.IStorage;
+import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SubmergeSharedDataStore;
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 
+import com.google.android.submerge.Converter;
+import com.google.android.submerge.TimestampProvider;
 import com.google.common.util.concurrent.ListeningExecutorService;
 
 import dagger.Binds;
+import dagger.Lazy;
 import dagger.Module;
+import dagger.Provides;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -31,6 +41,29 @@ import java.util.concurrent.ExecutorService;
  */
 @Module
 public abstract class SharedDataStoreBaseModule {
+
+    @SharedDataStoreSingleton
+    @Provides
+    static SubmergeSharedDataStore<?> provideSubmergeSharedDataStore(
+            @DataStoreName String name,
+            DeviceNodeIdProvider deviceNodeIdProvider,
+            @IOThread Lazy<ListeningExecutorService> ioThreadExecutor,
+            IStorage storage,
+            INetwork.Factory networkFactory,
+            TimestampProvider timestampProvider,
+            Converter<?> converter,
+            SchemaProvider<?> schemaProvider) {
+        return new SubmergeSharedDataStore(
+                name,
+                deviceNodeIdProvider,
+                ioThreadExecutor,
+                storage,
+                networkFactory,
+                timestampProvider,
+                converter,
+                schemaProvider);
+    }
+
     @SharedDataStoreSingleton
     @IOThread
     @Binds

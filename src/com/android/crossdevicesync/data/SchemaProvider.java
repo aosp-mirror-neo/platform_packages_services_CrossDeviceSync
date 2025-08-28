@@ -20,6 +20,7 @@ import static java.util.Objects.requireNonNull;
 import android.util.ArrayMap;
 
 import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.data.SharedDataStore.Document;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
@@ -64,6 +65,17 @@ public interface SchemaProvider<T> {
     /** Gets all document schemas. */
     List<DocumentSchemaInfo> getAllDocumentSchema();
 
+    /** Get document schema from doc id. */
+    @Nullable
+    default DocumentSchemaInfo findSchema(String docId) {
+        for (DocumentSchemaInfo schema : getAllDocumentSchema()) {
+            if (docId.equals(schema.getDocId())) {
+                return schema;
+            }
+        }
+        return null;
+    }
+
     /**
      * Perform migration of a document after a schema version change. This will be called on IO
      * thread after schema change has been applied. For example, this can be used to copy or
@@ -80,9 +92,59 @@ public interface SchemaProvider<T> {
      * Perform a schema validation on a document. This will be called on IO thread before a
      * transaction is committed.
      *
-     * @throws Exception if validation fails.
+     * @throws SchemaValidationException if validation fails.
      */
-    void validateDocument(Document<T> document) throws Exception;
+    default void validateDocument(Document<T> doc) throws SchemaValidationException {
+        DocumentSchemaInfo schema = findSchema(doc.getDocId());
+        if (schema == null) {
+            throw new SchemaValidationException(
+                    "validateSchema: schema not found for doc " + doc.getDocId() + "!");
+        }
+        if (doc.getSchemaVersion() != schema.getVersion()) {
+            throw new SchemaValidationException(
+                    "validateSchema: schema version mismatch! Expects "
+                            + schema.getVersion()
+                            + " but got "
+                            + doc.getSchemaVersion()
+                            + ".");
+        }
+        for (Map.Entry<String, Integer> entry : schema.getPathSchema().entrySet()) {
+            String path = entry.getKey();
+            int type = entry.getValue();
+            SharedDataStore.Record<T> r = doc.getRecord(path);
+            switch (r) {
+                case null ->
+                        throw new SchemaValidationException(
+                                "validateSchema: path "
+                                        + doc.getDebugStringForPath(path)
+                                        + " not found!");
+                case SharedDataStore.SetRecord<T> setRecord -> {
+                    if (type != SchemaProvider.TYPE_SET) {
+                        throw new SchemaValidationException(
+                                "validateSchema: path "
+                                        + doc.getDebugStringForPath(path)
+                                        + " is not a set!");
+                    }
+                }
+                case SharedDataStore.UnmergedRecord<T> unmergedRecord -> {
+                    if (type != SchemaProvider.TYPE_UNMERGED) {
+                        throw new SchemaValidationException(
+                                "validateSchema: path "
+                                        + doc.getDebugStringForPath(path)
+                                        + " is not an unmerged record!");
+                    }
+                }
+                default -> {
+                    if (type != SchemaProvider.TYPE_REGISTER) {
+                        throw new SchemaValidationException(
+                                "validateSchema: path "
+                                        + doc.getDebugStringForPath(path)
+                                        + " is not a register record!");
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Data object representing a document schema.
@@ -114,13 +176,17 @@ public interface SchemaProvider<T> {
             return mPathSchema;
         }
 
+        public static Builder builder() {
+            return new Builder();
+        }
+
         /** Builder for {@link DocumentSchemaInfo}. */
         public static final class Builder {
             private String mDocId;
             private int mVersion;
             private final Map<String, Integer> mPathSchema = new ArrayMap<>();
 
-            public Builder() {}
+            private Builder() {}
 
             /** Sets the document ID. */
             public Builder setDocId(String docId) {

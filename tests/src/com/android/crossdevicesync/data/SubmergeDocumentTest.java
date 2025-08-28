@@ -63,7 +63,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     public void setUp() {
         super.setUp();
         mFakeStorage.init();
-        mDeviceNodeId = mDeviceNodeIdProvider.getLocalDeviceNodeId();
+        mDeviceNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mDataStoreName);
         mSubmergeDataStore = newDataStore(mDeviceNodeId);
         mDocument = newDocument(mDeviceNodeId);
     }
@@ -363,12 +363,13 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThat(mDocument.getRecord("/foo/bar").get()).isEqualTo("abc");
 
         // Add another incompatible schema should throw.
-        assertThrows(IllegalArgumentException.class, () -> mDocument.addSetSchema("/foo/bar"));
+        assertThrows(IllegalSchemaChangeException.class, () -> mDocument.addSetSchema("/foo/bar"));
 
         // Add schema to wrong path should throw.
-        assertThrows(IllegalArgumentException.class, () -> mDocument.addUnmergedSchema("/"));
+        assertThrows(IllegalSchemaChangeException.class, () -> mDocument.addUnmergedSchema("/"));
         assertThrows(
-                IllegalArgumentException.class, () -> mDocument.addRegisterSchema("/foo/bar/baz"));
+                IllegalSchemaChangeException.class,
+                () -> mDocument.addRegisterSchema("/foo/bar/baz"));
 
         // Add schema to a valid path should not throw.
         mDocument.addSetSchema("/foo/set");

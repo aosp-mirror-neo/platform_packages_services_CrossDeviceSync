@@ -164,14 +164,13 @@ public class RoomStorage implements IStorage {
     }
 
     @Override
-    public void deleteDatabase() {
-        if (mDatabase == null) {
-            Log.e(TAG, "deleteDatabase: database is null!");
-            return;
-        }
+    public boolean deleteDatabase() {
         close();
-        mContext.deleteDatabase(mName);
-        Log.i(TAG, "deleteDatabase: database is deleted!");
+        if (mContext.deleteDatabase(mName)) {
+            Log.i(TAG, "deleteDatabase: database is deleted!");
+            return true;
+        }
+        return false;
     }
 
     /** Room DB schema of a document. */

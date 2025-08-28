@@ -114,10 +114,11 @@ public class FakeStorage implements IStorage {
     }
 
     @Override
-    public void deleteDatabase() {
+    public boolean deleteDatabase() {
         close();
         mDocuments.clear();
         mMetadata.clear();
+        return true;
     }
 
     public boolean isOpen() {
