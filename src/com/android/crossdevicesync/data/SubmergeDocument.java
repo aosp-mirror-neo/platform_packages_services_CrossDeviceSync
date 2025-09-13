@@ -31,6 +31,7 @@ import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
 import com.google.android.submerge.DocumentTransaction;
+import com.google.android.submerge.MergeException;
 import com.google.android.submerge.OlderBaseNeededException;
 import com.google.android.submerge.SubmergeDataType;
 import com.google.android.submerge.SubmergeMap;
@@ -319,7 +320,8 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
      * @return paths that are changed by this merge.
      * @throws OlderBaseNeededException if the merge failed due to an older version base needed.
      */
-    public List<String> mergeLocalUpdate(byte[] update) throws OlderBaseNeededException {
+    public List<String> mergeLocalUpdate(byte[] update)
+            throws OlderBaseNeededException, MergeException {
         requireDocumentOpen();
         List<String> changed = doMergeNetworkUpdate(update, /* isFromRemote= */ false);
         logInfo(
@@ -337,7 +339,8 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
      * @return paths that are changed by this merge.
      * @throws OlderBaseNeededException if the merge failed due to an older version base needed.
      */
-    public List<String> mergeNetworkUpdate(byte[] update) throws OlderBaseNeededException {
+    public List<String> mergeNetworkUpdate(byte[] update)
+            throws OlderBaseNeededException, MergeException {
         requireDocumentOpen();
         List<String> changed = doMergeNetworkUpdate(update, /* isFromRemote= */ true);
         logInfo(
@@ -349,7 +352,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
     }
 
     private List<String> doMergeNetworkUpdate(byte[] update, boolean isFromRemote)
-            throws OlderBaseNeededException {
+            throws OlderBaseNeededException, MergeException {
         Map<String, Object> before = collectAllData();
         mTransaction.mergeNetworkUpdate(update);
         Map<String, Object> after = collectAllData();
