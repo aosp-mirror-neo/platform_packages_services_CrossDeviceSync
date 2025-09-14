@@ -19,6 +19,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -32,6 +34,8 @@ import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
 import com.google.android.submerge.DataStore;
+import com.google.android.submerge.DocumentTransaction;
+import com.google.android.submerge.MergeException;
 import com.google.android.submerge.NetworkInterface;
 import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.SubmergeDataType;
@@ -55,6 +59,7 @@ import java.util.List;
 public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NetworkInterface mNetworkInterface;
+    @Mock private DocumentTransaction<String> mMockTransaction;
     private DataStore<String> mSubmergeDataStore;
     private SubmergeDocument<String> mDocument;
     private String mDeviceNodeId;
@@ -632,6 +637,40 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
         assertThat(r.get()).isEqualTo("abc");
         assertThat(r.getMetadata().isLastModifiedByLocalDevice()).isTrue();
         assertThat(changed.get(0)).isEqualTo("/root/register");
+    }
+
+    @Test
+    public void testMergeNetworkUpdate_throwsMergeException() throws Exception {
+        // Setup document with a mock transaction that throws on merge.
+        SubmergeDocument<String> document =
+                new SubmergeDocument<>(
+                        mDataStoreName,
+                        DOC_ID,
+                        mMockTransaction,
+                        mDeviceNodeId,
+                        DocMetadata.DocumentMetadata.newBuilder().build());
+        byte[] update = new byte[0];
+        doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
+
+        // Verify MergeException is thrown when merging a network update.
+        assertThrows(MergeException.class, () -> document.mergeNetworkUpdate(update));
+    }
+
+    @Test
+    public void testMergeLocalUpdate_throwsMergeException() throws Exception {
+        // Setup document with a mock transaction that throws on merge.
+        SubmergeDocument<String> document =
+                new SubmergeDocument<>(
+                        mDataStoreName,
+                        DOC_ID,
+                        mMockTransaction,
+                        mDeviceNodeId,
+                        DocMetadata.DocumentMetadata.newBuilder().build());
+        byte[] update = new byte[0];
+        doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
+
+        // Verify MergeException is thrown when merging a local update.
+        assertThrows(MergeException.class, () -> document.mergeLocalUpdate(update));
     }
 
     @SuppressWarnings("MustBeClosedChecker")
