@@ -83,8 +83,12 @@ public interface SharedDataStore<T> extends AutoCloseable {
     /** Check if the data store is open. */
     boolean isOpen();
 
-    /** Permanently delete the data store and its content. This operation is non-recoverable. */
-    void delete();
+    /**
+     * Permanently delete the data store and its content. This operation is non-recoverable.
+     *
+     * @return a listenable future to get notified when deletion is done or failed.
+     */
+    ListenableFuture<?> delete();
 
     /**
      * A document that can be used to access data.

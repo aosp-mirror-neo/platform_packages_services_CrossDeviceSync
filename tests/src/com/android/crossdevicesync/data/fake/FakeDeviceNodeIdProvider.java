@@ -19,7 +19,10 @@ import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import javax.inject.Inject;
 
@@ -27,22 +30,31 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class FakeDeviceNodeIdProvider implements DeviceNodeIdProvider {
     private final Map<String, String> mNodeIds = new HashMap<>();
+    private final Set<String> mTombStones = new HashSet<>();
 
     @Inject
     FakeDeviceNodeIdProvider() {}
 
-    /** Set the node id for a data store. */
-    public void setNodeIdForDataStore(String dataStore, String nodeId) {
-        mNodeIds.put(dataStore, nodeId);
-    }
-
     @Override
     public String getOrCreateNodeIdForDataStore(String dataStore) {
-        return mNodeIds.computeIfAbsent(dataStore, k -> k + "_test_node");
+        return mNodeIds.computeIfAbsent(
+                dataStore,
+                k -> {
+                    for (int i = 0; i < 10; i++) {
+                        String id = UUID.randomUUID().toString();
+                        if (!mNodeIds.containsValue(id) && !mTombStones.contains(id)) {
+                            return id;
+                        }
+                    }
+                    throw new RuntimeException();
+                });
     }
 
     @Override
     public void noteDataStoreDeletion(String dataStore) {
-        mNodeIds.remove(dataStore);
+        String id = mNodeIds.remove(dataStore);
+        if (id != null) {
+            mTombStones.add(id);
+        }
     }
 }

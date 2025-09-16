@@ -17,8 +17,6 @@ package com.android.crossdevicesync.data;
 
 import static java.util.Objects.requireNonNull;
 
-import android.util.ArrayMap;
-
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
@@ -27,8 +25,10 @@ import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 /**
  * An interface responsible for providing schema related information
@@ -108,9 +108,9 @@ public interface SchemaProvider<T> {
                             + doc.getSchemaVersion()
                             + ".");
         }
-        for (Map.Entry<String, Integer> entry : schema.getPathSchema().entrySet()) {
-            String path = entry.getKey();
-            int type = entry.getValue();
+        for (PathSchemaInfo pathSchema : schema.getPathSchema()) {
+            String path = pathSchema.path();
+            int type = pathSchema.type();
             SharedDataStore.Record<T> r = doc.getRecord(path);
             switch (r) {
                 case null ->
@@ -146,6 +146,13 @@ public interface SchemaProvider<T> {
         }
     }
 
+    private static void validateRecordType(@RecordType int type) {
+        switch (type) {
+            case TYPE_REGISTER, TYPE_SET, TYPE_UNMERGED -> {}
+            default -> throw new RuntimeException("Unknown record type: " + type);
+        }
+    }
+
     /**
      * Data object representing a document schema.
      *
@@ -156,12 +163,12 @@ public interface SchemaProvider<T> {
     class DocumentSchemaInfo {
         private final String mDocId;
         private final int mVersion;
-        private final Map<String, Integer> mPathSchema;
+        private final List<PathSchemaInfo> mPathSchema;
 
-        private DocumentSchemaInfo(String docId, int version, Map<String, Integer> pathDataType) {
+        private DocumentSchemaInfo(String docId, int version, List<PathSchemaInfo> pathSchema) {
             mDocId = docId;
             mVersion = version;
-            mPathSchema = pathDataType;
+            mPathSchema = pathSchema;
         }
 
         public String getDocId() {
@@ -172,7 +179,7 @@ public interface SchemaProvider<T> {
             return mVersion;
         }
 
-        public Map<String, Integer> getPathSchema() {
+        public List<PathSchemaInfo> getPathSchema() {
             return mPathSchema;
         }
 
@@ -184,7 +191,7 @@ public interface SchemaProvider<T> {
         public static final class Builder {
             private String mDocId;
             private int mVersion;
-            private final Map<String, Integer> mPathSchema = new ArrayMap<>();
+            private final List<PathSchemaInfo> mPathSchema = new ArrayList<>();
 
             private Builder() {}
 
@@ -201,15 +208,43 @@ public interface SchemaProvider<T> {
             }
 
             /** Adds or updates a path schema. */
-            public Builder putPathSchema(String path, @RecordType int type) {
-                mPathSchema.put(path, type);
+            public Builder putPathSchema(PathSchemaInfo schema) {
+                mPathSchema.add(schema);
                 return this;
             }
 
             /** Builds the {@link DocumentSchemaInfo} object. */
             public DocumentSchemaInfo build() {
+                // Validate schema.
+                Set<String> pathSet = new HashSet<>(mPathSchema.size());
+                for (PathSchemaInfo schemaInfo : mPathSchema) {
+                    if (!pathSet.add(schemaInfo.path())) {
+                        throw new RuntimeException(
+                                "Can't create schema: duplicate path - " + schemaInfo.path());
+                    }
+                    if (schemaInfo.version() > mVersion) {
+                        throw new RuntimeException(
+                                "Can't create schema: schema version "
+                                        + schemaInfo.version()
+                                        + " of path "
+                                        + schemaInfo.path()
+                                        + " is greater than document schema version "
+                                        + mVersion);
+                    }
+                    validateRecordType(schemaInfo.type());
+                }
                 return new DocumentSchemaInfo(requireNonNull(mDocId), mVersion, mPathSchema);
             }
         }
     }
+
+    /**
+     * Data record for a path schema.
+     *
+     * @param path the data path.
+     * @param type the type of the record. Must be one of {@code RecordType}.
+     * @param version the schema version of the document when this path is firstly introduced. Must
+     *     not change once introduced.
+     */
+    record PathSchemaInfo(String path, @RecordType int type, int version) {}
 }

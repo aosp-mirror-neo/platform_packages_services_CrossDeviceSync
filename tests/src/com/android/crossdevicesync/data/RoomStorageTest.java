@@ -268,7 +268,7 @@ public final class RoomStorageTest extends SharedDataStoreComponentTestBase {
     }
 
     @Test
-    public void transact_metadataRolledBackOnFailure() throws StorageException {
+    public void transact_metadataRolledBackOnFailure() throws Exception {
         String id = "id";
         byte[] metadata = new byte[] {1, 2, 3, 4};
 
@@ -286,7 +286,7 @@ public final class RoomStorageTest extends SharedDataStoreComponentTestBase {
     }
 
     @Test
-    public void transact_contentRolledBackOnFailure() throws StorageException {
+    public void transact_contentRolledBackOnFailure() throws Exception {
         String id = "id";
         byte[] content = new byte[] {1, 2, 3, 4};
 
@@ -304,7 +304,7 @@ public final class RoomStorageTest extends SharedDataStoreComponentTestBase {
     }
 
     @Test
-    public void transact_schemaRolledBackOnFailure() throws StorageException {
+    public void transact_schemaRolledBackOnFailure() throws Exception {
         String id = "id";
         byte[] schema = new byte[] {1, 2, 3, 4};
 

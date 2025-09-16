@@ -15,8 +15,6 @@
  */
 package com.android.crossdevicesync.data;
 
-import android.util.Log;
-
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
@@ -43,7 +41,6 @@ public class StringConverter implements Converter<String> {
         if (bytes == null) {
             // Submerge uses null byte[] when there is no data in persistent storage. So
             // gracefully handle this case instead of crashing.
-            Log.w(TAG, "Trying to deserialize a null byte array. Fallback to null string.");
             return null;
         }
         if (bytes.length == 0) {

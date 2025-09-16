@@ -97,15 +97,11 @@ public class FakeStorage implements IStorage {
     }
 
     @Override
-    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException {
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
         if (!mInitialized) {
             throw new StorageException();
         }
-        try {
-            transactionApplier.acceptOrThrow(this);
-        } catch (Exception e) {
-            throw new StorageException();
-        }
+        transactionApplier.acceptOrThrow(this);
     }
 
     @Override
@@ -118,6 +114,7 @@ public class FakeStorage implements IStorage {
         close();
         mDocuments.clear();
         mMetadata.clear();
+        mSchema.clear();
         return true;
     }
 

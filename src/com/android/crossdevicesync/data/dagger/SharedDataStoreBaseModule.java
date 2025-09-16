@@ -19,6 +19,7 @@ import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.INetwork;
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
@@ -44,6 +45,13 @@ public abstract class SharedDataStoreBaseModule {
 
     @SharedDataStoreSingleton
     @Provides
+    static SubmergeSchemaUpgradeHelper<?> provideSubmergeSchemaUpgradeHelper(
+            IStorage storage, Converter<?> converter, @DataStoreName String dataStoreName) {
+        return new SubmergeSchemaUpgradeHelper(storage, converter, dataStoreName);
+    }
+
+    @SharedDataStoreSingleton
+    @Provides
     static SubmergeSharedDataStore<?> provideSubmergeSharedDataStore(
             @DataStoreName String name,
             DeviceNodeIdProvider deviceNodeIdProvider,
@@ -52,7 +60,8 @@ public abstract class SharedDataStoreBaseModule {
             INetwork.Factory networkFactory,
             TimestampProvider timestampProvider,
             Converter<?> converter,
-            SchemaProvider<?> schemaProvider) {
+            SchemaProvider<?> schemaProvider,
+            SubmergeSchemaUpgradeHelper<?> schemaUpgradeHelper) {
         return new SubmergeSharedDataStore(
                 name,
                 deviceNodeIdProvider,
@@ -61,7 +70,8 @@ public abstract class SharedDataStoreBaseModule {
                 networkFactory,
                 timestampProvider,
                 converter,
-                schemaProvider);
+                schemaProvider,
+                schemaUpgradeHelper);
     }
 
     @SharedDataStoreSingleton

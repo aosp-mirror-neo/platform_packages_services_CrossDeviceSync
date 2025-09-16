@@ -21,21 +21,7 @@ package com.android.crossdevicesync.data.proto;
 // A network message
 // Next ID: 3
 message NetworkMessage {
-    oneof payload {
-        DocVersionMessage doc_version = 1;
-        DocUpdateMessage doc_update = 2;
-    }
-}
-
-// A message containing a document version.
-// Next ID: 3
-message DocVersionMessage {
     string doc_id = 1;
-    bytes doc_version = 2;
-}
-
-// A message containing a document update.
-message DocUpdateMessage {
-    string doc_id = 1;
-    bytes doc_update = 2;
+    optional bytes doc_version = 2;
+    optional bytes doc_update = 3;
 }

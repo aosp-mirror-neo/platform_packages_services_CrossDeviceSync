@@ -27,8 +27,6 @@ import com.android.crossdevicesync.data.INetwork.OnNetworkMessageListener;
 import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
-import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.DocUpdateMessage;
-import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.DocVersionMessage;
 import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
 
 import com.google.android.submerge.Converter;
@@ -53,7 +51,6 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -65,24 +62,6 @@ import java.util.stream.Collectors;
  */
 public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetworkMessageListener {
     private static final String TAG = "SubmergeSharedDataStore";
-
-    /**
-     * Prefix for a virtual node ID used for schema changes.
-     *
-     * <p>Submerge uses a "last change wins" strategy for concurrent updates. If multiple devices
-     * update the schema concurrently, the one with the latest timestamp overwrites the others,
-     * potentially causing data loss.
-     *
-     * <p>To avoid this, schema changes are attributed to a virtual node ID like "schema_node_xxx"
-     * (where "xxx" is the document ID). The timestamp for this virtual node is the schema version.
-     * This makes all schema updates appear to come from the same virtual node with the same
-     * timestamp, allowing Submerge to merge changes correctly instead of overwriting the entire
-     * subtree.
-     *
-     * <p>Warning: this should never change, or cross-device concurrent schema change will lead to
-     * data loss.
-     */
-    private static final String SCHEMA_NODE_ID_PREFIX = "schema_node_";
 
     // The data store is not initialized.
     private static final int STATE_UNINITIALIZED = 0;
@@ -106,7 +85,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
     public @interface State {}
 
     private final Object mLock = new Object();
-
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     private final Lazy<ListeningExecutorService> mIOThreadExecutor;
@@ -115,6 +93,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
     private final TimestampProvider mTimestampProvider;
     private final Converter<T> mConverter;
     private final SchemaProvider<T> mSchemaProvider;
+    private final SubmergeSchemaUpgradeHelper<T> mSchemaUpgradeHelper;
     private final NetworkInterface mNetworkInterface =
             new NetworkInterface() {
                 @Override
@@ -138,20 +117,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                 @Override
                 public byte[] readFromStorage(String docId) throws StorageException {
                     return mStorage.getDocument(docId);
-                }
-            };
-    private final StorageInterface mSchemaStorageInterface =
-            new StorageInterface() {
-                @Override
-                public void onNewUpdate(String docId, byte[] serializedSchema)
-                        throws StorageException {
-                    mStorage.persistDocumentSchema(docId, serializedSchema);
-                }
-
-                @Nullable
-                @Override
-                public byte[] readFromStorage(String docId) throws StorageException {
-                    return mStorage.getDocumentSchema(docId);
                 }
             };
 
@@ -182,7 +147,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             INetwork.Factory networkFactory,
             TimestampProvider timestampProvider,
             Converter<T> converter,
-            SchemaProvider<T> schemaProvider) {
+            SchemaProvider<T> schemaProvider,
+            SubmergeSchemaUpgradeHelper<T> schemaUpgradeHelper) {
         this.mName = name;
         this.mDeviceNodeIdProvider = deviceNodeIdProvider;
         this.mIOThreadExecutor = ioThreadExecutor;
@@ -191,6 +157,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
         this.mTimestampProvider = timestampProvider;
         this.mConverter = converter;
         this.mSchemaProvider = schemaProvider;
+        this.mSchemaUpgradeHelper = schemaUpgradeHelper;
     }
 
     @SuppressWarnings("MustBeClosedChecker")
@@ -225,12 +192,11 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
         }
         for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
             String docId = schema.getDocId();
-            try (DataStore<T> schemaDataStore = openSchemaDataStore(docId, schema.getVersion());
-                    SubmergeDocument<T> schemaDoc = openSchemaDoc(schemaDataStore, docId);
-                    // Create a new submerge data store with timestamp == 0 so that changes made
-                    // during data migration are less likely to override concurrent change from
-                    // remote devices.
-                    DataStore<T> documentDataStore =
+            try (
+            // Create a new submerge data store with timestamp == 0 so that changes made
+            // during data migration are less likely to override concurrent change from
+            // remote devices.
+            DataStore<T> documentDataStore =
                             openDocumentDataStore(nodeId, /* timestampProvider= */ () -> 0);
                     SubmergeDocument<T> document = openDocument(nodeId, documentDataStore, docId)) {
                 int previousVersion = document.getSchemaVersion();
@@ -259,37 +225,24 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                                 + schema.getVersion()
                                 + " for "
                                 + getDebugDocIdentityString(docId));
-                for (Map.Entry<String, Integer> entry : schema.getPathSchema().entrySet()) {
-                    String path = entry.getKey();
-                    int type = entry.getValue();
-                    switch (type) {
-                        case SchemaProvider.TYPE_REGISTER:
-                            schemaDoc.addRegisterSchema(path);
-                            break;
-                        case SchemaProvider.TYPE_UNMERGED:
-                            schemaDoc.addUnmergedSchema(path);
-                            break;
-                        case SchemaProvider.TYPE_SET:
-                            schemaDoc.addSetSchema(path);
-                            break;
-                        default:
-                            throw new IllegalSchemaChangeException(
-                                    "update: unknown data type " + type);
-                    }
-                }
                 // Apply changes in transaction so that database can rollback in case upgrade fails.
                 mStorage.transact(
                         s -> {
-                            // Step 1: commit schema store, and retrieve a delta.
-                            schemaDoc.commitTransaction();
-                            byte[] schemaUpdateBytes = schemaDataStore.getFullUpdateMessage(docId);
+                            // Step 1: upgrade schema data store, and retrieve an update message.
+                            byte[] schemaUpdateBytes =
+                                    mSchemaUpgradeHelper.upgradeDocumentSchema(schema);
 
                             // Step 2: merge the schema change.
                             Log.i(
                                     TAG,
                                     "Merging schema update into "
                                             + getDebugDocIdentityString(docId));
-                            document.mergeLocalUpdate(schemaUpdateBytes);
+                            try {
+                                document.mergeLocalUpdate(schemaUpdateBytes);
+                            } catch (Exception e) {
+                                // Convert merge exception to IllegalSchemaChangeException.
+                                throw new IllegalSchemaChangeException(e);
+                            }
 
                             // Step 3: perform feature specific migration steps.
                             Log.i(TAG, "Migrating document " + getDebugDocIdentityString(docId));
@@ -320,7 +273,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                                 + " for "
                                 + getDebugDocIdentityString(docId));
             } catch (Exception e) {
-                Log.e(TAG, "upgrade: failed to upgrade schema for " + getSchemaNodeId(docId), e);
+                Log.e(
+                        TAG,
+                        "upgrade: failed to upgrade schema for " + getDebugDocIdentityString(docId),
+                        e);
                 // Advance state and re-throw.
                 synchronized (mLock) {
                     if (mState == STATE_UPGRADING) {
@@ -334,37 +290,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             requireStateLocked(STATE_UPGRADING);
             mState = STATE_OPEN;
         }
-    }
-
-    /** Get the node id used for creating a schema data store. */
-    private static String getSchemaNodeId(String docId) {
-        return SCHEMA_NODE_ID_PREFIX + docId;
-    }
-
-    /** Open the submerge schema data store. */
-    @MustBeClosed
-    private DataStore<T> openSchemaDataStore(String docId, int schemaVersion) {
-        // Create a submerge data store representing a virtual device for updating schema. The
-        // virtual device's node id is always SCHEMA_NODE_ID_PREFIX + docId. Its timestamp is always
-        // the schemaVersion.
-        return new DataStore<>(
-                getSchemaNodeId(docId),
-                new NoOpNetworkInterface(),
-                mSchemaStorageInterface,
-                /* timestampProvider= */ () -> schemaVersion,
-                mConverter);
-    }
-
-    /** Open a schema doc. */
-    @SuppressWarnings("MustBeClosedChecker")
-    @MustBeClosed
-    private SubmergeDocument<T> openSchemaDoc(DataStore<T> schemaDataStore, String docId) {
-        return new SubmergeDocument<>(
-                mName,
-                docId,
-                schemaDataStore.newDocumentTransaction(docId),
-                getSchemaNodeId(docId),
-                DocMetadata.DocumentMetadata.getDefaultInstance());
     }
 
     /** Open the submerge document data store. */
@@ -475,8 +400,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             Log.e(TAG, "onNetworkUpdate: failed to parse network message", e);
             return;
         }
+        String docId = networkMessage.getDocId();
+        byte[] responseUpdate = null;
+        byte[] responseVersionVector = null;
         if (networkMessage.hasDocUpdate()) {
-            String docId = networkMessage.getDocUpdate().getDocId();
             Log.d(TAG, "Received network update for " + getDebugDocIdentityString(docId));
             try {
                 List<String> changedPaths =
@@ -486,7 +413,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                                         ((SubmergeDocument<T>) doc)
                                                 .mergeNetworkUpdate(
                                                         networkMessage
-                                                                .getDocUpdate()
                                                                 .getDocUpdate()
                                                                 .toByteArray()));
                 for (String path : changedPaths) {
@@ -499,48 +425,44 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                                 + getDebugDocIdentityString(docId));
                 // Send the needed version vector to request another update message with proper
                 // version base.
-                try (VersionVector v = e.getBaseVersionNeeded()) {
-                    network.unicastMessage(srcDeviceNodeId, encodeVersionVectorMessage(docId, v));
-                }
+                responseVersionVector = e.getBaseVersionNeeded().toByteArray();
             } catch (Exception e) {
                 Log.e(
                         TAG,
                         "onNetworkUpdate: failed to commit network update for "
                                 + getDebugDocIdentityString(docId),
                         e);
+                return;
             }
-        } else if (networkMessage.hasDocVersion()) {
-            String docId = networkMessage.getDocVersion().getDocId();
+        }
+        if (networkMessage.hasDocVersion()) {
             Log.d(TAG, "Received version vector for " + getDebugDocIdentityString(docId));
             try (VersionVector otherVersion =
                             VersionVector.fromByteArray(
-                                    networkMessage.getDocVersion().getDocVersion().toByteArray());
+                                    networkMessage.getDocVersion().toByteArray());
                     VersionVector myVersion = submergeDataStore.getDocumentVersion(docId)) {
                 if (isPartiallyOlder(otherVersion, myVersion)) {
-                    Log.i(
-                            TAG,
-                            "Sending delta update for "
-                                    + getDebugDocIdentityString(docId)
-                                    + " to "
-                                    + srcDeviceNodeId);
-                    network.unicastMessage(
-                            srcDeviceNodeId,
-                            encodeDocUpdateMessage(
-                                    docId, submergeDataStore.calculateDelta(docId, otherVersion)));
+                    responseUpdate = submergeDataStore.calculateDelta(docId, otherVersion);
                 }
-                if (isPartiallyOlder(myVersion, otherVersion)) {
-                    Log.i(
-                            TAG,
-                            "Sending version of "
-                                    + getDebugDocIdentityString(docId)
-                                    + " to "
-                                    + srcDeviceNodeId);
-                    network.unicastMessage(
-                            srcDeviceNodeId, encodeVersionVectorMessage(docId, myVersion));
+                if (responseVersionVector == null && isPartiallyOlder(myVersion, otherVersion)) {
+                    responseVersionVector = myVersion.toByteArray();
                 }
             }
-        } else {
-            Log.w(TAG, "onNetworkUpdate: unknown network message");
+        }
+        if (responseUpdate != null || responseVersionVector != null) {
+            Log.i(
+                    TAG,
+                    "onNetworkMessage: sending response to "
+                            + srcDeviceNodeId
+                            + " for "
+                            + getDebugDocIdentityString(docId)
+                            + ". Has doc: "
+                            + (responseUpdate != null)
+                            + ". Has version: "
+                            + (responseVersionVector != null)
+                            + ".");
+            network.unicastMessage(
+                    srcDeviceNodeId, encodeMessage(docId, responseUpdate, responseVersionVector));
         }
     }
 
@@ -549,26 +471,27 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
         return comp == VersionVector.OLDER || comp == VersionVector.CONCURRENT;
     }
 
-    private byte[] encodeVersionVectorMessage(String docId, VersionVector versionVector) {
-        return NetworkMessage.newBuilder()
-                .setDocVersion(
-                        DocVersionMessage.newBuilder()
-                                .setDocId(docId)
-                                .setDocVersion(ByteString.copyFrom(versionVector.toByteArray()))
-                                .build())
-                .build()
-                .toByteArray();
+    private byte[] encodeVersionVectorMessage(String docId, byte[] version) {
+        return encodeMessage(docId, /* docUpdate= */ null, version);
     }
 
     private byte[] encodeDocUpdateMessage(String docId, byte[] docUpdate) {
-        NetworkMessage message =
-                NetworkMessage.newBuilder()
-                        .setDocUpdate(
-                                DocUpdateMessage.newBuilder()
-                                        .setDocId(docId)
-                                        .setDocUpdate(ByteString.copyFrom(docUpdate)))
-                        .build();
-        return message.toByteArray();
+        return encodeMessage(docId, docUpdate, /* version= */ null);
+    }
+
+    private byte[] encodeMessage(
+            String docId, @Nullable byte[] docUpdate, @Nullable byte[] version) {
+        if (docUpdate == null && version == null) {
+            throw new IllegalArgumentException("Must have a docUpdate or version.");
+        }
+        NetworkMessage.Builder builder = NetworkMessage.newBuilder().setDocId(docId);
+        if (docUpdate != null) {
+            builder.setDocUpdate(ByteString.copyFrom(docUpdate));
+        }
+        if (version != null) {
+            builder.setDocVersion(ByteString.copyFrom(version));
+        }
+        return builder.build().toByteArray();
     }
 
     @Override
@@ -623,7 +546,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             String docId = schema.getDocId();
             try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
                 network.unicastMessage(
-                        remoteDeviceNodeId, encodeVersionVectorMessage(docId, version));
+                        remoteDeviceNodeId,
+                        encodeVersionVectorMessage(docId, version.toByteArray()));
             }
         }
     }
@@ -668,14 +592,14 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
     }
 
     @Override
-    public void delete() {
+    public ListenableFuture<Boolean> delete() {
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-            mIOThreadExecutor.get().execute(this::doDelete);
+            return mIOThreadExecutor.get().submit(this::doDelete);
         }
     }
 
-    private void doDelete() {
+    private boolean doDelete() {
         synchronized (mLock) {
             requireStateLocked(STATE_FAILED_TO_UPGRADE, STATE_OPEN);
         }
@@ -685,6 +609,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             Log.w(TAG, "Deleted data store \"" + mName + "\".");
         }
         close();
+        return true;
     }
 
     @GuardedBy("mLock")
@@ -731,13 +656,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
 
         void onRemoteChange(String path) {
             mExecutor.execute(() -> mListener.onRemoteChange(path));
-        }
-    }
-
-    private static class NoOpNetworkInterface implements NetworkInterface {
-        @Override
-        public void onNewUpdate(String docId, byte[] updateMessage) {
-            // Do nothing.
         }
     }
 }

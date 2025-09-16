@@ -25,7 +25,6 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
 import com.android.crossdevicesync.data.proto.DocMetadata;
-import com.android.crossdevicesync.data.proto.DocMetadata.RecordMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingBiConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
@@ -362,6 +361,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                 // A path has been removed.
                 changed.add(path);
                 removeMatchedRecordMetadata(path);
+                Log.w(TAG, "mergeNetworkUpdate: removed path: " + getDebugStringForPath(path));
             } else if (!Objects.equals(before.get(path), after.get(path))) {
                 // A path has changed.
                 changed.add(path);

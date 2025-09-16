@@ -144,7 +144,7 @@ public class RoomStorage implements IStorage {
     }
 
     @Override
-    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException {
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
         try {
             mDao.transact(() -> transactionApplier.acceptOrThrow(this));
         } catch (Exception e) {
