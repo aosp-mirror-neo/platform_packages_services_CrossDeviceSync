@@ -54,10 +54,10 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
+                        .networkFactory(mNetworkFactory)
                         .name(dataStoreName)
                         .converter(mStringConverter)
                         .schemaProvider(schemaProvider)
-                        .networkFactory(mNetworkFactory)
                         .build();
     }
 
