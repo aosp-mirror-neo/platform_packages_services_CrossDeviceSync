@@ -15,7 +15,51 @@
  */
 package com.android.crossdevicesync.common;
 
+import android.annotation.UserIdInt;
+import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
+import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
+
+import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /** A testable interface wrapping {@link CompanionDeviceManager}. */
-public interface CompanionDeviceManagerProxy {}
+public interface CompanionDeviceManagerProxy {
+
+    /** See {@link CompanionDeviceManager#getAllAssociations(int)}. */
+    List<AssociationInfo> getAllAssociations(@UserIdInt int userId);
+
+    /**
+     * See {@link CompanionDeviceManager#addOnAssociationsChangedListener(Executor,
+     * OnAssociationsChangedListener, int)}.
+     */
+    void addOnAssociationsChangedListener(
+            Executor executor, OnAssociationsChangedListener listener, @UserIdInt int userId);
+
+    /**
+     * See {@link
+     * CompanionDeviceManager#removeOnAssociationsChangedListener(OnAssociationsChangedListener)}.
+     */
+    void removeOnAssociationsChangedListener(OnAssociationsChangedListener listener);
+
+    /** See {@link CompanionDeviceManager#addOnTransportsChangedListener(Executor, Consumer)}. */
+    void addOnTransportsChangedListener(
+            Executor executor, Consumer<List<AssociationInfo>> listener);
+
+    /** See {@link CompanionDeviceManager#removeOnTransportsChangedListener(Consumer)}. */
+    void removeOnTransportsChangedListener(Consumer<List<AssociationInfo>> listener);
+
+    /** See {@link CompanionDeviceManager#sendMessage(int, byte[], int[])}. */
+    void sendMessage(int messageType, byte[] data, int[] associationIds);
+
+    /**
+     * See {@link CompanionDeviceManager#addOnMessageReceivedListener(Executor, int, BiConsumer)}.
+     */
+    void addOnMessageReceivedListener(
+            Executor executor, int messageType, BiConsumer<Integer, byte[]> listener);
+
+    /** See {@link CompanionDeviceManager#removeOnMessageReceivedListener(int, BiConsumer)}. */
+    void removeOnMessageReceivedListener(int messageType, BiConsumer<Integer, byte[]> listener);
+}
