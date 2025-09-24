@@ -32,7 +32,7 @@ import java.util.concurrent.Executor;
 /** Fake implementation of {@link INetwork}. */
 public class FakeNetwork implements INetwork {
     private final String mNodeId;
-    private final List<Pair<Executor, OnNetworkMessageListener>> mListeners = new ArrayList<>();
+    private final List<Pair<Executor, NetworkListener>> mListeners = new ArrayList<>();
     private final Set<FakeNetwork> mRemoteNetworks = new HashSet<>();
 
     private final Queue<Runnable> mMessageBuffer = new ArrayDeque<>();
@@ -44,6 +44,8 @@ public class FakeNetwork implements INetwork {
     /** Connect to a remote network. */
     public void connect(FakeNetwork remoteNetwork) {
         mRemoteNetworks.add(remoteNetwork);
+        mListeners.forEach(
+                l -> l.first.execute(() -> l.second.onNodeAppeared(remoteNetwork.getNodeId())));
     }
 
     @Override
@@ -67,13 +69,12 @@ public class FakeNetwork implements INetwork {
     }
 
     @Override
-    public void registerNetworkMessageListener(
-            Executor executor, OnNetworkMessageListener listener) {
+    public void registerNetworkListener(Executor executor, NetworkListener listener) {
         mListeners.add(new Pair<>(executor, listener));
     }
 
     @Override
-    public void unregisterNetworkMessageListener(OnNetworkMessageListener listener) {
+    public void unregisterNetworkListener(NetworkListener listener) {
         mListeners.removeIf(l -> l.second == listener);
     }
 

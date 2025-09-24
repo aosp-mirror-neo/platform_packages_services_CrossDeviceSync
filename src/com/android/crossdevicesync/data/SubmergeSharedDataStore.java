@@ -23,7 +23,7 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.data.INetwork.OnNetworkMessageListener;
+import com.android.crossdevicesync.data.INetwork.NetworkListener;
 import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
  *
  * @param <T> the data type that this data store manages.
  */
-public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetworkMessageListener {
+public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkListener {
     private static final String TAG = "SubmergeSharedDataStore";
 
     // The data store is not initialized.
@@ -177,7 +177,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
     private boolean doInit() throws Exception {
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING);
-            requireNonNull(mNetwork).registerNetworkMessageListener(mIOThreadExecutor.get(), this);
+            requireNonNull(mNetwork).registerNetworkListener(mIOThreadExecutor.get(), this);
         }
         mStorage.init();
         upgrade();
@@ -375,8 +375,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
 
     /** Called on IO thread when a network message is received. */
     @Override
-    public void onNetworkMessage(String srcDeviceNodeId, byte[] message) {
-        Log.i(TAG, "onNetworkMessage: srcDeviceNodeId = " + srcDeviceNodeId);
+    public void onNetworkMessage(String nodeId, byte[] message) {
+        Log.i(TAG, "onNetworkMessage: nodeId = " + nodeId);
         DataStore<T> submergeDataStore;
         INetwork network;
         synchronized (mLock) {
@@ -453,7 +453,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             Log.i(
                     TAG,
                     "onNetworkMessage: sending response to "
-                            + srcDeviceNodeId
+                            + nodeId
                             + " for "
                             + getDebugDocIdentityString(docId)
                             + ". Has doc: "
@@ -462,8 +462,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
                             + (responseVersionVector != null)
                             + ".");
             network.unicastMessage(
-                    srcDeviceNodeId, encodeMessage(docId, responseUpdate, responseVersionVector));
+                    nodeId, encodeMessage(docId, responseUpdate, responseVersionVector));
         }
+    }
+
+    /** Called on IO thread when a node is connected. */
+    @Override
+    public void onNodeAppeared(String nodeId) {
+        Log.i(TAG, "Node " + nodeId + " appeared for " + mName);
+        requestSyncWithRemoteDevice(nodeId);
     }
 
     private static boolean isPartiallyOlder(VersionVector a, VersionVector b) {
@@ -510,28 +517,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
         }
     }
 
-    /**
-     * Initiate a sync with a remote device. This will asynchronously trigger exchange of all known
-     * documents with the remote device.
-     */
-    public void requestSyncWithRemoteDevice(String remoteDeviceNodeId) {
-        synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-            mIOThreadExecutor
-                    .get()
-                    .execute(() -> doRequestSyncWithRemoteDevice(remoteDeviceNodeId));
-        }
-    }
-
     /** Called on IO thread for syncing. */
-    private void doRequestSyncWithRemoteDevice(String remoteDeviceNodeId) {
+    private void requestSyncWithRemoteDevice(String remoteDeviceNodeId) {
         DataStore<T> submergeDataStore;
         INetwork network;
         synchronized (mLock) {
             if (mState != STATE_OPEN) {
                 Log.w(
                         TAG,
-                        "doRequestSyncWithRemoteDevice: ignored - illegal state "
+                        "requestSyncWithRemoteDevice: ignored - illegal state "
                                 + stateToString(mState)
                                 + " in data store \""
                                 + mName
@@ -570,7 +564,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, OnNetwork
             mRemoteChangeListeners.clear();
             DataStore<T> submergeDataStore = requireNonNull(mSubmergeDataStore);
             mSubmergeDataStore = null;
-            requireNonNull(mNetwork).unregisterNetworkMessageListener(this);
+            requireNonNull(mNetwork).unregisterNetworkListener(this);
             mNetwork = null;
             mNodeId = null;
             mIOThreadExecutor
