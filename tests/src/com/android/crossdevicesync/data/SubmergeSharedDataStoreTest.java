@@ -147,7 +147,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Sync to local device.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify sync was successful.
@@ -188,7 +187,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Sync to local device.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify sync was successful.
@@ -252,7 +250,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Sync happens.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify that the local change is overridden.
@@ -359,7 +356,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Connect with remote device 1 and sync.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify data is synced.
@@ -546,7 +542,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Connect with device 1 and trigger a sync.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify the data is merged.
@@ -566,8 +561,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Connect with device 2 and trigger a sync.
         connectNetworks(this, mRemoteDevice1, mRemoteDevice2);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice2.nodeId());
-        mRemoteDevice2.getDataStore().requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1, mRemoteDevice2);
 
         // Verify the data is merged.
@@ -629,7 +622,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Connect and sync.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify devices stay out of sync.
@@ -658,7 +650,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Connect with device 1 and trigger a sync.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // Verify the remote data wins.
@@ -691,7 +682,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 2. A syncs with B.
         connectNetworks(b, a);
-        a.getDataStore().requestSyncWithRemoteDevice(b.mDataStore.getLocalDeviceNodeId());
         flushNetworks(b, a);
         transactDataStore(
                 b, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("A"));
@@ -702,14 +692,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 4. A syncs with C.
         connectNetworks(a, c);
-        a.getDataStore().requestSyncWithRemoteDevice(c.nodeId());
         flushNetworks(a, c);
         transactDataStore(
                 c, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("A"));
 
         // 5. B syncs with C.
         connectNetworks(b, c);
-        b.mDataStore.requestSyncWithRemoteDevice(c.nodeId());
         flushNetworks(b, c);
         transactDataStore(
                 c, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("B"));
@@ -760,7 +748,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 4. Sync devices.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // 5. Assert that both devices have the merged data.
@@ -827,7 +814,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 4. Sync devices.
         connectNetworks(this, mRemoteDevice1);
-        mDataStore.requestSyncWithRemoteDevice(mRemoteDevice1.nodeId());
         flushNetworks(this, mRemoteDevice1);
 
         // 5. Assert that both devices have the merged data.

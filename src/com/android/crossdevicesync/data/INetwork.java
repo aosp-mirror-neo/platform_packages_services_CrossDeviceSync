@@ -33,16 +33,29 @@ public interface INetwork {
     void unicastMessage(String destDeviceNodeId, byte[] message);
 
     /** Register a listener to monitor incoming messages from the network. */
-    void registerNetworkMessageListener(Executor executor, OnNetworkMessageListener listener);
+    void registerNetworkListener(Executor executor, NetworkListener listener);
 
     /** Unregister the listener. */
-    void unregisterNetworkMessageListener(OnNetworkMessageListener listener);
+    void unregisterNetworkListener(NetworkListener listener);
 
-    /** A listener for monitoring incoming messages from the network. */
-    interface OnNetworkMessageListener {
+    /** A listener for monitoring events from the network. */
+    interface NetworkListener {
 
-        /** Called when a message is received from the network. */
-        void onNetworkMessage(String srcDeviceNodeId, byte[] message);
+        /**
+         * Called when a message is received from the network.
+         *
+         * @param nodeId the node id of the source device.
+         * @param message the message.
+         */
+        void onNetworkMessage(String nodeId, byte[] message);
+
+        /**
+         * Called when a node appears on the network. This happens if the node is first seen, or it
+         * gets reconnected after being disconnected.
+         *
+         * @param nodeId the node id of the appeared device.
+         */
+        void onNodeAppeared(String nodeId);
     }
 
     /** Interface for creating {@link INetwork} instances. */

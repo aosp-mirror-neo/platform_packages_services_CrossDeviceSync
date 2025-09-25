@@ -15,8 +15,16 @@
  */
 package com.android.crossdevicesync.dagger;
 
+import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+
+import dagger.Binds;
 import dagger.Module;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
 @Module(includes = {ApplicationBaseModule.class})
-public abstract class TestApplicationModule {}
+public abstract class TestApplicationModule {
+    @Binds
+    abstract CompanionDeviceManagerProxy bindCompanionDeviceManagerProxy(
+            FakeCompanionDeviceManagerProxy fake);
+}
