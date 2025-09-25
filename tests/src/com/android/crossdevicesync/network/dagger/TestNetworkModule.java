@@ -17,5 +17,5 @@ package com.android.crossdevicesync.network.dagger;
 
 import dagger.Module;
 
-@Module
+@Module(includes = {NetworkBaseModule.class})
 public class TestNetworkModule {}

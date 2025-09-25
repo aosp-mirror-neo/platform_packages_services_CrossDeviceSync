@@ -19,6 +19,7 @@ import android.annotation.UserIdInt;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
+import android.companion.DevicePresenceEvent;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -30,6 +31,9 @@ public interface CompanionDeviceManagerProxy {
 
     /** See {@link CompanionDeviceManager#getAllAssociations(int)}. */
     List<AssociationInfo> getAllAssociations(@UserIdInt int userId);
+
+    /** See {@link CompanionDeviceManager#getAllAssociationsWithTransports()}. */
+    List<AssociationInfo> getAllAssociationsWithTransports();
 
     /**
      * See {@link CompanionDeviceManager#addOnAssociationsChangedListener(Executor,
@@ -50,6 +54,19 @@ public interface CompanionDeviceManagerProxy {
 
     /** See {@link CompanionDeviceManager#removeOnTransportsChangedListener(Consumer)}. */
     void removeOnTransportsChangedListener(Consumer<List<AssociationInfo>> listener);
+
+    /**
+     * See {@link CompanionDeviceManager#setOnDevicePresenceEventListener(int[], String, Executor,
+     * Consumer)}.
+     */
+    void setOnDevicePresenceEventListener(
+            int[] associationIds,
+            String serviceName,
+            Executor executor,
+            Consumer<DevicePresenceEvent> listener);
+
+    /** See {@link CompanionDeviceManager#removeOnDevicePresenceEventListener(String)}. */
+    void removeOnDevicePresenceEventListener(String serviceName);
 
     /** See {@link CompanionDeviceManager#sendMessage(int, byte[], int[])}. */
     void sendMessage(int messageType, byte[] data, int[] associationIds);

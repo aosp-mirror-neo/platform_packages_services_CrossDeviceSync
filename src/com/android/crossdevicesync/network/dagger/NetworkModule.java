@@ -15,7 +15,6 @@
  */
 package com.android.crossdevicesync.network.dagger;
 
-import com.android.crossdevicesync.data.INetwork;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
@@ -23,14 +22,10 @@ import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 import dagger.Binds;
 import dagger.Module;
 
-@Module
+@Module(includes = {NetworkBaseModule.class})
 public abstract class NetworkModule {
 
     @SyncServiceSingleton
     @Binds
     abstract NetworkManager bindsNetworkManager(NetworkManagerImpl impl);
-
-    @SyncServiceSingleton
-    @Binds
-    abstract INetwork.Factory bindsNetworkFactory(NetworkManager networkManager);
 }

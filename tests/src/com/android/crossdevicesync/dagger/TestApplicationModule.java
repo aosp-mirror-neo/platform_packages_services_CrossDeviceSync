@@ -17,14 +17,30 @@ package com.android.crossdevicesync.dagger;
 
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.data.fake.SynchronousExecutorService;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
+
+import java.util.concurrent.Executor;
+
+import javax.inject.Singleton;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
 @Module(includes = {ApplicationBaseModule.class})
 public abstract class TestApplicationModule {
+
     @Binds
+    @Singleton
     abstract CompanionDeviceManagerProxy bindCompanionDeviceManagerProxy(
             FakeCompanionDeviceManagerProxy fake);
+
+    @Provides
+    @Singleton
+    @Main
+    static Executor provideMainExecutor() {
+        return new SynchronousExecutorService();
+    }
 }

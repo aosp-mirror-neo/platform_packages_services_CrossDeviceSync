@@ -15,10 +15,8 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.INetwork;
 import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase;
 
-import dagger.BindsInstance;
 import dagger.Subcomponent;
 
 /**
@@ -32,10 +30,6 @@ public interface TestSharedDataStoreComponent extends SharedDataStoreComponent {
     /** Builder interface for TestSharedDataStoreComponent. */
     @Subcomponent.Builder
     interface Builder extends SharedDataStoreComponent.Builder {
-
-        /** Set the network factory. */
-        @BindsInstance
-        Builder networkFactory(INetwork.Factory networkFactory);
 
         /** Build an instance of this component. */
         TestSharedDataStoreComponent build();

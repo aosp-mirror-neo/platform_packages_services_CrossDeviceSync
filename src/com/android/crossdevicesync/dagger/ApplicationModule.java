@@ -17,13 +17,18 @@ package com.android.crossdevicesync.dagger;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxyImpl;
+import com.android.crossdevicesync.dagger.qualifier.Main;
 
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+
+import java.util.concurrent.Executor;
 
 import javax.inject.Singleton;
 
@@ -49,4 +54,25 @@ public abstract class ApplicationModule {
     @Binds
     abstract CompanionDeviceManagerProxy bindsCompanionDeviceManagerProxy(
             CompanionDeviceManagerProxyImpl proxy);
+
+    @Provides
+    @Singleton
+    @Main
+    static Looper provideMainLooper() {
+        return Looper.getMainLooper();
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static Handler provideMainHandler(@Main Looper looper) {
+        return new Handler(looper);
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static Executor provideMainExecutor(Context context) {
+        return context.getMainExecutor();
+    }
 }

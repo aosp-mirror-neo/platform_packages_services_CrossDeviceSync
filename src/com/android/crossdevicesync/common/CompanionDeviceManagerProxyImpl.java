@@ -19,6 +19,7 @@ import android.annotation.UserIdInt;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
+import android.companion.DevicePresenceEvent;
 import android.content.Context;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
@@ -47,6 +48,11 @@ public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerPr
     }
 
     @Override
+    public List<AssociationInfo> getAllAssociationsWithTransports() {
+        return mCompanionDeviceManager.getAllAssociationsWithTransports();
+    }
+
+    @Override
     public void addOnAssociationsChangedListener(
             Executor executor, OnAssociationsChangedListener listener, @UserIdInt int userId) {
         mCompanionDeviceManager.addOnAssociationsChangedListener(executor, listener, userId);
@@ -66,6 +72,21 @@ public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerPr
     @Override
     public void removeOnTransportsChangedListener(Consumer<List<AssociationInfo>> listener) {
         mCompanionDeviceManager.removeOnTransportsChangedListener(listener);
+    }
+
+    @Override
+    public void setOnDevicePresenceEventListener(
+            int[] associationIds,
+            String serviceName,
+            Executor executor,
+            Consumer<DevicePresenceEvent> listener) {
+        mCompanionDeviceManager.setOnDevicePresenceEventListener(
+                associationIds, serviceName, executor, listener);
+    }
+
+    @Override
+    public void removeOnDevicePresenceEventListener(String serviceName) {
+        mCompanionDeviceManager.removeOnDevicePresenceEventListener(serviceName);
     }
 
     @Override
