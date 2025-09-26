@@ -15,49 +15,31 @@
  */
 package com.android.crossdevicesync.data.fake;
 
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import com.google.android.submerge.TimestampProvider;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.inject.Inject;
 
-/** Fake implementation of {@link TimestampProvider}. */
-@SyncServiceSingleton
+/** Fake implementation of {@link TimestampProvider} for testing. */
 public class FakeTimestampProvider implements TimestampProvider {
-    private long mTimestamp;
-    private boolean mAutoAdvance;
+    private static final AtomicLong sGlobalTimestamp = new AtomicLong(0);
 
     @Inject
-    FakeTimestampProvider() {
-        setAutoAdvance(true);
-    }
+    public FakeTimestampProvider() {}
 
     @Override
     public long now() {
-        long now = mTimestamp;
-        if (mAutoAdvance) {
-            increment();
-        }
-        return now;
+        return sGlobalTimestamp.incrementAndGet();
     }
 
-    public long peekNow() {
-        return mTimestamp;
-    }
-
+    /** Sets the timestamp for testing. */
     public void setTimeStamp(long timestamp) {
-        mTimestamp = timestamp;
+        sGlobalTimestamp.set(timestamp);
     }
 
-    public void increment() {
-        advanceBy(1);
-    }
-
-    public void advanceBy(long time) {
-        mTimestamp += time;
-    }
-
-    public void setAutoAdvance(boolean enabled) {
-        mAutoAdvance = enabled;
+    /** Returns the current timestamp without incrementing it. */
+    public long peekNow() {
+        return sGlobalTimestamp.get();
     }
 }

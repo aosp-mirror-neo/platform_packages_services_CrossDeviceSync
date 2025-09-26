@@ -56,7 +56,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @Before
     public void setUp() {
         super.setUp();
-        mTimestampProvider.setTimeStamp(100);
         mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
         mDataStore.init();
         mRemoteDevice1 = new RemoteDeviceContext();
@@ -645,7 +644,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         // Concurrent update from different devices.
         mTimestampProvider.setTimeStamp(200);
         transactDataStore(doc -> doc.putData("/root/register", "local"));
-        mRemoteDevice1.getTimestampProvider().setTimeStamp(mTimestampProvider.peekNow() + 100);
+        mTimestampProvider.setTimeStamp(300);
         transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "remote"));
 
         // Connect with device 1 and trigger a sync.
@@ -677,7 +676,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         RemoteDeviceContext c = mRemoteDevice2;
 
         // 1. A with a larger timestamp writes data.
-        a.getTimestampProvider().setTimeStamp(300);
+        mTimestampProvider.setTimeStamp(300);
         transactDataStore(a, doc -> doc.putData("/root/register", "A"));
 
         // 2. A syncs with B.
@@ -687,7 +686,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 b, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("A"));
 
         // 3. B writes the data without syncing to A.
-        b.mTimestampProvider.setTimeStamp(200); // B has a smaller timestamp.
+        mTimestampProvider.setTimeStamp(200); // B has a smaller timestamp.
         transactDataStore(b, doc -> doc.putData("/root/register", "B"));
 
         // 4. A syncs with C.
@@ -743,7 +742,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 3. Setup Device 2 (remote device) to initialize with schema v2 directly.
         reInitWithNewSchema(mRemoteDevice1, schemaV2).get();
-        mRemoteDevice1.getTimestampProvider().setTimeStamp(300);
+        mTimestampProvider.setTimeStamp(300);
         transactDataStore(mRemoteDevice1, doc -> doc.addDataToSet("/root/v2/set", "remote"));
 
         // 4. Sync devices.
@@ -804,7 +803,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // 3. Setup Device B (remote device) to initialize with schema v3 directly.
         reInitWithNewSchema(mRemoteDevice1, schemaV3).get();
-        mRemoteDevice1.getTimestampProvider().setTimeStamp(300);
+        mTimestampProvider.setTimeStamp(300);
         transactDataStore(
                 mRemoteDevice1,
                 doc -> {
@@ -1138,8 +1137,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     private class RemoteDeviceContext extends SharedDataStoreComponentTestBase {
         RemoteDeviceContext() {
             super.setUp();
-            mTimestampProvider.setTimeStamp(
-                    SubmergeSharedDataStoreTest.this.mTimestampProvider.peekNow());
             mSubmergeSharedDataStore.init();
         }
 
