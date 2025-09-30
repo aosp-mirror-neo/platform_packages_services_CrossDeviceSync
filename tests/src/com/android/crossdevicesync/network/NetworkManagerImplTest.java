@@ -18,23 +18,37 @@ package com.android.crossdevicesync.network;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+
 import android.companion.AssociationInfo;
 import android.companion.DevicePresenceEvent;
+import android.os.PersistableBundle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy.DevicePresenceListener;
+import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import java.util.Map;
 
 @RunWith(AndroidJUnit4.class)
 public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
+    @Rule public final MockitoRule mockito = MockitoJUnit.rule();
+    @Mock private NetworkListener mListener;
 
     @Before
     public void setUp() {
@@ -267,20 +281,253 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeCompanionDeviceManagerProxy.getDevicePresenceListeners()).isEmpty();
     }
 
-    private AssociationInfo createAssociationInfo(int id) {
-        return new AssociationInfo.Builder(id, mContext.getUserId(), "com.android.crossdevicesync")
-                .setDisplayName("displayName" + id)
-                .build();
-    }
-
     @Test
     public void onDevicePresenceEvent_associationRemoved_updatesDevice() {
         AssociationInfo info = createAssociationInfo(1);
         mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
-
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(1, DevicePresenceEvent.EVENT_ASSOCIATION_REMOVED, null));
-
         assertThat(mNetworkManagerImpl.getRemoteDevices().get(1).isAssociationRemoved()).isTrue();
+    }
+
+    @Test
+    public void createNetwork_success() {
+        Network network = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        assertThat(network).isNotNull();
+        assertThat(network.getNetworkId()).isEqualTo("network1");
+        assertThat(mNetworkManagerImpl.getNetworks().get("network1")).isSameInstanceAs(network);
+    }
+
+    @Test
+    public void createNetwork_returnsExisting() {
+        Network network1 = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        Network network2 = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        assertThat(network1).isSameInstanceAs(network2);
+    }
+
+    @Test
+    public void createNetwork_throwsWhenNotInitialized() {
+        mNetworkManagerImpl.destroy();
+        assertThrows(
+                IllegalStateException.class,
+                () -> mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true));
+    }
+
+    @Test
+    public void networkMembership_deviceAddedAndRemoved() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        assertThat(network.getRemoteDevices()).hasSize(1);
+        verify(mListener).onDeviceChanged(1);
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, false);
+
+        assertThat(network.getRemoteDevices()).isEmpty();
+        verify(mListener).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void networkMembership_deviceJoinsWhenTransportBecomesAvailable() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+
+        assertThat(network.getRemoteDevices()).isEmpty();
+        verify(mListener, never()).onDeviceChanged(1);
+
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        assertThat(network.getRemoteDevices()).hasSize(1);
+        verify(mListener).onDeviceChanged(1);
+    }
+
+    @Test
+    public void networkMembership_deviceLeavesWhenAssociationRemoved() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        assertThat(network.getRemoteDevices()).hasSize(1);
+        verify(mListener).onDeviceChanged(1);
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.removeAssociation(1);
+
+        assertThat(network.getRemoteDevices()).isEmpty();
+        verify(mListener).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void network_destroy() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        assertThat(network.getRemoteDevices()).hasSize(1);
+        verify(mListener).onDeviceChanged(1);
+
+        network.destroy();
+        assertThat(mNetworkManagerImpl.getNetworks()).isEmpty();
+
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, false);
+        verify(mListener, never()).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void network_listenersNotifiedOnChanges() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        verify(mListener).onDeviceChanged(1);
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
+                new DevicePresenceEvent(1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
+
+        verify(mListener).onDeviceChanged(1);
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, false);
+
+        verify(mListener).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void network_messagingMethodsDoNotCrashWhenDestroyed() {
+        Network network = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        network.destroy();
+        assertThat(network.broadcastMessage(new byte[0], 0)).isEqualTo(-1);
+        assertThat(network.unicastMessage(1, new byte[0], 0)).isEqualTo(-1);
+        network.cancelMessage(0);
+    }
+
+    @Test
+    public void unregisterListener_isNotNotified() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+        verify(mListener).onDeviceChanged(1);
+
+        network.unregisterListener(mListener);
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, false);
+        verify(mListener, never()).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void networkMembership_associationCondition() {
+        // Create a network that only accepts devices with a specific metadata flag.
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1",
+                        v -> true,
+                        associationInfo ->
+                                associationInfo.getMetadata().getBoolean("is_wearable", false));
+        network.registerListener(mMainExecutor, mListener);
+
+        // Add a device with empty metadata and verify it doesn't join.
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+        assertThat(network.getRemoteDevices()).isEmpty();
+        verify(mListener, never()).onDeviceChanged(1);
+
+        // Update the association to add the "is_wearable" flag to the metadata.
+        PersistableBundle metadata = new PersistableBundle();
+        metadata.putBoolean("is_wearable", true);
+        AssociationInfo wearableInfo =
+                new AssociationInfo.Builder(info).setMetadata(metadata).build();
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), wearableInfo);
+
+        // Verify the device now joins the network.
+        assertThat(network.getRemoteDevices()).hasSize(1);
+        verify(mListener).onDeviceChanged(1);
+        reset(mListener);
+
+        // Update the association to use empty metadata again.
+        AssociationInfo nonWearableInfo =
+                new AssociationInfo.Builder(info).setMetadata(new PersistableBundle()).build();
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
+                mContext.getUserId(), nonWearableInfo);
+
+        // Verify the device leaves the network.
+        assertThat(network.getRemoteDevices()).isEmpty();
+        verify(mListener).onDeviceRemoved(1);
+    }
+
+    @Test
+    public void onDeviceChanged_isCalledForExistingMemberStateUpdate() {
+        Network network =
+                mNetworkManagerImpl.createNetwork(
+                        "network1", RemoteDevice::hasTransport, v -> true);
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        verify(mListener).onDeviceChanged(1);
+        assertThat(network.getRemoteDevices().get(1).isBleAppeared()).isFalse();
+        reset(mListener);
+
+        mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
+                new DevicePresenceEvent(1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
+
+        verify(mListener).onDeviceChanged(1);
+        assertThat(network.getRemoteDevices().get(1).isBleAppeared()).isTrue();
+    }
+
+    @Test
+    public void registerListener_onDestroyedNetwork_doesNotRegister() {
+        Network network = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        network.destroy();
+
+        network.registerListener(mMainExecutor, mListener);
+
+        AssociationInfo info = createAssociationInfo(1);
+        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(1, true);
+
+        verify(mListener, never()).onDeviceChanged(1);
+    }
+
+    private AssociationInfo createAssociationInfo(int id) {
+        return new AssociationInfo.Builder(id, mContext.getUserId(), "com.android.crossdevicesync")
+                .setDisplayName("displayName" + id)
+                .build();
     }
 }

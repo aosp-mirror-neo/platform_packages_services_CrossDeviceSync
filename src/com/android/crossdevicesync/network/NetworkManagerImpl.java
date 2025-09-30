@@ -20,8 +20,10 @@ import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.content.Context;
 import android.os.UserHandle;
+import android.util.ArraySet;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
+import android.util.Pair;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
@@ -31,6 +33,9 @@ import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import com.google.common.collect.Maps;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -64,6 +70,12 @@ public class NetworkManagerImpl implements NetworkManager {
     @GuardedBy("mLock")
     private Map<Integer, RemoteDeviceImpl> mRemoteDevices = new HashMap<>();
 
+    @GuardedBy("mLock")
+    private Map<String, NetworkImpl> mNetworks = new HashMap<>();
+
+    @GuardedBy("mLock")
+    private boolean mPendingNetworkInvalidation;
+
     @Inject
     NetworkManagerImpl(
             @NetworkLock Object lock,
@@ -80,11 +92,10 @@ public class NetworkManagerImpl implements NetworkManager {
     public void init() {
         synchronized (mLock) {
             if (mInitialized) {
-                Log.w(TAG, "init: ignore duplicate init()");
-                return;
+                throw new IllegalStateException("Already initialized!");
             }
             mInitialized = true;
-            addOrRemoveRemoteDeviceLocked(
+            processAssociationsLocked(
                     mCompanionDeviceManager.getAllAssociations(UserHandle.USER_ALL));
             mCompanionDeviceManager.addOnAssociationsChangedListener(
                     mMainExecutor, mOnAssociationsChanged, UserHandle.USER_ALL);
@@ -96,15 +107,70 @@ public class NetworkManagerImpl implements NetworkManager {
     @Override
     public void destroy() {
         synchronized (mLock) {
-            if (!mInitialized) {
-                Log.w(TAG, "destroy: ignore destroy() since not initialized");
-                return;
-            }
+            throwIfUninitializedLocked();
             mInitialized = false;
             mCompanionDeviceManager.removeOnAssociationsChangedListener(mOnAssociationsChanged);
             mCompanionDeviceManager.removeOnTransportsChangedListener(mOnTransportChanged);
             mCompanionDeviceManager.removeOnDevicePresenceEventListener(mContext.getPackageName());
             mRemoteDevices.clear();
+            // Use while loop to prevent ConcurrentModificationException when calling NetworkImpl
+            // .destroy().
+            while (!mNetworks.isEmpty()) {
+                mNetworks.values().iterator().next().destroy();
+            }
+            mPendingNetworkInvalidation = false;
+        }
+    }
+
+    @Override
+    public Network createNetwork(
+            String networkId,
+            Predicate<RemoteDevice> remoteDeviceCondition,
+            Predicate<AssociationInfo> associationCondition) {
+        synchronized (mLock) {
+            throwIfUninitializedLocked();
+            if (mNetworks.containsKey(networkId)) {
+                return mNetworks.get(networkId);
+            }
+            NetworkImpl network =
+                    new NetworkImpl(networkId, remoteDeviceCondition, associationCondition);
+            mNetworks.put(networkId, network);
+            invalidateNetworks();
+            return network;
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void throwIfUninitializedLocked() {
+        if (!mInitialized) {
+            throw new IllegalStateException("Network manager not initialized!");
+        }
+    }
+
+    @Override
+    public void invalidateNetworks() {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(TAG, "invalidateNetworks: ignore since not initialized");
+                return;
+            }
+            if (mPendingNetworkInvalidation) {
+                return;
+            }
+            mPendingNetworkInvalidation = true;
+            // Invalidate async to potentially batch multiple network invalidations.
+            mMainExecutor.execute(this::doInvalidateNetworks);
+        }
+    }
+
+    private void doInvalidateNetworks() {
+        synchronized (mLock) {
+            if (!mPendingNetworkInvalidation) {
+                return;
+            }
+            processAssociationsLocked(
+                    mCompanionDeviceManager.getAllAssociations(UserHandle.USER_ALL));
+            mPendingNetworkInvalidation = false;
         }
     }
 
@@ -114,12 +180,13 @@ public class NetworkManagerImpl implements NetworkManager {
                 Log.w(TAG, "onAssociationsChanged: ignore since not initialized");
                 return;
             }
-            addOrRemoveRemoteDeviceLocked(associations);
+            processAssociationsLocked(associations);
         }
     }
 
+    @SuppressWarnings("GuardedBy")
     @GuardedBy("mLock")
-    private void addOrRemoveRemoteDeviceLocked(List<AssociationInfo> allInfo) {
+    private void processAssociationsLocked(List<AssociationInfo> allInfo) {
         // Add new info if not existing.
         Set<Integer> allInfoIds = new HashSet<>(allInfo.size());
         boolean changed = false;
@@ -138,6 +205,10 @@ public class NetworkManagerImpl implements NetworkManager {
         if (changed) {
             updateDevicePresenceListenerLocked();
         }
+        // Update network members.
+        Map<Integer, AssociationInfo> associationsMap =
+                Maps.uniqueIndex(allInfo, AssociationInfo::getId);
+        mNetworks.values().forEach(n -> n.invalidateLocked(associationsMap));
     }
 
     @GuardedBy("mLock")
@@ -156,6 +227,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 associationIds, mContext.getPackageName(), mMainExecutor, mOnDevicePresenceEvent);
     }
 
+    @SuppressWarnings("GuardedBy")
     private void onTransportChanged(List<AssociationInfo> associationsWithTransport) {
         synchronized (mLock) {
             if (!mInitialized) {
@@ -171,6 +243,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 }
                 idsWithTransport.add(id);
             }
+            boolean changed = false;
             for (RemoteDeviceImpl device : mRemoteDevices.values()) {
                 boolean hasTransport = idsWithTransport.contains(device.getAssociationId());
                 if (device.setHasTransport(hasTransport)) {
@@ -180,11 +253,20 @@ public class NetworkManagerImpl implements NetworkManager {
                                     + device
                                     + (device.hasTransport() ? " established" : " lost")
                                     + " transport");
+                    changed = true;
+                    mNetworks
+                            .values()
+                            .forEach(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
                 }
+            }
+            if (changed) {
+                // Transport has changed. Need to re-evaluate network members.
+                invalidateNetworks();
             }
         }
     }
 
+    @SuppressWarnings("GuardedBy")
     private void onDevicePresenceEvent(DevicePresenceEvent event) {
         synchronized (mLock) {
             if (!mInitialized) {
@@ -223,7 +305,12 @@ public class NetworkManagerImpl implements NetworkManager {
                         }
                     };
             if (changed) {
+                mNetworks
+                        .values()
+                        .forEach(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
                 Log.d(TAG, "Device presence flag changed for " + device + ", event: " + event);
+                // Device presence state changed. Need to re-evaluate network members.
+                invalidateNetworks();
             }
         }
     }
@@ -232,6 +319,13 @@ public class NetworkManagerImpl implements NetworkManager {
     public Map<Integer, RemoteDevice> getRemoteDevices() {
         synchronized (mLock) {
             return Collections.unmodifiableMap(mRemoteDevices);
+        }
+    }
+
+    @Override
+    public Map<String, Network> getNetworks() {
+        synchronized (mLock) {
+            return Collections.unmodifiableMap(mNetworks);
         }
     }
 
@@ -249,12 +343,20 @@ public class NetworkManagerImpl implements NetworkManager {
                 mRemoteDevices.values().forEach(device -> device.dump(pw));
                 pw.decreaseIndent();
             }
+            if (mNetworks.isEmpty()) {
+                pw.println("No networks.");
+            } else {
+                pw.println("Networks:");
+                pw.increaseIndent();
+                mNetworks.values().forEach(network -> network.dump(pw));
+                pw.decreaseIndent();
+            }
             pw.decreaseIndent();
         }
     }
 
     /** A class representing a remote device. */
-    private class RemoteDeviceImpl implements RemoteDevice {
+    private static class RemoteDeviceImpl implements RemoteDevice {
         private static final int FLAG_HAS_TRANSPORT = 1;
         private static final int FLAG_BLE_APPEARED = 1 << 1;
         private static final int FLAG_BT_CONNECTED = 1 << 2;
@@ -397,6 +499,169 @@ public class NetworkManagerImpl implements NetworkManager {
                     + ", isAssociationRemoved="
                     + isAssociationRemoved()
                     + "}";
+        }
+    }
+
+    /** A class representing a group of devices. */
+    private class NetworkImpl implements Network {
+        private final String mId;
+        private final Predicate<RemoteDevice> mDeviceCondition;
+        private final Predicate<AssociationInfo> mAssociationInfoCondition;
+
+        @GuardedBy("mLock")
+        private final Set<Integer> mAssociationIds = new HashSet<>();
+
+        @GuardedBy("mLock")
+        private final List<Pair<Executor, NetworkListener>> mListeners = new ArrayList<>();
+
+        @GuardedBy("mLock")
+        private boolean mDestroyed;
+
+        NetworkImpl(
+                String id,
+                Predicate<RemoteDevice> deviceCondition,
+                Predicate<AssociationInfo> associationInfoCondition) {
+            mId = id;
+            mDeviceCondition = deviceCondition;
+            mAssociationInfoCondition = associationInfoCondition;
+        }
+
+        @Override
+        public String getNetworkId() {
+            return mId;
+        }
+
+        @Override
+        public Map<Integer, RemoteDevice> getRemoteDevices() {
+            synchronized (mLock) {
+                return Maps.filterKeys(
+                        NetworkManagerImpl.this.getRemoteDevices(), mAssociationIds::contains);
+            }
+        }
+
+        @Override
+        public long broadcastMessage(byte[] message, int flags) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    Log.w(TAG, "broadcastMessage: network " + mId + " is already destroyed");
+                    return -1;
+                }
+                // TODO: implement
+                return 0;
+            }
+        }
+
+        @Override
+        public long multicastMessage(List<Integer> associationIds, byte[] message, int flags) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    Log.w(TAG, "multicastMessage: network " + mId + " is already destroyed");
+                    return -1;
+                }
+                // TODO: implmement
+                return 0;
+            }
+        }
+
+        @Override
+        public void cancelMessage(long id) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    Log.w(TAG, "cancelMessage: network " + mId + " is already destroyed");
+                    return;
+                }
+                // TODO: implmement
+            }
+        }
+
+        @Override
+        public void registerListener(Executor executor, NetworkListener listener) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    Log.w(TAG, "registerListener: network " + mId + " is already destroyed");
+                    return;
+                }
+                mListeners.add(Pair.create(executor, listener));
+            }
+        }
+
+        @Override
+        public void unregisterListener(NetworkListener listener) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    Log.w(TAG, "unregisterListener: network " + mId + " is already destroyed");
+                    return;
+                }
+                mListeners.removeIf(pair -> pair.second == listener);
+            }
+        }
+
+        /** Re-evaluate devices in this network. */
+        @GuardedBy("mLock")
+        private void invalidateLocked(Map<Integer, AssociationInfo> associations) {
+            for (RemoteDeviceImpl device : mRemoteDevices.values()) {
+                int associationId = device.getAssociationId();
+                AssociationInfo associationInfo = associations.get(associationId);
+                if (associationInfo != null
+                        && mDeviceCondition.test(device)
+                        && mAssociationInfoCondition.test(associationInfo)
+                        && !device.isAssociationRemoved()) {
+                    if (mAssociationIds.add(associationId)) {
+                        notifyListenersLocked(l -> l.onDeviceChanged(associationId));
+                        Log.i(TAG, "Device " + device + " joined network " + mId);
+                    }
+                } else if (mAssociationIds.remove(associationId)) {
+                    notifyListenersLocked(l -> l.onDeviceRemoved(associationId));
+                    Log.i(TAG, "Device " + device + " left network " + mId);
+                }
+            }
+            Set<Integer> set = new ArraySet<>(mAssociationIds);
+            mAssociationIds.retainAll(associations.keySet());
+            set.removeAll(mAssociationIds);
+            for (Integer removedId : set) {
+                Log.i(TAG, "Device with id " + removedId + " left network " + mId);
+                notifyListenersLocked(l -> l.onDeviceRemoved(removedId));
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void notifyListenersLocked(Consumer<NetworkListener> listenerConsumer) {
+            mListeners.forEach(
+                    pair -> pair.first.execute(() -> listenerConsumer.accept(pair.second)));
+        }
+
+        @GuardedBy("mLock")
+        private void notifyDeviceChangedLocked(int associationId) {
+            if (mAssociationIds.contains(associationId)) {
+                notifyListenersLocked(l -> l.onDeviceChanged(associationId));
+            }
+        }
+
+        @Override
+        public void destroy() {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    return;
+                }
+                mDestroyed = true;
+                mAssociationIds.clear();
+                mListeners.clear();
+                mNetworks.remove(mId);
+                Log.i(TAG, "Destroyed network " + mId);
+            }
+        }
+
+        @Override
+        public void dump(IndentingPrintWriter pw) {
+            pw.println("NetworkImpl:");
+            pw.increaseIndent();
+            synchronized (mLock) {
+                pw.println("id=" + mId);
+                pw.println("destroyed=" + mDestroyed);
+                pw.println("listeners=" + mListeners.size());
+                pw.println("devices=" + mAssociationIds);
+            }
+            pw.decreaseIndent();
         }
     }
 }

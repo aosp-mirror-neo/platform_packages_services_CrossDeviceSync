@@ -15,13 +15,14 @@
  */
 package com.android.crossdevicesync.network.fake;
 
+import android.companion.AssociationInfo;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
-import java.util.Collections;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import javax.inject.Inject;
 
@@ -40,8 +41,24 @@ public class FakeNetworkManager implements NetworkManager {
 
     @Override
     public Map<Integer, RemoteDevice> getRemoteDevices() {
-        return Collections.emptyMap();
+        return Map.of();
     }
+
+    @Override
+    public Map<String, Network> getNetworks() {
+        return Map.of();
+    }
+
+    @Override
+    public Network createNetwork(
+            String networkId,
+            Predicate<RemoteDevice> remoteDevicePredicate,
+            Predicate<AssociationInfo> associationPredicate) {
+        return null;
+    }
+
+    @Override
+    public void invalidateNetworks() {}
 
     @Override
     public void dump(IndentingPrintWriter pw) {}
