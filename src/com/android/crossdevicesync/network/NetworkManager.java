@@ -15,10 +15,12 @@
  */
 package com.android.crossdevicesync.network;
 
+import com.android.crossdevicesync.common.Dumpable;
+
 import java.util.Map;
 
 /** Interface for managing cross-device connections in the sync network. */
-public interface NetworkManager {
+public interface NetworkManager extends Dumpable {
 
     /** Initialize network manager. */
     void init();
@@ -30,7 +32,7 @@ public interface NetworkManager {
     Map<Integer, RemoteDevice> getRemoteDevices();
 
     /** An interface representing a remote device. */
-    interface RemoteDevice {
+    interface RemoteDevice extends Dumpable {
         /** Returns the association ID. */
         int getAssociationId();
 

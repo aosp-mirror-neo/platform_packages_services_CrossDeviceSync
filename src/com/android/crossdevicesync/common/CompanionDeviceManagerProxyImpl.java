@@ -22,17 +22,16 @@ import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.content.Context;
 
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
 /** Companion device manager wrapper. */
-@SyncServiceSingleton
+@Singleton
 public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerProxy {
 
     private final CompanionDeviceManager mCompanionDeviceManager;

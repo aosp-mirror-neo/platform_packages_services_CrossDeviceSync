@@ -20,6 +20,7 @@ import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.content.Context;
 import android.os.UserHandle;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import androidx.annotation.GuardedBy;
@@ -52,7 +53,8 @@ public class NetworkManagerImpl implements NetworkManager {
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
     private final Context mContext;
     private final Consumer<List<AssociationInfo>> mOnTransportChanged = this::onTransportChanged;
-    private final OnAssociationsChangedListener mOnAssociationsChanged = this::onAssociationsChanged;
+    private final OnAssociationsChangedListener mOnAssociationsChanged =
+            this::onAssociationsChanged;
     private final Consumer<DevicePresenceEvent> mOnDevicePresenceEvent =
             this::onDevicePresenceEvent;
 
@@ -192,15 +194,19 @@ public class NetworkManagerImpl implements NetworkManager {
 
             RemoteDeviceImpl device = mRemoteDevices.get(event.getAssociationId());
             if (device == null) {
-                Log.w(TAG, "updateDevicePresenceLocked: unknown device " + event.getAssociationId());
+                Log.w(
+                        TAG,
+                        "updateDevicePresenceLocked: unknown device " + event.getAssociationId());
                 return;
             }
             boolean changed =
                     switch (event.getEvent()) {
                         case DevicePresenceEvent.EVENT_BLE_APPEARED -> device.setBleAppeared(true);
-                        case DevicePresenceEvent.EVENT_BLE_DISAPPEARED -> device.setBleAppeared(false);
+                        case DevicePresenceEvent.EVENT_BLE_DISAPPEARED ->
+                                device.setBleAppeared(false);
                         case DevicePresenceEvent.EVENT_BT_CONNECTED -> device.setBtConnected(true);
-                        case DevicePresenceEvent.EVENT_BT_DISCONNECTED -> device.setBtConnected(false);
+                        case DevicePresenceEvent.EVENT_BT_DISCONNECTED ->
+                                device.setBtConnected(false);
                         case DevicePresenceEvent.EVENT_SELF_MANAGED_APPEARED ->
                                 device.setSelfManagedAppeared(true);
                         case DevicePresenceEvent.EVENT_SELF_MANAGED_DISAPPEARED ->
@@ -229,6 +235,23 @@ public class NetworkManagerImpl implements NetworkManager {
         }
     }
 
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        synchronized (mLock) {
+            pw.println("NetworkManager:");
+            pw.increaseIndent();
+            pw.println("mInitialized=" + mInitialized);
+            if (mRemoteDevices.isEmpty()) {
+                pw.println("No remote devices.");
+            } else {
+                pw.println("Remote devices:");
+                pw.increaseIndent();
+                mRemoteDevices.values().forEach(device -> device.dump(pw));
+                pw.decreaseIndent();
+            }
+            pw.decreaseIndent();
+        }
+    }
 
     /** A class representing a remote device. */
     private class RemoteDeviceImpl implements RemoteDevice {
@@ -333,6 +356,21 @@ public class NetworkManagerImpl implements NetworkManager {
                 mFlags &= ~flag;
             }
             return true;
+        }
+
+        public void dump(IndentingPrintWriter pw) {
+            pw.println("RemoteDevice:");
+            pw.increaseIndent();
+            pw.println("associationId=" + mAssociationId);
+            pw.println("displayName='" + mDisplayName + "'");
+            pw.println("deviceProfile='" + mDeviceProfile + "'");
+            pw.println("hasTransport=" + hasTransport());
+            pw.println("isBleAppeared=" + isBleAppeared());
+            pw.println("isBtConnected=" + isBtConnected());
+            pw.println("isSelfManagedAppeared=" + isSelfManagedAppeared());
+            pw.println("isSelfManagedNearby=" + isSelfManagedNearby());
+            pw.println("isAssociationRemoved=" + isAssociationRemoved());
+            pw.decreaseIndent();
         }
 
         @Override

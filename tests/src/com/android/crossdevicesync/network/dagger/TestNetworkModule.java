@@ -15,7 +15,16 @@
  */
 package com.android.crossdevicesync.network.dagger;
 
+import com.android.crossdevicesync.network.NetworkManager;
+import com.android.crossdevicesync.network.fake.FakeNetworkManager;
+import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import dagger.Binds;
 import dagger.Module;
 
 @Module(includes = {NetworkBaseModule.class})
-public class TestNetworkModule {}
+public abstract class TestNetworkModule {
+    @Binds
+    @SyncServiceSingleton
+    abstract NetworkManager bindNetworkManager(FakeNetworkManager impl);
+}
