@@ -16,6 +16,7 @@
 package com.android.crossdevicesync.data.fake;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -26,14 +27,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SynchronousExecutorService extends AbstractExecutorService {
 
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
+    private final LinkedList<Runnable> mRunnableQueue = new LinkedList<>();
 
     @Override
     public void execute(Runnable command) {
         if (isShutdown.get()) {
             throw new RejectedExecutionException("Executor has been shut down");
         }
-        // Run the command directly on the calling thread.
-        command.run();
+        mRunnableQueue.add(command);
+        // Run the command directly on the calling thread, but prevent recursive calls to better
+        // simulate an executor.
+        if (mRunnableQueue.size() == 1) {
+            while (!mRunnableQueue.isEmpty()) {
+                mRunnableQueue.peek().run();
+                mRunnableQueue.poll();
+            }
+        }
     }
 
     @Override

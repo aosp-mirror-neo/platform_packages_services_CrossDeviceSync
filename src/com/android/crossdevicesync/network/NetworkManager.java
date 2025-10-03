@@ -102,9 +102,8 @@ public interface NetworkManager extends Dumpable {
         int MESSAGE_FLAG_RETRY_IF_FAILED = 1;
 
         /**
-         * Flag indicating that a message should be sticky and be sent to target devices when they
-         * come online later. Sticky messages are queued and delivered on an ordered basis. Messages
-         * are non-sticky by default.
+         * Flag indicating that a message should be sticky and be queued indefinitely until it gets
+         * delivered to the target. Messages are non-sticky by default.
          *
          * <p>Note: adding this flag will implicitly add {@link #MESSAGE_FLAG_RETRY_IF_FAILED} since
          * a sticky message will always be retried.
@@ -116,11 +115,11 @@ public interface NetworkManager extends Dumpable {
          * not available at this moment. The scanning strategy is determined by the implementation
          * of this interface. If a device is discovered afterwards, it will be delivered to the
          * target device. Messages won't trigger scanning by default.
-         *
-         * <p>Note: adding this flag will implicitly add {@link #MESSAGE_FLAG_RETRY_IF_FAILED} since
-         * discovery will be triggered only after retry failed.
          */
         int MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT = 1 << 2;
+
+        /** Flag indicating that a message should only be delivered to devices that are nearby. */
+        int MESSAGE_FLAG_NEARBY_ONLY = 1 << 3;
 
         /**
          * Get the unique id of this network. This value should be recognized by all devices in the

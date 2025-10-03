@@ -20,8 +20,12 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.android.crossdevicesync.common.Clock;
+import com.android.crossdevicesync.common.ClockImpl;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxyImpl;
+import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 
 import dagger.Binds;
@@ -75,4 +79,15 @@ public abstract class ApplicationModule {
     static Executor provideMainExecutor(Context context) {
         return context.getMainExecutor();
     }
+
+    @Provides
+    @Singleton
+    @Main
+    static DelayedExecutor provideMainDelayedExecutor(@Main Handler handler) {
+        return new HandlerDelayedExecutorImpl(handler);
+    }
+
+    @Singleton
+    @Binds
+    abstract Clock bindsClock(ClockImpl clock);
 }

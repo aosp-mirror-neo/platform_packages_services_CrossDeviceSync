@@ -15,6 +15,10 @@
  */
 package com.android.crossdevicesync.network;
 
+import static com.android.crossdevicesync.common.Utils.toIntArray;
+
+import static java.util.Objects.requireNonNull;
+
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
@@ -26,23 +30,31 @@ import android.util.Log;
 import android.util.Pair;
 
 import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
 
+import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.network.advertiser.Advertiser;
+import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
 import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
+import com.android.crossdevicesync.network.messenger.Messenger;
+import com.android.crossdevicesync.network.messenger.Messenger.MessageListener;
+import com.android.crossdevicesync.network.scanner.Scanner;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.collect.Maps;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -57,34 +69,54 @@ public class NetworkManagerImpl implements NetworkManager {
     private final Object mLock;
     private final Executor mMainExecutor;
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
+    private final Messenger mMessenger;
+    private final Advertiser mAdvertiser;
+    private final Scanner mScanner;
+    private final Clock mClock;
     private final Context mContext;
     private final Consumer<List<AssociationInfo>> mOnTransportChanged = this::onTransportChanged;
     private final OnAssociationsChangedListener mOnAssociationsChanged =
             this::onAssociationsChanged;
     private final Consumer<DevicePresenceEvent> mOnDevicePresenceEvent =
             this::onDevicePresenceEvent;
+    private final MessageListener mOnMessage = this::onMessage;
 
     @GuardedBy("mLock")
     private boolean mInitialized;
 
     @GuardedBy("mLock")
-    private Map<Integer, RemoteDeviceImpl> mRemoteDevices = new HashMap<>();
+    private final Map<Integer, RemoteDeviceImpl> mRemoteDevices = new HashMap<>();
 
     @GuardedBy("mLock")
-    private Map<String, NetworkImpl> mNetworks = new HashMap<>();
+    private final Map<String, NetworkImpl> mNetworks = new HashMap<>();
 
     @GuardedBy("mLock")
-    private boolean mPendingNetworkInvalidation;
+    private boolean mPendingInvalidation;
+
+    // Use tree map so that messages are iterated in chronological order.
+    @GuardedBy("mLock")
+    private final Map<Long, MessageRecord> mMessageRecords = new TreeMap<>();
+
+    @GuardedBy("mLock")
+    private long mNextMessageId;
 
     @Inject
     NetworkManagerImpl(
             @NetworkLock Object lock,
             @Main Executor mainExecutor,
             CompanionDeviceManagerProxy companionDeviceManager,
+            Messenger messenger,
+            Advertiser advertiser,
+            Scanner scanner,
+            Clock clock,
             Context context) {
         mLock = lock;
         mMainExecutor = mainExecutor;
         mCompanionDeviceManager = companionDeviceManager;
+        mAdvertiser = advertiser;
+        mScanner = scanner;
+        mMessenger = messenger;
+        mClock = clock;
         mContext = context;
     }
 
@@ -95,12 +127,14 @@ public class NetworkManagerImpl implements NetworkManager {
                 throw new IllegalStateException("Already initialized!");
             }
             mInitialized = true;
-            processAssociationsLocked(
+            processAssociationsAndMessagesLocked(
                     mCompanionDeviceManager.getAllAssociations(UserHandle.USER_ALL));
             mCompanionDeviceManager.addOnAssociationsChangedListener(
                     mMainExecutor, mOnAssociationsChanged, UserHandle.USER_ALL);
             mCompanionDeviceManager.addOnTransportsChangedListener(
                     mMainExecutor, mOnTransportChanged);
+            mMessenger.init();
+            mMessenger.registerMessageListener(mMainExecutor, mOnMessage);
         }
     }
 
@@ -118,7 +152,13 @@ public class NetworkManagerImpl implements NetworkManager {
             while (!mNetworks.isEmpty()) {
                 mNetworks.values().iterator().next().destroy();
             }
-            mPendingNetworkInvalidation = false;
+            mPendingInvalidation = false;
+            // Clear all messages and stop any message processing.
+            mMessageRecords.clear();
+            mMessenger.unregisterMessageListener(mOnMessage);
+            mMessenger.destroy();
+            mScanner.closeAllScanningSessions();
+            mAdvertiser.closeAllAdvertisingSessions();
         }
     }
 
@@ -149,28 +189,34 @@ public class NetworkManagerImpl implements NetworkManager {
 
     @Override
     public void invalidateNetworks() {
+        invalidate(/* async= */ true);
+    }
+
+    private void invalidate(boolean async) {
         synchronized (mLock) {
             if (!mInitialized) {
-                Log.w(TAG, "invalidateNetworks: ignore since not initialized");
+                Log.w(TAG, "invalidateNetworksAndMessages: ignore since not initialized");
                 return;
             }
-            if (mPendingNetworkInvalidation) {
+            if (mPendingInvalidation) {
                 return;
             }
-            mPendingNetworkInvalidation = true;
-            // Invalidate async to potentially batch multiple network invalidations.
-            mMainExecutor.execute(this::doInvalidateNetworks);
+            mPendingInvalidation = true;
+            if (async) {
+                mMainExecutor.execute(this::doInvalidate);
+            } else {
+                doInvalidate();
+            }
         }
     }
 
-    private void doInvalidateNetworks() {
+    private void doInvalidate() {
         synchronized (mLock) {
-            if (!mPendingNetworkInvalidation) {
+            if (!mPendingInvalidation) {
                 return;
             }
-            processAssociationsLocked(
+            processAssociationsAndMessagesLocked(
                     mCompanionDeviceManager.getAllAssociations(UserHandle.USER_ALL));
-            mPendingNetworkInvalidation = false;
         }
     }
 
@@ -180,44 +226,43 @@ public class NetworkManagerImpl implements NetworkManager {
                 Log.w(TAG, "onAssociationsChanged: ignore since not initialized");
                 return;
             }
-            processAssociationsLocked(associations);
+            processAssociationsAndMessagesLocked(associations);
         }
     }
 
     @SuppressWarnings("GuardedBy")
     @GuardedBy("mLock")
-    private void processAssociationsLocked(List<AssociationInfo> allInfo) {
+    private void processAssociationsAndMessagesLocked(List<AssociationInfo> allInfo) {
+        mPendingInvalidation = false;
         // Add new info if not existing.
         Set<Integer> allInfoIds = new HashSet<>(allInfo.size());
-        boolean changed = false;
+        boolean deviceChanged = false;
         for (AssociationInfo info : allInfo) {
             int id = info.getId();
             allInfoIds.add(id);
             if (!mRemoteDevices.containsKey(id)) {
                 RemoteDeviceImpl device = new RemoteDeviceImpl(info);
                 mRemoteDevices.put(id, device);
-                changed = true;
+                deviceChanged = true;
                 Log.d(TAG, "Added remote device " + device);
             }
         }
         // Remove old info if not existing.
-        changed |= mRemoteDevices.keySet().retainAll(allInfoIds);
-        if (changed) {
+        deviceChanged |= mRemoteDevices.keySet().retainAll(allInfoIds);
+        if (deviceChanged) {
             updateDevicePresenceListenerLocked();
         }
         // Update network members.
         Map<Integer, AssociationInfo> associationsMap =
                 Maps.uniqueIndex(allInfo, AssociationInfo::getId);
         mNetworks.values().forEach(n -> n.invalidateLocked(associationsMap));
+        // Process messages.
+        processMessagesLocked();
     }
 
     @GuardedBy("mLock")
     private void updateDevicePresenceListenerLocked() {
-        int[] associationIds = new int[mRemoteDevices.size()];
-        int i = 0;
-        for (int id : mRemoteDevices.keySet()) {
-            associationIds[i++] = id;
-        }
+        int[] associationIds = toIntArray(mRemoteDevices.keySet());
         if (associationIds.length == 0) {
             mCompanionDeviceManager.removeOnDevicePresenceEventListener(mContext.getPackageName());
             return;
@@ -315,6 +360,44 @@ public class NetworkManagerImpl implements NetworkManager {
         }
     }
 
+    private void onMessage(String networkId, int associationId, byte[] message) {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(
+                        TAG,
+                        "onMessage: ignore incoming message from "
+                                + getAddressString(networkId, associationId)
+                                + " since network manager is not initialized!");
+                return;
+            }
+            if (!mNetworks.containsKey(networkId)) {
+                Log.w(
+                        TAG,
+                        "onMessage: ignore incoming message from "
+                                + getAddressString(networkId, associationId)
+                                + " since network is not found!");
+                return;
+            }
+            // Always invalidate networks to ensure the network members are up-to-date.
+            invalidate(/* async= */ false);
+            if (mNetworks.get(networkId).notifyInboundMessageLocked(associationId, message)) {
+                Log.d(
+                        TAG,
+                        "onMessage: delivered message from "
+                                + getAddressString(networkId, associationId)
+                                + " to network "
+                                + networkId
+                                + ".");
+            } else {
+                Log.i(
+                        TAG,
+                        "onMessage: dropped incoming message from "
+                                + getAddressString(networkId, associationId)
+                                + " since the source address is not found.");
+            }
+        }
+    }
+
     @Override
     public Map<Integer, RemoteDevice> getRemoteDevices() {
         synchronized (mLock) {
@@ -329,12 +412,246 @@ public class NetworkManagerImpl implements NetworkManager {
         }
     }
 
+    @GuardedBy("mLock")
+    private long enqueueMessageLocked(
+            byte[] message,
+            Collection<Integer> targetAssociationIds,
+            int flags,
+            String networkId,
+            boolean isBroadcast) {
+        if (!mInitialized) {
+            Log.w(TAG, "enqueueMessage: ignore since not initialized");
+            return -1;
+        }
+        long id = mNextMessageId++;
+        MessageRecord record =
+                new MessageRecord(
+                        id,
+                        message,
+                        targetAssociationIds,
+                        flags,
+                        networkId,
+                        isBroadcast,
+                        mClock.elapsedRealtime());
+        mMessageRecords.put(id, record);
+        invalidate(/* async= */ true);
+        Log.d(TAG, "enqueueMessage: queued message " + id + ".");
+        return id;
+    }
+
+    @GuardedBy("mLock")
+    private void processMessagesLocked() {
+        Log.d(TAG, "Processing messages ...");
+        Iterator<MessageRecord> iterator = mMessageRecords.values().iterator();
+        final long now = mClock.elapsedRealtime();
+        while (iterator.hasNext()) {
+            MessageRecord r = iterator.next();
+            processMessageLocked(r, now);
+            if (r.isDone()) {
+                iterator.remove();
+                Log.d(TAG, "processMessage: message " + r.id + " is done.");
+            }
+        }
+    }
+
+    @SuppressWarnings("GuardedBy")
+    @GuardedBy("mLock")
+    private void processMessageLocked(MessageRecord record, final long now) {
+        NetworkImpl network = mNetworks.get(record.networkId);
+        Set<Integer> associationIds =
+                network == null ? Collections.emptySet() : network.getAssociationIdsLocked();
+        if (network == null) {
+            // The network is gone. Cancel message.
+            Log.d(
+                    TAG,
+                    "processMessage: cancelling message "
+                            + record.id
+                            + " because network "
+                            + record.networkId
+                            + " is gone.");
+            record.cancelAll();
+        } else if (record.isBroadcast) {
+            // Add missing delivery targets.
+            record.addDeliveryState(associationIds, now);
+        }
+        record.forEachUnfinishedDelivery(
+                (associationId, deliveryState) -> {
+                    Pair<Integer, String> nextStateAndReason =
+                            getNextDeliveryStateAndReasonLocked(
+                                    record, associationId, deliveryState, associationIds);
+                    int nextDeliveryState = nextStateAndReason.first;
+                    String changeReason = nextStateAndReason.second;
+                    if (!deliveryState.setState(nextDeliveryState, now, changeReason)) {
+                        // Delivery state unchanged
+                        return;
+                    }
+                    Log.d(
+                            TAG,
+                            "processMessage: delivery state of message "
+                                    + record.id
+                                    + " to "
+                                    + getAddressString(record.networkId, associationId)
+                                    + " changed to "
+                                    + DeliveryState.stateToString(nextDeliveryState)
+                                    + ". reason=\""
+                                    + changeReason
+                                    + "\"");
+
+                    if (nextDeliveryState == DeliveryState.SENDING) {
+                        Log.d(
+                                TAG,
+                                "processMessage: sending message "
+                                        + record.id
+                                        + " to "
+                                        + getAddressString(record.networkId, associationId)
+                                        + ".");
+                        deliveryState.messageSendingFuture =
+                                mMessenger.sendMessage(
+                                        record.networkId,
+                                        associationId,
+                                        record.message,
+                                        record.maxAttempts);
+                        deliveryState.messageSendingFuture.addListener(
+                                () -> invalidate(/* async= */ true), Runnable::run);
+                    } else {
+                        // State is not SENDING. Cancel the message request.
+                        if (deliveryState.messageSendingFuture != null
+                                && !deliveryState.messageSendingFuture.isDone()) {
+                            Log.d(
+                                    TAG,
+                                    "processMessage: cancelling message request for "
+                                            + record.id
+                                            + " to "
+                                            + getAddressString(record.networkId, associationId)
+                                            + ".");
+                            deliveryState.messageSendingFuture.cancel(true);
+                        }
+                        deliveryState.messageSendingFuture = null;
+                    }
+
+                    if (nextDeliveryState == DeliveryState.WAITING_FOR_PRESENCE) {
+                        if (record.shouldScanIfNotPresent()) {
+                            Log.d(
+                                    TAG,
+                                    "processMessage: scanning for "
+                                            + getAddressString(record.networkId, associationId)
+                                            + ".");
+                            deliveryState.scanningSession =
+                                    mScanner.startScanning(
+                                            associationId,
+                                            "Scan for deliver message "
+                                                    + record.id
+                                                    + " to "
+                                                    + getAddressString(
+                                                            record.networkId, associationId)
+                                                    + ".");
+                        }
+                    } else {
+                        // No need to scanning. Close scanning session.
+                        if (deliveryState.scanningSession != null
+                                && deliveryState.scanningSession.isActive()) {
+                            Log.d(
+                                    TAG,
+                                    "processMessage: closing scanning session "
+                                            + deliveryState.scanningSession);
+                            deliveryState.scanningSession.close();
+                        }
+                        deliveryState.scanningSession = null;
+                    }
+                });
+    }
+
+    /** Advance the delivery state machine to next state based on latest information. */
+    @GuardedBy("mLock")
+    private Pair<Integer, String> getNextDeliveryStateAndReasonLocked(
+            MessageRecord record,
+            int associationId,
+            DeliveryState deliveryState,
+            Set<Integer> associationsInNetwork) {
+        final RemoteDeviceImpl device = mRemoteDevices.get(associationId);
+        if (deliveryState.isDone()) {
+            // End state. No change.
+            return Pair.create(deliveryState.state, deliveryState.reason);
+        }
+        if (device == null) {
+            // Device is gone.
+            return Pair.create(DeliveryState.CANCELLED, "device is not found");
+        }
+        if (record.isCancelled()) {
+            // The message has been cancelled. Also cancel any pending delivery.
+            return Pair.create(DeliveryState.CANCELLED, "message is cancelled");
+        }
+        if (!associationsInNetwork.contains(associationId)) {
+            // The association has been removed from network. Delivery should be
+            // cancelled.
+            return Pair.create(
+                    DeliveryState.CANCELLED,
+                    getAddressString(record.networkId, associationId) + " not found");
+        }
+
+        final boolean devicePresent = isDevicePresentForMessage(device, record);
+        if (deliveryState.state == DeliveryState.SENDING) {
+            if (!requireNonNull(deliveryState.messageSendingFuture).isDone()) {
+                // Continue waiting for sending result.
+                return Pair.create(deliveryState.state, deliveryState.reason);
+            }
+            try {
+                deliveryState.messageSendingFuture.get();
+                // Success!
+                return Pair.create(DeliveryState.DELIVERED, "message delivered");
+            } catch (Exception e) {
+                if (!record.isSticky()) {
+                    // Give up since we've failed and message is non-sticky.
+                    return Pair.create(DeliveryState.CANCELLED, e.getMessage());
+                }
+                if (devicePresent) {
+                    // Delivery failed but don't cancel the sticky message yet. It will be retried
+                    // when the same device re-appear in the future.
+                    return Pair.create(DeliveryState.DELIVERY_FAILED, e.getMessage());
+                }
+                // Device is no longer present. Wait for it to re-appear due to message being
+                // sticky.
+                return Pair.create(
+                        DeliveryState.WAITING_FOR_PRESENCE, "waiting for presence after failure");
+            }
+        }
+
+        if (!devicePresent) {
+            if (record.isSticky() || record.shouldScanIfNotPresent()) {
+                // For sticky or scanning messages, wait for presence.
+                return Pair.create(DeliveryState.WAITING_FOR_PRESENCE, "waiting for presence");
+            } else {
+                // Give up since device is not present.
+                return Pair.create(DeliveryState.CANCELLED, "device is not present or nearby");
+            }
+        }
+
+        if (deliveryState.state == DeliveryState.DELIVERY_FAILED) {
+            // Already failed while device is present. Stay in the failed state and retry when the
+            // same device re-appear in the future.
+            return Pair.create(deliveryState.state, deliveryState.reason);
+        }
+
+        return Pair.create(DeliveryState.SENDING, "sending message");
+    }
+
+    private static boolean isDevicePresentForMessage(
+            RemoteDeviceImpl device, MessageRecord message) {
+        return device.isPresent() && (device.isNearby() || !message.isNearbyOnly());
+    }
+
+    private static String getAddressString(String networkId, int associationId) {
+        return networkId + "/" + associationId;
+    }
+
     @Override
     public void dump(IndentingPrintWriter pw) {
         synchronized (mLock) {
             pw.println("NetworkManager:");
             pw.increaseIndent();
             pw.println("mInitialized=" + mInitialized);
+            pw.println("mPendingInvalidation=" + mPendingInvalidation);
+            pw.println("mNextMessageId=" + mNextMessageId);
             if (mRemoteDevices.isEmpty()) {
                 pw.println("No remote devices.");
             } else {
@@ -351,154 +668,15 @@ public class NetworkManagerImpl implements NetworkManager {
                 mNetworks.values().forEach(network -> network.dump(pw));
                 pw.decreaseIndent();
             }
-            pw.decreaseIndent();
-        }
-    }
-
-    /** A class representing a remote device. */
-    private static class RemoteDeviceImpl implements RemoteDevice {
-        private static final int FLAG_HAS_TRANSPORT = 1;
-        private static final int FLAG_BLE_APPEARED = 1 << 1;
-        private static final int FLAG_BT_CONNECTED = 1 << 2;
-        private static final int FLAG_SELF_MANAGED_APPEARED = 1 << 3;
-        private static final int FLAG_SELF_MANAGED_NEARBY = 1 << 4;
-        private static final int FLAG_ASSOCIATION_REMOVED = 1 << 5;
-
-        private final int mAssociationId;
-        @Nullable private final CharSequence mDisplayName;
-        @Nullable private final String mDeviceProfile;
-        private int mFlags;
-
-        RemoteDeviceImpl(AssociationInfo associationInfo) {
-            mAssociationId = associationInfo.getId();
-            mDisplayName = associationInfo.getDisplayName();
-            mDeviceProfile = associationInfo.getDeviceProfile();
-        }
-
-        @Override
-        public int getAssociationId() {
-            return mAssociationId;
-        }
-
-        @Override
-        public CharSequence getDisplayName() {
-            return mDisplayName;
-        }
-
-        @Override
-        public String getDeviceProfile() {
-            return mDeviceProfile;
-        }
-
-        @Override
-        public boolean hasTransport() {
-            return (mFlags & FLAG_HAS_TRANSPORT) != 0;
-        }
-
-        public boolean setHasTransport(boolean hasTransport) {
-            return setFlag(FLAG_HAS_TRANSPORT, hasTransport);
-        }
-
-        @Override
-        public boolean isBleAppeared() {
-            return (mFlags & FLAG_BLE_APPEARED) != 0;
-        }
-
-        public boolean setBleAppeared(boolean appeared) {
-            return setFlag(FLAG_BLE_APPEARED, appeared);
-        }
-
-        @Override
-        public boolean isBtConnected() {
-            return (mFlags & FLAG_BT_CONNECTED) != 0;
-        }
-
-        public boolean setBtConnected(boolean connected) {
-            return setFlag(FLAG_BT_CONNECTED, connected);
-        }
-
-        @Override
-        public boolean isSelfManagedAppeared() {
-            return (mFlags & FLAG_SELF_MANAGED_APPEARED) != 0;
-        }
-
-        public boolean setSelfManagedAppeared(boolean appeared) {
-            return setFlag(FLAG_SELF_MANAGED_APPEARED, appeared);
-        }
-
-        @Override
-        public boolean isSelfManagedNearby() {
-            return (mFlags & FLAG_SELF_MANAGED_NEARBY) != 0;
-        }
-
-        public boolean setSelfManagedNearby(boolean nearby) {
-            return setFlag(FLAG_SELF_MANAGED_NEARBY, nearby);
-        }
-
-        @Override
-        public boolean isAssociationRemoved() {
-            return (mFlags & FLAG_ASSOCIATION_REMOVED) != 0;
-        }
-
-        public boolean setAssociationRemoved(boolean removed) {
-            return setFlag(FLAG_ASSOCIATION_REMOVED, removed);
-        }
-
-        private boolean isFlagSet(int flag) {
-            return (mFlags & flag) != 0;
-        }
-
-        private boolean setFlag(int flag, boolean value) {
-            if (isFlagSet(flag) == value) {
-                return false;
-            }
-            if (value) {
-                mFlags |= flag;
+            if (mMessageRecords.isEmpty()) {
+                pw.println("No message records.");
             } else {
-                mFlags &= ~flag;
+                pw.println("Message records:");
+                pw.increaseIndent();
+                mMessageRecords.values().forEach(record -> record.dump(pw));
+                pw.decreaseIndent();
             }
-            return true;
-        }
-
-        public void dump(IndentingPrintWriter pw) {
-            pw.println("RemoteDevice:");
-            pw.increaseIndent();
-            pw.println("associationId=" + mAssociationId);
-            pw.println("displayName='" + mDisplayName + "'");
-            pw.println("deviceProfile='" + mDeviceProfile + "'");
-            pw.println("hasTransport=" + hasTransport());
-            pw.println("isBleAppeared=" + isBleAppeared());
-            pw.println("isBtConnected=" + isBtConnected());
-            pw.println("isSelfManagedAppeared=" + isSelfManagedAppeared());
-            pw.println("isSelfManagedNearby=" + isSelfManagedNearby());
-            pw.println("isAssociationRemoved=" + isAssociationRemoved());
             pw.decreaseIndent();
-        }
-
-        @Override
-        public String toString() {
-            return "RemoteDevice {"
-                    + "associationId="
-                    + mAssociationId
-                    + ", displayName='"
-                    + mDisplayName
-                    + "'"
-                    + ", deviceProfile='"
-                    + mDeviceProfile
-                    + "'"
-                    + ", hasTransport="
-                    + hasTransport()
-                    + ", isBleAppeared="
-                    + isBleAppeared()
-                    + ", isBtConnected="
-                    + isBtConnected()
-                    + ", isSelfManagedAppeared="
-                    + isSelfManagedAppeared()
-                    + ", isSelfManagedNearby="
-                    + isSelfManagedNearby()
-                    + ", isAssociationRemoved="
-                    + isAssociationRemoved()
-                    + "}";
         }
     }
 
@@ -507,6 +685,9 @@ public class NetworkManagerImpl implements NetworkManager {
         private final String mId;
         private final Predicate<RemoteDevice> mDeviceCondition;
         private final Predicate<AssociationInfo> mAssociationInfoCondition;
+
+        @GuardedBy("mLock")
+        private final Map<Integer, AdvertisingSession> mAdvertisingSessions = new HashMap<>();
 
         @GuardedBy("mLock")
         private final Set<Integer> mAssociationIds = new HashSet<>();
@@ -531,12 +712,18 @@ public class NetworkManagerImpl implements NetworkManager {
             return mId;
         }
 
+        @SuppressWarnings("GuardedBy")
         @Override
         public Map<Integer, RemoteDevice> getRemoteDevices() {
             synchronized (mLock) {
                 return Maps.filterKeys(
                         NetworkManagerImpl.this.getRemoteDevices(), mAssociationIds::contains);
             }
+        }
+
+        @GuardedBy("mLock")
+        public Set<Integer> getAssociationIdsLocked() {
+            return Collections.unmodifiableSet(mAssociationIds);
         }
 
         @Override
@@ -546,8 +733,8 @@ public class NetworkManagerImpl implements NetworkManager {
                     Log.w(TAG, "broadcastMessage: network " + mId + " is already destroyed");
                     return -1;
                 }
-                // TODO: implement
-                return 0;
+                return enqueueMessageLocked(
+                        message, mAssociationIds, flags, mId, /* isBroadcast= */ true);
             }
         }
 
@@ -558,8 +745,8 @@ public class NetworkManagerImpl implements NetworkManager {
                     Log.w(TAG, "multicastMessage: network " + mId + " is already destroyed");
                     return -1;
                 }
-                // TODO: implmement
-                return 0;
+                return enqueueMessageLocked(
+                        message, associationIds, flags, mId, /* isBroadcast= */ false);
             }
         }
 
@@ -570,7 +757,13 @@ public class NetworkManagerImpl implements NetworkManager {
                     Log.w(TAG, "cancelMessage: network " + mId + " is already destroyed");
                     return;
                 }
-                // TODO: implmement
+                MessageRecord r = mMessageRecords.get(id);
+                if (r == null || !r.networkId.equals(mId)) {
+                    return;
+                }
+                if (r.cancelAll()) {
+                    invalidate(/* async= */ true);
+                }
             }
         }
 
@@ -607,8 +800,11 @@ public class NetworkManagerImpl implements NetworkManager {
                         && mAssociationInfoCondition.test(associationInfo)
                         && !device.isAssociationRemoved()) {
                     if (mAssociationIds.add(associationId)) {
-                        notifyListenersLocked(l -> l.onDeviceChanged(associationId));
                         Log.i(TAG, "Device " + device + " joined network " + mId);
+                        notifyListenersLocked(l -> l.onDeviceChanged(associationId));
+                        mAdvertisingSessions.put(
+                                associationId,
+                                mAdvertiser.startAdvertising(associationId, "Network " + mId));
                     }
                 } else if (mAssociationIds.remove(associationId)) {
                     notifyListenersLocked(l -> l.onDeviceRemoved(associationId));
@@ -621,6 +817,10 @@ public class NetworkManagerImpl implements NetworkManager {
             for (Integer removedId : set) {
                 Log.i(TAG, "Device with id " + removedId + " left network " + mId);
                 notifyListenersLocked(l -> l.onDeviceRemoved(removedId));
+                AdvertisingSession advertisingSession = mAdvertisingSessions.remove(removedId);
+                if (advertisingSession != null) {
+                    advertisingSession.close();
+                }
             }
         }
 
@@ -637,6 +837,16 @@ public class NetworkManagerImpl implements NetworkManager {
             }
         }
 
+        @GuardedBy("mLock")
+        private boolean notifyInboundMessageLocked(int sourceAssociationId, byte[] message) {
+            if (mAssociationIds.contains(sourceAssociationId)) {
+                notifyListenersLocked(l -> l.onNetworkMessage(sourceAssociationId, message));
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         @Override
         public void destroy() {
             synchronized (mLock) {
@@ -647,7 +857,20 @@ public class NetworkManagerImpl implements NetworkManager {
                 mAssociationIds.clear();
                 mListeners.clear();
                 mNetworks.remove(mId);
+                mAdvertisingSessions.values().forEach(AdvertisingSession::close);
+                mAdvertisingSessions.clear();
+                maybeInvalidateMessagesLocked();
                 Log.i(TAG, "Destroyed network " + mId);
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void maybeInvalidateMessagesLocked() {
+            for (MessageRecord r : mMessageRecords.values()) {
+                if (r.networkId.equals(mId)) {
+                    invalidate(/* async= */ true);
+                    return;
+                }
             }
         }
 
@@ -658,6 +881,9 @@ public class NetworkManagerImpl implements NetworkManager {
             synchronized (mLock) {
                 pw.println("id=" + mId);
                 pw.println("destroyed=" + mDestroyed);
+                pw.println("deviceCondition=" + mDeviceCondition);
+                pw.println("associationInfoCondition=" + mAssociationInfoCondition);
+                pw.println("advertisingSessions=" + mAdvertisingSessions);
                 pw.println("listeners=" + mListeners.size());
                 pw.println("devices=" + mAssociationIds);
             }

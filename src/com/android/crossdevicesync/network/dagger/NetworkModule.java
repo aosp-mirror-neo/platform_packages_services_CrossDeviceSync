@@ -17,6 +17,12 @@ package com.android.crossdevicesync.network.dagger;
 
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
+import com.android.crossdevicesync.network.advertiser.Advertiser;
+import com.android.crossdevicesync.network.advertiser.AdvertiserImpl;
+import com.android.crossdevicesync.network.messenger.Messenger;
+import com.android.crossdevicesync.network.messenger.MessengerImpl;
+import com.android.crossdevicesync.network.scanner.Scanner;
+import com.android.crossdevicesync.network.scanner.ScannerImpl;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import dagger.Binds;
@@ -28,4 +34,16 @@ public abstract class NetworkModule {
     @SyncServiceSingleton
     @Binds
     abstract NetworkManager bindsNetworkManager(NetworkManagerImpl impl);
+
+    @SyncServiceSingleton
+    @Binds
+    abstract Messenger bindsMessenger(MessengerImpl impl);
+
+    @SyncServiceSingleton
+    @Binds
+    abstract Advertiser bindsAdvertiser(AdvertiserImpl impl);
+
+    @SyncServiceSingleton
+    @Binds
+    abstract Scanner bindsScanner(ScannerImpl impl);
 }
