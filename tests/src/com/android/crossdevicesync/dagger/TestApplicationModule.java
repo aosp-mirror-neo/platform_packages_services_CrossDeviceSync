@@ -17,10 +17,12 @@ package com.android.crossdevicesync.dagger;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.data.fake.SynchronousExecutorService;
 
 import dagger.Binds;
 import dagger.Module;
@@ -44,6 +46,13 @@ public abstract class TestApplicationModule {
     @Main
     static Executor provideMainExecutor() {
         return new SynchronousExecutorService();
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static DelayedExecutor provideMainDelayedExecutor(FakeClock clock) {
+        return new ClockBasedExecutor(clock);
     }
 
     @Binds

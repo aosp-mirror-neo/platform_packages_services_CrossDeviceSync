@@ -19,6 +19,7 @@ import android.content.Context;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
@@ -38,6 +39,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject protected FakeCompanionDeviceManagerProxy mFakeCompanionDeviceManagerProxy;
     @Inject @Main protected Executor mMainExecutor;
     @Inject protected FakeClock mFakeClock;
+    @Inject @Main protected DelayedExecutor mDelayedExecutor;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();

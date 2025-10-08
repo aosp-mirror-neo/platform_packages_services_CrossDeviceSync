@@ -19,6 +19,8 @@ import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.fake.FakeAdvertiser;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
+import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.fake.FakeMessenger;
 import com.android.crossdevicesync.network.scanner.Scanner;
@@ -45,4 +47,9 @@ public abstract class TestNetworkModule {
     @Binds
     @SyncServiceSingleton
     abstract Scanner bindScanner(FakeScanner impl);
+
+    @Binds
+    @SyncServiceSingleton
+    abstract CompanionActionController bindCompanionActionController(
+            FakeCompanionActionController impl);
 }

@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.network.messenger.fake;
 
+import android.util.IndentingPrintWriter;
+
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
@@ -92,6 +94,11 @@ public class FakeMessenger implements Messenger {
         mListeners.remove(listener);
     }
 
+    @Override
+    public void onTransportsChanged(Set<Integer> associationsWithTransport) {
+        // Do nothing
+    }
+
     /** Simulates receiving a message and notifies listeners. */
     public void receiveMessage(String networkId, int associationId, byte[] message) {
         if (mIsDestroyed || !mIsInitialized) {
@@ -112,6 +119,9 @@ public class FakeMessenger implements Messenger {
     public Set<Integer> getTargetAssociationIds() {
         return mSentMessages.stream().map(s -> s.associationId).collect(Collectors.toSet());
     }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {}
 
     /** A record of a message sent through the fake messenger. */
     public static class SentMessage {

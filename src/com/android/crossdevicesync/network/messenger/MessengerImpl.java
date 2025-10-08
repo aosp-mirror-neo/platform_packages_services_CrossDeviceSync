@@ -15,17 +15,45 @@
  */
 package com.android.crossdevicesync.network.messenger;
 
+import static com.android.crossdevicesync.common.Utils.getException;
+import static com.android.crossdevicesync.common.Utils.isFutureFailed;
+
+import static java.util.Objects.requireNonNull;
+
 import android.companion.CompanionDeviceManager;
+import android.util.ArrayMap;
+import android.util.IndentingPrintWriter;
+import android.util.Log;
+import android.util.Pair;
 
 import androidx.annotation.GuardedBy;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
+import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
+import com.android.crossdevicesync.network.proto.CdmMessage;
+import com.android.crossdevicesync.network.proto.CdmMessage.BatchedMessage;
+import com.android.crossdevicesync.network.proto.CdmMessage.Message;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -35,22 +63,48 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class MessengerImpl implements Messenger {
     private static final String TAG = "Messenger";
+    @VisibleForTesting static final long RETRY_DELAY_MS = 5000;
+    @VisibleForTesting static final long WAITING_FOR_TRANSPORT_TIMEOUT = 2000;
+    @VisibleForTesting static final long WAITING_FOR_ACK_TIMEOUT = 2000;
+
     private final Object mLock;
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
-    private final Executor mMainExecutor;
+    private final CompanionActionController mCompanionActionController;
+    private final DelayedExecutor mMainExecutor;
     private final BiConsumer<Integer, byte[]> mMessageListener = this::onMessage;
+    private final Clock mClock;
+    private final Runnable mInvalidateRunnable = this::doInvalidation;
+
+    @GuardedBy("mLock")
+    private final Map<Integer, AssociationMessageState> mAssociationStates = new HashMap<>();
+
+    @GuardedBy("mLock")
+    private final List<Pair<MessageListener, Executor>> mListeners = new ArrayList<>();
+
+    @GuardedBy("mLock")
+    private final Set<Integer> mAssociationsWithTransport = new HashSet<>();
 
     @GuardedBy("mLock")
     private boolean mInitialized;
+
+    @GuardedBy("mLock")
+    private long mNextInvalidationTime = Long.MAX_VALUE;
+
+    @GuardedBy("mLock")
+    private long mNextHandleId;
 
     @Inject
     MessengerImpl(
             @NetworkLock Object lock,
             CompanionDeviceManagerProxy companionDeviceManager,
-            @Main Executor mainExecutor) {
+            @Main DelayedExecutor mainExecutor,
+            Clock clock,
+            CompanionActionController actionController) {
         mLock = lock;
         mCompanionDeviceManager = companionDeviceManager;
         mMainExecutor = mainExecutor;
+        mClock = clock;
+        mCompanionActionController = actionController;
     }
 
     @Override
@@ -67,6 +121,7 @@ public class MessengerImpl implements Messenger {
         }
     }
 
+    @SuppressWarnings("GuardedBy")
     @Override
     public void destroy() {
         synchronized (mLock) {
@@ -74,29 +129,679 @@ public class MessengerImpl implements Messenger {
                 throw new IllegalStateException("Not initialized!");
             }
             mInitialized = false;
+            mNextInvalidationTime = Long.MAX_VALUE;
             mCompanionDeviceManager.removeOnMessageReceivedListener(
                     CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC, mMessageListener);
+            mListeners.clear();
+            mAssociationsWithTransport.clear();
+            mAssociationStates.values().forEach(AssociationMessageState::destroyLocked);
+            mAssociationStates.clear();
+            mMainExecutor.cancel(mInvalidateRunnable);
+            Log.i(TAG, "Messenger is destroyed");
         }
     }
 
     @Override
-    public ListenableFuture<?> sendMessage(
+    public ListenableFuture<Boolean> sendMessage(
             String networkId, int associationId, byte[] message, int maxDeliveryAttempts) {
-        // TODO: implement
-        return null;
+        synchronized (mLock) {
+            if (maxDeliveryAttempts < 1) {
+                return Futures.immediateFailedFuture(
+                        new IllegalArgumentException(
+                                "Illegal maxDeliveryAttempts: " + maxDeliveryAttempts));
+            }
+            MessageHandle handle =
+                    mAssociationStates
+                            .computeIfAbsent(associationId, AssociationMessageState::new)
+                            .addMessageLocked(networkId, message, maxDeliveryAttempts);
+            invalidate();
+            return handle;
+        }
+    }
+
+    private void invalidate() {
+        invalidate(/* delay= */ 0);
+    }
+
+    private void invalidate(long delay) {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                return;
+            }
+            long now = mClock.elapsedRealtime();
+            delay = Math.max(delay, 0);
+            long scheduleTime = now + delay;
+            if (scheduleTime >= mNextInvalidationTime) {
+                return;
+            }
+            mNextInvalidationTime = scheduleTime;
+            if (delay > 0) {
+                Log.d(TAG, "Invalidating in " + delay + " ms");
+            }
+            mMainExecutor.cancel(mInvalidateRunnable);
+            mMainExecutor.executeDelayed(mInvalidateRunnable, delay);
+        }
+    }
+
+    private void doInvalidation() {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                return;
+            }
+            final long now = mClock.elapsedRealtime();
+            if (now < mNextInvalidationTime) {
+                return;
+            }
+            Log.d(TAG, "doInvalidation: now=" + now);
+            mNextInvalidationTime = Long.MAX_VALUE;
+            long nextInvalidation = Long.MAX_VALUE;
+            for (AssociationMessageState state : mAssociationStates.values()) {
+                state.invalidateLocked(now);
+                nextInvalidation =
+                        Math.min(nextInvalidation, state.getNextInvalidationTimeLocked(now));
+            }
+            if (nextInvalidation != Long.MAX_VALUE) {
+                invalidate(nextInvalidation - now);
+            }
+        }
+    }
+
+    @Override
+    public void onTransportsChanged(Set<Integer> associationsWithTransport) {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(TAG, "onTransportsChanged: ignore since not initialized");
+                return;
+            }
+            if (mAssociationsWithTransport.equals(associationsWithTransport)) {
+                return;
+            }
+            mAssociationsWithTransport.clear();
+            mAssociationsWithTransport.addAll(associationsWithTransport);
+            invalidate();
+        }
     }
 
     @Override
     public void registerMessageListener(Executor executor, MessageListener listener) {
-        // TODO: implement
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(TAG, "registerMessageListener: ignore since not initialized");
+                return;
+            }
+            mListeners.add(Pair.create(listener, executor));
+        }
     }
 
     @Override
     public void unregisterMessageListener(MessageListener listener) {
-        // TODO: implement
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(TAG, "unregisterMessageListener: ignore since not initialized");
+                return;
+            }
+            mListeners.removeIf(pair -> pair.first == listener);
+        }
     }
 
     private void onMessage(int associationId, byte[] message) {
-        // TODO: implement
+        synchronized (mLock) {
+            if (!mInitialized) {
+                Log.w(TAG, "onMessage: ignore since not initialized");
+                return;
+            }
+            BatchedMessage batchedMessage;
+            try {
+                batchedMessage = BatchedMessage.parseFrom(message);
+            } catch (InvalidProtocolBufferException e) {
+                Log.e(TAG, "onMessage: failed to parse incoming message!", e);
+                return;
+            }
+            List<Message> messages = new ArrayList(batchedMessage.getMessagesList());
+            messages.sort(Comparator.comparingLong(Message::getHandleId));
+            List<Long> ackIds = batchedMessage.getAckIdsList();
+            Log.d(
+                    TAG,
+                    "onMessage: received "
+                            + message.length
+                            + " bytes from association "
+                            + associationId
+                            + " containing "
+                            + messages.size()
+                            + " messages and "
+                            + ackIds.size()
+                            + " ACKs");
+            if (messages.isEmpty() && ackIds.isEmpty()) {
+                return;
+            }
+            AssociationMessageState state =
+                    mAssociationStates.computeIfAbsent(associationId, AssociationMessageState::new);
+            if (!messages.isEmpty()) {
+                for (Message m : messages) {
+                    if (state.noteReceivedMessageLocked(
+                            m.getHandleId(), batchedMessage.getSenderInstanceId())) {
+                        notifyMessageLocked(associationId, m);
+                    }
+                }
+                // Send the ACK in next invalidation.
+                invalidate();
+            }
+            state.noteReceivedAcksLocked(ackIds);
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void notifyMessageLocked(int associationId, Message message) {
+        mListeners.forEach(
+                l ->
+                        l.second.execute(
+                                () ->
+                                        l.first.onMessage(
+                                                message.getNetworkId(),
+                                                associationId,
+                                                message.getPayload().toByteArray())));
+    }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        synchronized (mLock) {
+            pw.println("Messenger:");
+            pw.increaseIndent();
+            pw.println("mInitialized=" + mInitialized);
+            pw.println("mNextInvalidationTime=" + mNextInvalidationTime);
+            pw.println("mNextHandleId=" + mNextHandleId);
+            pw.println("listeners=" + mListeners.size());
+            pw.println("associationsWithTransport=" + mAssociationsWithTransport);
+            if (mAssociationStates.isEmpty()) {
+                pw.println("No association states.");
+            } else {
+                pw.println("Association states:");
+                pw.increaseIndent();
+                mAssociationStates.values().forEach(state -> state.dump(pw));
+                pw.decreaseIndent();
+            }
+            pw.decreaseIndent();
+        }
+    }
+
+    /** A class representing the message delivery state of an association. */
+    @SuppressWarnings("EffectivelyPrivate")
+    private class AssociationMessageState {
+        /** Nothing to do. */
+        private static final int STATE_IDLE = 0;
+
+        /**
+         * Waiting for delay before trying to attach transport, often after a failed transport
+         * attachment.
+         */
+        private static final int STATE_WAITING_TO_ATTACH_TRANSPORT = 1;
+
+        /** Attaching transport. */
+        private static final int STATE_ATTACHING_TRANSPORT = 2;
+
+        /** Waiting for transport. */
+        private static final int STATE_WAITING_FOR_TRANSPORT = 3;
+
+        /** Message is being sent. */
+        private static final int STATE_SENDING = 4;
+
+        /** Detaching transport. */
+        private static final int STATE_DETACHING_TRANSPORT = 5;
+
+        public final int associationId;
+
+        @GuardedBy("mLock")
+        private final Map<Long, MessageHandle> mMessageHandles = new ArrayMap<>();
+
+        @GuardedBy("mLock")
+        private final Map<Long, MessageHandle> mAckHandles = new ArrayMap<>();
+
+        @GuardedBy("mLock")
+        private int mState = STATE_IDLE;
+
+        @GuardedBy("mLock")
+        private String mChangeReason = "initialized";
+
+        @GuardedBy("mLock")
+        private long mLastChangeTimestamp = mClock.elapsedRealtime();
+
+        @Nullable
+        @GuardedBy("mLock")
+        private ListenableFuture<?> mAttachTransportFuture;
+
+        @Nullable
+        @GuardedBy("mLock")
+        private ListenableFuture<?> mDetachTransportFuture;
+
+        /**
+         * The maximum message handle id we received from this association. This will be used to
+         * de-dup incoming messages.
+         */
+        @GuardedBy("mLock")
+        private long mMaxReceivedHandleId = -1;
+
+        /**
+         * Keep track of the remote side instance id so that we will know when remote side has
+         * restarted and clean-up local cache.
+         */
+        @GuardedBy("mLock")
+        private long mRemoteInstanceId = -1;
+
+        AssociationMessageState(int associationId) {
+            this.associationId = associationId;
+        }
+
+        @GuardedBy("mLock")
+        public MessageHandle addMessageLocked(
+                String networkId, byte[] message, int maxDeliveryAttempts) {
+            long handleId = mNextHandleId++;
+            MessageHandle handle =
+                    new MessageHandle(
+                            mLock,
+                            mClock,
+                            handleId,
+                            maxDeliveryAttempts,
+                            /* name= */ "messageHandle#"
+                                    + handleId
+                                    + ":association#"
+                                    + associationId,
+                            Message.newBuilder()
+                                    .setHandleId(handleId)
+                                    .setNetworkId(networkId)
+                                    .setPayload(ByteString.copyFrom(message))
+                                    .build());
+            mMessageHandles.put(handleId, handle);
+            handle.addListener(MessengerImpl.this::invalidate, Runnable::run);
+            return handle;
+        }
+
+        @GuardedBy("mLock")
+        public void invalidateLocked(long now) {
+            maybeTimeoutHandlesWaitingForAckLocked(now);
+            pruneHandlesLocked();
+            Pair<Integer, String> nextStateAndReason = getNextAssociationStateAndReasonLocked(now);
+            boolean changed =
+                    setStateLocked(nextStateAndReason.first, nextStateAndReason.second, now);
+            if (mState == STATE_SENDING) {
+                // Sending needs to be re-evaluated even if association state didn't change.
+                maybeSendCDMMessageLocked(now);
+            }
+            if (!changed) {
+                return;
+            }
+            if (mState == STATE_ATTACHING_TRANSPORT) {
+                Log.d(TAG, "Requesting transport attachment for association " + associationId);
+                mAttachTransportFuture = mCompanionActionController.attachTransport(associationId);
+                mAttachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
+            } else if (mAttachTransportFuture != null) {
+                if (mAttachTransportFuture.isDone()) {
+                    if (isFutureFailed(mAttachTransportFuture)) {
+                        noteTransportFailureLocked(now, getException(mAttachTransportFuture));
+                    }
+                } else {
+                    mAttachTransportFuture.cancel(true);
+                }
+                mAttachTransportFuture = null;
+            }
+            if (mState == STATE_DETACHING_TRANSPORT) {
+                Log.d(TAG, "Requesting transport detachment for association " + associationId);
+                mDetachTransportFuture = mCompanionActionController.detachTransport(associationId);
+                mDetachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
+                // For any pending messages, detaching is considered transport failure.
+                noteTransportFailureLocked(now, new Exception(mChangeReason));
+            } else if (mDetachTransportFuture != null) {
+                mDetachTransportFuture.cancel(true);
+                mDetachTransportFuture = null;
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void maybeTimeoutHandlesWaitingForAckLocked(long now) {
+            for (MessageHandle handle : mMessageHandles.values()) {
+                if (handle.getState() == MessageHandle.STATE_SENDING
+                        && now - handle.getLastChangeTime() >= WAITING_FOR_ACK_TIMEOUT) {
+                    handle.noteSendingFailure(now, new RuntimeException("timeout waiting for ACK"));
+                    Log.w(
+                            TAG,
+                            "Timeout waiting for ACK from association "
+                                    + associationId
+                                    + " for message "
+                                    + handle.getHandleId());
+                }
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void pruneHandlesLocked() {
+            mMessageHandles.values().removeIf(MessageHandle::isDone);
+            mAckHandles.values().removeIf(MessageHandle::isDone);
+        }
+
+        @GuardedBy("mLock")
+        private void noteTransportFailureLocked(long now, @Nullable Throwable error) {
+            mMessageHandles.values().forEach(h -> h.noteTransportFailure(now, error));
+            mAckHandles.values().forEach(h -> h.noteTransportFailure(now, error));
+        }
+
+        @GuardedBy("mLock")
+        private Pair<Integer, String> getNextAssociationStateAndReasonLocked(long now) {
+            if (mMessageHandles.isEmpty() && mAckHandles.isEmpty()) {
+                // Message buffer is empty.
+                switch (mState) {
+                    case STATE_IDLE, STATE_WAITING_TO_ATTACH_TRANSPORT -> {
+                        return Pair.create(STATE_IDLE, "buffer is empty");
+                    }
+                    case STATE_ATTACHING_TRANSPORT, STATE_WAITING_FOR_TRANSPORT, STATE_SENDING -> {
+                        return Pair.create(STATE_DETACHING_TRANSPORT, "buffer is empty");
+                    }
+                    case STATE_DETACHING_TRANSPORT -> {
+                        if (!requireNonNull(mDetachTransportFuture).isDone()) {
+                            return Pair.create(mState, mChangeReason);
+                        }
+                        return Pair.create(STATE_IDLE, "buffer is empty");
+                    }
+                    default -> {
+                        throw new IllegalStateException("Unknown state: " + mState);
+                    }
+                }
+            }
+
+            // Message buffer is non-empty
+            switch (mState) {
+                case STATE_IDLE -> {
+                    return Pair.create(STATE_ATTACHING_TRANSPORT, "Request attaching transport");
+                }
+                case STATE_WAITING_TO_ATTACH_TRANSPORT -> {
+                    if (now - mLastChangeTimestamp >= RETRY_DELAY_MS) {
+                        return Pair.create(
+                                STATE_ATTACHING_TRANSPORT, "Retry attaching transport request");
+                    } else {
+                        // Continue waiting for retry delay.
+                        return Pair.create(mState, mChangeReason);
+                    }
+                }
+                case STATE_ATTACHING_TRANSPORT -> {
+                    if (!requireNonNull(mAttachTransportFuture).isDone()) {
+                        // Continue waiting for attaching result.
+                        return Pair.create(mState, mChangeReason);
+                    }
+                    if (isFutureFailed(mAttachTransportFuture)) {
+                        // Failed to attach transport. Retry later.
+                        return Pair.create(
+                                STATE_WAITING_TO_ATTACH_TRANSPORT,
+                                getException(mAttachTransportFuture).getMessage());
+                    } else {
+                        // Success!
+                        if (mAssociationsWithTransport.contains(associationId)) {
+                            return Pair.create(STATE_SENDING, "sending message");
+                        } else {
+                            return Pair.create(
+                                    STATE_WAITING_FOR_TRANSPORT,
+                                    "successfully requested transport but waiting for it to "
+                                            + "appear");
+                        }
+                    }
+                }
+                case STATE_WAITING_FOR_TRANSPORT -> {
+                    if (mAssociationsWithTransport.contains(associationId)) {
+                        // Transport appeared. Sending message now.
+                        return Pair.create(STATE_SENDING, "sending message");
+                    }
+                    if (now - mLastChangeTimestamp >= WAITING_FOR_TRANSPORT_TIMEOUT) {
+                        // Attach request succeeded but didn't see transport appear within
+                        // timeout. Detach now.
+                        return Pair.create(
+                                STATE_DETACHING_TRANSPORT,
+                                "transport doesn't appear within timeout");
+                    } else {
+                        // Continue waiting for transport to appear.
+                        return Pair.create(mState, mChangeReason);
+                    }
+                }
+                case STATE_SENDING -> {
+                    if (!mAssociationsWithTransport.contains(associationId)) {
+                        return Pair.create(
+                                STATE_DETACHING_TRANSPORT, "lost transport unexpectedly");
+                    }
+                    // Continue sending.
+                    return Pair.create(mState, mChangeReason);
+                }
+                case STATE_DETACHING_TRANSPORT -> {
+                    if (!requireNonNull(mDetachTransportFuture).isDone()) {
+                        // Continue waiting for detaching result.
+                        return Pair.create(mState, mChangeReason);
+                    }
+                    // Done detaching. Try re-attaching after timeout.
+                    return Pair.create(STATE_WAITING_TO_ATTACH_TRANSPORT, mChangeReason);
+                }
+                default -> {
+                    throw new IllegalStateException("Unknown state: " + mState);
+                }
+            }
+        }
+
+        @GuardedBy("mLock")
+        private long getNextInvalidationTimeLocked(long now) {
+            switch (mState) {
+                case STATE_WAITING_TO_ATTACH_TRANSPORT -> {
+                    return mLastChangeTimestamp + RETRY_DELAY_MS;
+                }
+                case STATE_WAITING_FOR_TRANSPORT -> {
+                    return mLastChangeTimestamp + WAITING_FOR_TRANSPORT_TIMEOUT;
+                }
+                case STATE_SENDING -> {
+                    long nextInvalidation = Long.MAX_VALUE;
+                    for (MessageHandle handle : mMessageHandles.values()) {
+                        if (handle.isDone()) {
+                            continue;
+                        }
+                        if (handle.getState() == MessageHandle.STATE_PENDING_RETRY) {
+                            nextInvalidation =
+                                    Math.min(
+                                            nextInvalidation,
+                                            handle.getLastChangeTime() + RETRY_DELAY_MS);
+                        } else if (handle.getState() == MessageHandle.STATE_SENDING) {
+                            nextInvalidation =
+                                    Math.min(
+                                            nextInvalidation,
+                                            handle.getLastChangeTime() + WAITING_FOR_ACK_TIMEOUT);
+                        }
+                    }
+                    return nextInvalidation;
+                }
+                default -> {
+                    return Long.MAX_VALUE;
+                }
+            }
+        }
+
+        @GuardedBy("mLock")
+        private boolean setStateLocked(int state, String changeReason, long now) {
+            if (this.mState == state) {
+                return false;
+            }
+            Log.d(
+                    TAG,
+                    "Association "
+                            + associationId
+                            + " message state changed: "
+                            + stateToString(this.mState)
+                            + " -> "
+                            + stateToString(state)
+                            + ", reason: "
+                            + changeReason);
+            this.mState = state;
+            this.mChangeReason = changeReason;
+            this.mLastChangeTimestamp = now;
+            return true;
+        }
+
+        @GuardedBy("mLock")
+        private void maybeSendCDMMessageLocked(long now) {
+            List<CdmMessage.Message> messages = new ArrayList<>(mMessageHandles.size());
+            for (MessageHandle handle : mMessageHandles.values()) {
+                if (handle.isDone() || handle.getState() == MessageHandle.STATE_SENDING) {
+                    // No need to send.
+                    continue;
+                }
+                if (handle.getState() == MessageHandle.STATE_PENDING_RETRY
+                        && (now - handle.getLastChangeTime()) < RETRY_DELAY_MS) {
+                    // Waiting for retry timeout.
+                    continue;
+                }
+                messages.add(handle.getMessage());
+                handle.noteSending(now);
+            }
+            List<Long> acks = new ArrayList<>(mAckHandles.size());
+            for (MessageHandle handle : mAckHandles.values()) {
+                if (handle.isDone()) {
+                    // No need to send.
+                    continue;
+                }
+                acks.add(handle.getHandleId());
+                // ACKs should be fire and forget.
+                handle.noteSuccess(now);
+            }
+            if (messages.isEmpty() && acks.isEmpty()) {
+                // Nothing to send.
+                return;
+            }
+            byte[] encodedMessage =
+                    BatchedMessage.newBuilder()
+                            .addAllMessages(messages)
+                            .addAllAckIds(acks)
+                            .setSenderInstanceId(MessengerImpl.this.hashCode())
+                            .build()
+                            .toByteArray();
+            Log.d(
+                    TAG,
+                    "Sending "
+                            + messages.size()
+                            + " messages and "
+                            + acks.size()
+                            + " ACKs to association "
+                            + associationId);
+            mCompanionDeviceManager.sendMessage(
+                    CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
+                    encodedMessage,
+                    new int[] {associationId});
+        }
+
+        @GuardedBy("mLock")
+        public boolean noteReceivedMessageLocked(long handleId, long remoteInstanceId) {
+            if (mAckHandles.containsKey(handleId)) {
+                Log.w(
+                        TAG,
+                        "noteReceivedMessageLocked: received duplicated handle id "
+                                + handleId
+                                + " from association "
+                                + associationId
+                                + ". Ignoring.");
+                return false;
+            }
+            if (remoteInstanceId != mRemoteInstanceId && mRemoteInstanceId != -1) {
+                Log.i(
+                        TAG,
+                        "Detected remote instance id change in association "
+                                + associationId
+                                + ". Cleaning up local cache.");
+                mAckHandles.values().forEach(h -> h.cancel(true));
+                mAckHandles.clear();
+                mMaxReceivedHandleId = -1;
+            }
+            mRemoteInstanceId = remoteInstanceId;
+            MessageHandle handle =
+                    new MessageHandle(
+                            mLock,
+                            mClock,
+                            handleId,
+                            /* maxAttempts= */ 1,
+                            /* name= */ "ackHandle#" + handleId + ":association#" + associationId,
+                            /* message= */ null);
+            mAckHandles.put(handleId, handle);
+            handle.addListener(MessengerImpl.this::invalidate, Runnable::run);
+            boolean shouldDeliver = handleId > mMaxReceivedHandleId;
+            mMaxReceivedHandleId = Math.max(mMaxReceivedHandleId, handleId);
+            if (!shouldDeliver) {
+                Log.w(
+                        TAG,
+                        "noteReceivedMessageLocked: received too old handle id "
+                                + handleId
+                                + " from association "
+                                + associationId
+                                + ". This is likely a duplicated message and will be "
+                                + "ignored.");
+            }
+            return shouldDeliver;
+        }
+
+        @GuardedBy("mLock")
+        public void noteReceivedAcksLocked(Collection<Long> acks) {
+            long now = mClock.elapsedRealtime();
+            for (Long ackId : acks) {
+                MessageHandle handle = mMessageHandles.get(ackId);
+                if (handle != null) {
+                    handle.noteSuccess(now);
+                }
+            }
+        }
+
+        @GuardedBy("mLock")
+        public void destroyLocked() {
+            mMessageHandles.values().forEach(h -> h.cancel(true));
+            mMessageHandles.clear();
+            mAckHandles.values().forEach(h -> h.cancel(true));
+            mAckHandles.clear();
+            if (mAttachTransportFuture != null) {
+                mAttachTransportFuture.cancel(true);
+                mAttachTransportFuture = null;
+            }
+            if (mDetachTransportFuture != null) {
+                mDetachTransportFuture.cancel(true);
+                mDetachTransportFuture = null;
+            }
+        }
+
+        private static String stateToString(int state) {
+            return switch (state) {
+                case STATE_IDLE -> "IDLE";
+                case STATE_WAITING_TO_ATTACH_TRANSPORT -> "WAITING_TO_ATTACH_TRANSPORT";
+                case STATE_ATTACHING_TRANSPORT -> "ATTACHING_TRANSPORT";
+                case STATE_WAITING_FOR_TRANSPORT -> "WAITING_FOR_TRANSPORT";
+                case STATE_SENDING -> "SENDING";
+                case STATE_DETACHING_TRANSPORT -> "DETACHING_TRANSPORT";
+                default -> "UNKNOWN(" + state + ")";
+            };
+        }
+
+        private void dump(IndentingPrintWriter pw) {
+            synchronized (mLock) {
+                pw.println("AssociationMessageState:");
+                pw.increaseIndent();
+                pw.println("associationId=" + associationId);
+                pw.println("state=" + stateToString(mState));
+                pw.println("changeReason=" + mChangeReason);
+                pw.println("lastChangeTimestamp=" + mLastChangeTimestamp);
+                pw.println("maxReceivedHandleId=" + mMaxReceivedHandleId);
+                pw.println("remoteInstanceId=" + mRemoteInstanceId);
+                if (mMessageHandles.isEmpty()) {
+                    pw.println("No message handles.");
+                } else {
+                    pw.println("messageHandles (" + mMessageHandles.size() + "):");
+                    pw.increaseIndent();
+                    mMessageHandles.values().forEach(h -> h.dump(pw));
+                    pw.decreaseIndent();
+                }
+                if (mAckHandles.isEmpty()) {
+                    pw.println("No ack handles.");
+                } else {
+                    pw.println("ackHandles (" + mAckHandles.size() + "):");
+                    pw.increaseIndent();
+                    mAckHandles.values().forEach(h -> h.dump(pw));
+                    pw.decreaseIndent();
+                }
+                pw.decreaseIndent();
+            }
+        }
     }
 }

@@ -17,26 +17,35 @@ package com.android.crossdevicesync.common.fake;
 
 import com.android.crossdevicesync.common.Clock;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class FakeClock implements Clock {
-    private long mCurrentTime = 0;
+    private static final List<Runnable> sListeners = new ArrayList<>();
+    private static long sCurrentTime = 0;
 
     @Inject
     public FakeClock() {}
 
     @Override
     public long elapsedRealtime() {
-        return mCurrentTime;
+        return sCurrentTime;
     }
 
     public void advanceTime(long millis) {
-        mCurrentTime += millis;
+        setCurrentTime(elapsedRealtime() + millis);
     }
 
     public void setCurrentTime(long millis) {
-        mCurrentTime = millis;
+        sCurrentTime = millis;
+        sListeners.forEach(Runnable::run);
+    }
+
+    public void addListener(Runnable runnable) {
+        sListeners.add(runnable);
     }
 }

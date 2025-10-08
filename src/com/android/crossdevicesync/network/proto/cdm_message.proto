@@ -1,0 +1,41 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package com.android.crossdevicesync.network.proto;
+
+// A batched message format that groups multiple messages and multiple ACKs together.
+message BatchedMessage {
+    // List of outgoing messages.
+    repeated Message messages = 1;
+    // List of message ACKs as responses to incoming messages.
+    repeated uint64 ack_ids = 2;
+    // Instance id of the sender. Should change if sender restarts. This is needed to reset the
+    // receiver side cache in case the sender restarts or crashes.
+    uint64 sender_instance_id = 3;
+}
+
+// A message to send or receive from CompanionDeviceManager
+// Next ID: 3
+message Message {
+    // Sender side message handle id. This should be monotonically increasing for each new message.
+    uint64 handle_id = 1;
+    // The network this message belongs to.
+    string network_id = 2;
+    // The message payload.
+    bytes payload = 3;
+}
