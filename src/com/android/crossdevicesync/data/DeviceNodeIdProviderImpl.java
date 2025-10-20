@@ -20,6 +20,8 @@ import android.text.TextUtils;
 
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -30,7 +32,13 @@ import javax.inject.Inject;
  */
 @SyncServiceSingleton
 public class DeviceNodeIdProviderImpl implements DeviceNodeIdProvider {
-    private static final String KEY_LOCAL_DEVICE_NODE_ID = "local_device_node_id";
+    /** Prefix of keys that store the node id of a data store. */
+    private static final String KEY_NODE_ID_PREFIX = "node_id_";
+
+    /** Key that stores the unavailable node ids. */
+    private static final String KEY_NODE_ID_TOMBSTONES = "tombstone_node_ids";
+
+    private static final int MAX_ATTEMPT_FOR_NEW_ID = 10;
     private final SharedPreferences mSharedPreferences;
 
     @Inject
@@ -39,12 +47,58 @@ public class DeviceNodeIdProviderImpl implements DeviceNodeIdProvider {
     }
 
     @Override
-    public String getLocalDeviceNodeId() {
-        String id =  mSharedPreferences.getString(KEY_LOCAL_DEVICE_NODE_ID, "");
+    public String getOrCreateNodeIdForDataStore(String dataStore) {
+        String key = KEY_NODE_ID_PREFIX + dataStore;
+        String id = mSharedPreferences.getString(key, "");
         if (TextUtils.isEmpty(id)) {
-            id = UUID.randomUUID().toString();
-            mSharedPreferences.edit().putString(KEY_LOCAL_DEVICE_NODE_ID, id).apply();
+            id = newNodeIdForDataStore(dataStore);
+            mSharedPreferences.edit().putString(key, id).apply();
         }
         return id;
+    }
+
+    private String newNodeIdForDataStore(String dataStore) {
+        Set<String> unavailableIds = new HashSet<>();
+        for (String key : mSharedPreferences.getAll().keySet()) {
+            if (key.startsWith(KEY_NODE_ID_PREFIX)) {
+                unavailableIds.add(mSharedPreferences.getString(key, ""));
+            }
+        }
+        Set<String> tombstones = mSharedPreferences.getStringSet(KEY_NODE_ID_TOMBSTONES, null);
+        if (tombstones != null) {
+            unavailableIds.addAll(tombstones);
+        }
+        for (int i = 0; i < MAX_ATTEMPT_FOR_NEW_ID; i++) {
+            String id = UUID.randomUUID().toString();
+            if (!unavailableIds.contains(id)) {
+                return id;
+            }
+        }
+        throw new RuntimeException(
+                "Unable to generate a new node id for "
+                        + dataStore
+                        + " after "
+                        + MAX_ATTEMPT_FOR_NEW_ID
+                        + " attempts!");
+    }
+
+    @Override
+    public void noteDataStoreDeletion(String dataStore) {
+        String key = KEY_NODE_ID_PREFIX + dataStore;
+        String id = mSharedPreferences.getString(key, "");
+        if (TextUtils.isEmpty(id)) {
+            return;
+        }
+        Set<String> tombstones = mSharedPreferences.getStringSet(KEY_NODE_ID_TOMBSTONES, null);
+        Set<String> mutableTombstones = new HashSet<>();
+        if (tombstones != null) {
+            mutableTombstones.addAll(tombstones);
+        }
+        mutableTombstones.add(id);
+        mSharedPreferences
+                .edit()
+                .remove(key)
+                .putStringSet(KEY_NODE_ID_TOMBSTONES, mutableTombstones)
+                .apply();
     }
 }

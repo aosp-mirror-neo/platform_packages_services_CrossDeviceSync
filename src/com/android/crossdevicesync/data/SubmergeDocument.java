@@ -24,11 +24,14 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
-import com.android.crossdevicesync.proto.DocMetadata;
+import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.internal.util.FunctionalUtils.ThrowingBiConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
 import com.google.android.submerge.DocumentTransaction;
+import com.google.android.submerge.MergeException;
+import com.google.android.submerge.OlderBaseNeededException;
 import com.google.android.submerge.SubmergeDataType;
 import com.google.android.submerge.SubmergeMap;
 import com.google.android.submerge.SubmergeRegister;
@@ -40,7 +43,9 @@ import com.google.android.submerge.TransactionException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,18 +53,18 @@ import java.util.Queue;
 import java.util.Set;
 
 /**
- * An implementation of the {@link SharedDataStore.Document} using submerge {@link
+ * An implementation of the {@link SharedDataStore.MutableDocument} using submerge {@link
  * DocumentTransaction}.
  *
  * @param <T> the data type that this document manages.
  */
-class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable {
+class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoCloseable {
     private static final boolean DEBUG = true;
     private static final String TAG = "SubmergeDocument";
 
     private final String mDataStoreName;
     private final String mDocId;
-    private final DocumentTransaction<T> mTransaction;
+    @VisibleForTesting final DocumentTransaction<T> mTransaction;
     private final String mLocalDeviceNodeId;
     private final Map<String, WeakReference<SubmergeRecord>> mSubmergeRecordRefs = new ArrayMap<>();
     private final DocMetadata.DocumentMetadata.Builder mDocMetadata;
@@ -77,6 +82,21 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         mLocalDeviceNodeId = localDeviceNodeId;
         // Get builder so that this becomes mutable.
         mDocMetadata = docMetadata.toBuilder();
+    }
+
+    @Override
+    public String getDocId() {
+        return mDocId;
+    }
+
+    @Override
+    public int getSchemaVersion() {
+        return getMetaData().getSchemaVersion();
+    }
+
+    void setSchemaVersion(int version) {
+        requireDocumentOpen();
+        mDocMetadata.setSchemaVersion(version);
     }
 
     @Nullable
@@ -116,9 +136,8 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     public void putData(String path, @Nullable T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newRegister,
                 node -> {
                     SubmergeRegister<T> r = (SubmergeRegister<T>) node;
                     boolean changed = !Objects.equals(r.get(), data);
@@ -133,9 +152,8 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     public void putUnmergedData(String path, @Nullable T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newVectorData,
                 node -> {
                     SubmergeVectorData<T> v = (SubmergeVectorData<T>) node;
                     boolean changed = v.set(data);
@@ -146,29 +164,11 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     }
 
     @Override
-    public void addEmptySet(String path) throws IllegalArgumentException {
-        requireDocumentOpen();
-        String normalizedPath = normalizedPath(path);
-        if (containsPath(normalizedPath)) {
-            throw new IllegalArgumentException(
-                    getDebugIdentityString()
-                            + " - addEmptyPath: path \""
-                            + getDebugStringForPath(normalizedPath)
-                            + "\" already exists.");
-        }
-        findOrCreateLeafSafely(
-                normalizedPath,
-                mTransaction::newSet,
-                node -> setPathLastModifiedByLocalDevice(normalizedPath, true));
-    }
-
-    @Override
     public void addDataToSet(String path, T data) throws IllegalArgumentException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
-        findOrCreateLeafSafely(
+        findSubmergeNodeSafely(
                 normalizedPath,
-                mTransaction::newSet,
                 node -> {
                     SubmergeSet<T> s = (SubmergeSet<T>) node;
                     boolean changed = s.add(data);
@@ -194,7 +194,72 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
     }
 
     @Override
-    public void removePath(String path) throws IllegalArgumentException {
+    public void close() {
+        if (mClosed) {
+            return;
+        }
+        mClosed = true;
+        // Close all records, then close transaction.
+        try (mTransaction) {
+            mSubmergeRecordRefs
+                    .values()
+                    .forEach(
+                            ref -> {
+                                SubmergeRecord r = ref.get();
+                                if (r != null) {
+                                    r.close();
+                                }
+                            });
+            mSubmergeRecordRefs.clear();
+        }
+    }
+
+    void addSetSchema(String path) throws IllegalSchemaChangeException {
+        addSchemaToPath(path, mTransaction::newSet, SubmergeSet.class);
+    }
+
+    void addRegisterSchema(String path) throws IllegalSchemaChangeException {
+        addSchemaToPath(path, mTransaction::newRegister, SubmergeRegister.class);
+    }
+
+    void addUnmergedSchema(String path) throws IllegalSchemaChangeException {
+        addSchemaToPath(path, mTransaction::newVectorData, SubmergeVectorData.class);
+    }
+
+    private void addSchemaToPath(
+            String path,
+            ThrowingSupplier<SubmergeDataType<T>> nodeCreator,
+            Class<? extends SubmergeDataType> type)
+            throws IllegalSchemaChangeException {
+        requireDocumentOpen();
+        String normalizedPath = normalizedPath(path);
+        try (SubmergeDataType<T> node = findSubmergeNode(normalizedPath)) {
+            if (type.isInstance(node)) {
+                // Schema already exists. Nothing to add.
+                return;
+            }
+        }
+        try {
+            findOrCreateLeafSafely(
+                    normalizedPath,
+                    nodeCreator,
+                    node -> {
+                        if (!type.isInstance(node)) {
+                            throw new IllegalSchemaChangeException(
+                                    "addSchemaToPath: path "
+                                            + getDebugStringForPath(normalizedPath)
+                                            + " is unavailable for adding schema.");
+                        }
+                        setPathLastModifiedByLocalDevice(normalizedPath, true);
+                    });
+        } catch (IllegalSchemaChangeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalSchemaChangeException(e);
+        }
+    }
+
+    void removePath(String path) throws IllegalSchemaChangeException {
         requireDocumentOpen();
         String normalizedPath = normalizedPath(path);
         ArrayDeque<String> keys = normalizedKeys(normalizedPath);
@@ -202,7 +267,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
             // Remove root node.
             try (SubmergeDataType<T> root = mTransaction.getRoot()) {
                 if (root == null) {
-                    throw new IllegalArgumentException(
+                    throw new IllegalSchemaChangeException(
                             getDebugIdentityString()
                                     + " - removePath: unable to remove a null root node.");
                 }
@@ -211,21 +276,25 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
                 logInfo("trying to remove root node.");
                 mTransaction.setRoot(null);
             } catch (TimestampOverflowException e) {
-                throw new IllegalArgumentException(e);
+                throw new IllegalSchemaChangeException(e);
             }
         } else {
             // Remove a leaf node.
             String lastKey = keys.pollLast();
-            findSubmergeNodeSafely(
-                    String.join("/", keys),
-                    node -> {
-                        logInfo(
-                                "trying to remove node: \""
-                                        + getDebugStringForPath(normalizedPath)
-                                        + "\"");
-                        SubmergeMap<T> m = (SubmergeMap<T>) node;
-                        m.removeChild(lastKey);
-                    });
+            try {
+                findSubmergeNodeSafely(
+                        String.join("/", keys),
+                        node -> {
+                            logInfo(
+                                    "trying to remove node: \""
+                                            + getDebugStringForPath(normalizedPath)
+                                            + "\"");
+                            SubmergeMap<T> m = (SubmergeMap<T>) node;
+                            m.removeChild(lastKey);
+                        });
+            } catch (Exception e) {
+                throw new IllegalSchemaChangeException(e);
+            }
         }
         // Remove all metadata under the path.
         List<DocMetadata.RecordMetadata> removed = removeMatchedRecordMetadata(normalizedPath);
@@ -243,26 +312,70 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         }
     }
 
-    @Override
-    public void close() {
-        if (mClosed) {
-            logWarning("close: already closed.");
-            return;
+    /**
+     * Merge the document with a local update.
+     *
+     * @param update the raw update message from submerge.
+     * @return paths that are changed by this merge.
+     * @throws OlderBaseNeededException if the merge failed due to an older version base needed.
+     */
+    public List<String> mergeLocalUpdate(byte[] update)
+            throws OlderBaseNeededException, MergeException {
+        requireDocumentOpen();
+        List<String> changed = doMergeNetworkUpdate(update, /* isFromRemote= */ false);
+        logInfo(
+                "mergeLocalUpdate: update merged for "
+                        + getDebugIdentityString()
+                        + ". Changed: "
+                        + changed);
+        return changed;
+    }
+
+    /**
+     * Merge the document with a network update.
+     *
+     * @param update the raw network update message from submerge.
+     * @return paths that are changed by this merge.
+     * @throws OlderBaseNeededException if the merge failed due to an older version base needed.
+     */
+    public List<String> mergeNetworkUpdate(byte[] update)
+            throws OlderBaseNeededException, MergeException {
+        requireDocumentOpen();
+        List<String> changed = doMergeNetworkUpdate(update, /* isFromRemote= */ true);
+        logInfo(
+                "mergeNetworkUpdate: update merged for "
+                        + getDebugIdentityString()
+                        + ". Changed: "
+                        + changed);
+        return changed;
+    }
+
+    private List<String> doMergeNetworkUpdate(byte[] update, boolean isFromRemote)
+            throws OlderBaseNeededException, MergeException {
+        Map<String, Object> before = collectAllData();
+        mTransaction.mergeNetworkUpdate(update);
+        Map<String, Object> after = collectAllData();
+        List<String> changed = new ArrayList<>();
+        for (String path : before.keySet()) {
+            if (!after.containsKey(path)) {
+                // A path has been removed.
+                changed.add(path);
+                removeMatchedRecordMetadata(path);
+                Log.w(TAG, "mergeNetworkUpdate: removed path: " + getDebugStringForPath(path));
+            } else if (!Objects.equals(before.get(path), after.get(path))) {
+                // A path has changed.
+                changed.add(path);
+                setPathLastModifiedByLocalDevice(path, !isFromRemote);
+            }
         }
-        mClosed = true;
-        // Close all records, then close transaction.
-        try (mTransaction) {
-            mSubmergeRecordRefs
-                    .values()
-                    .forEach(
-                            ref -> {
-                                SubmergeRecord r = ref.get();
-                                if (r != null) {
-                                    r.close();
-                                }
-                            });
-            mSubmergeRecordRefs.clear();
+        for (String path : after.keySet()) {
+            if (!before.containsKey(path)) {
+                // A path has been added.
+                changed.add(path);
+                setPathLastModifiedByLocalDevice(path, !isFromRemote);
+            }
         }
+        return changed;
     }
 
     private static ArrayDeque<String> normalizedKeys(String path) {
@@ -361,30 +474,21 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
      * @param path the path to find or create leaf node.
      * @param nodeCreator a function for creating the leaf node.
      * @param consumer a function to consume the leaf node.
-     * @throws IllegalArgumentException if unable to find or create leaf node.
+     * @throws Exception if unable to find or create leaf node.
      */
     private void findOrCreateLeafSafely(
             String path,
             ThrowingSupplier<SubmergeDataType<T>> nodeCreator,
-            ThrowingConsumer<SubmergeDataType<T>> consumer) {
+            ThrowingConsumer<SubmergeDataType<T>> consumer)
+            throws Exception {
         SubmergeRecord r = getRecordFromCache(path);
         if (r != null) {
             // Cache hit.
-            try {
-                consumer.accept(r.mSubmergeData);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
-            }
+            consumer.acceptOrThrow(r.mSubmergeData);
         } else {
             // Cache miss.
             try (SubmergeDataType<T> node = findOrCreateLeaf(path, nodeCreator)) {
                 consumer.acceptOrThrow(node);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new IllegalArgumentException(e);
             }
         }
     }
@@ -403,7 +507,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         if (r != null) {
             // Cache hit.
             try {
-                consumer.accept(r.mSubmergeData);
+                consumer.acceptOrThrow(r.mSubmergeData);
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
@@ -412,12 +516,62 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         } else {
             // Cache miss.
             try (SubmergeDataType<T> node = findSubmergeNode(path)) {
-                consumer.accept(requireNonNull(node));
+                consumer.acceptOrThrow(requireNonNull(node));
             } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
                 throw new IllegalArgumentException(e);
             }
+        }
+    }
+
+    private Map<String, Object> collectAllData() {
+        Map<String, Object> res = new HashMap<>();
+        forEachNode(
+                (path, node) -> {
+                    if (node instanceof SubmergeRegister<T> reg) {
+                        res.put(path, reg.get());
+                    } else if (node instanceof SubmergeSet<T> set) {
+                        res.put(path, set.entries());
+                    } else if (node instanceof SubmergeVectorData<T> vec) {
+                        res.put(path, vec.entries());
+                    }
+                });
+        return res;
+    }
+
+    private void forEachNode(ThrowingBiConsumer<String, SubmergeDataType<T>> consumer) {
+        try (SubmergeDataType<T> root = mTransaction.getRoot()) {
+            forEachNodeRecursive(root, new LinkedList<>(), consumer);
+        } catch (Exception e) {
+            Log.e(
+                    TAG,
+                    "forEachNode: couldn't complete enumeration of "
+                            + getDebugIdentityString()
+                            + " due to error.",
+                    e);
+        }
+    }
+
+    private void forEachNodeRecursive(
+            @Nullable SubmergeDataType<T> root,
+            LinkedList<String> path,
+            ThrowingBiConsumer<String, SubmergeDataType<T>> consumer)
+            throws Exception {
+        if (root == null) {
+            // Stop if root node is null.
+            return;
+        }
+        consumer.acceptOrThrow("/" + String.join("/", path), root);
+        if (!(root instanceof SubmergeMap<T> map)) {
+            return;
+        }
+        for (String key : map.keySet()) {
+            path.add(key);
+            try (SubmergeDataType<T> child = map.getChild(key)) {
+                forEachNodeRecursive(child, path, consumer);
+            }
+            path.pollLast();
         }
     }
 
@@ -582,7 +736,7 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         }
         try (SmartAutoClosable<SubmergeDataType<T>> node =
                 new SmartAutoClosable<>(nodeCreator.getOrThrow())) {
-            logDebug("getOrCreateRoot: inserting root node " + node);
+            logDebug("getOrCreateRoot: inserting root node " + node.unwrap());
             mTransaction.setRoot(requireNonNull(node.unwrap()));
             node.setkeepOpen(true);
             return node.unwrap();
@@ -593,7 +747,8 @@ class SubmergeDocument<T> implements SharedDataStore.Document<T>, AutoCloseable 
         return mDataStoreName + "::" + mDocId;
     }
 
-    private String getDebugStringForPath(String path) {
+    @Override
+    public String getDebugStringForPath(String path) {
         return getDebugIdentityString() + ":" + path;
     }
 

@@ -19,8 +19,10 @@ import android.annotation.Nullable;
 
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface;
+import com.google.android.submerge.StorageInterface.StorageException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +35,7 @@ public class FakeStorage implements IStorage {
 
     private final Map<String, byte[]> mDocuments = new HashMap<>();
     private final Map<String, byte[]> mMetadata = new HashMap<>();
+    private final Map<String, byte[]> mSchema = new HashMap<>();
     private boolean mInitialized;
 
     @Inject
@@ -43,21 +46,37 @@ public class FakeStorage implements IStorage {
         mInitialized = true;
     }
 
-    @Override
-    public void onNewUpdate(String docId, byte[] serializedDoc) throws StorageException {
-        if (!mInitialized) {
-            throw new StorageException();
-        }
-        mDocuments.put(docId, serializedDoc);
-    }
-
-    @Override
     @Nullable
-    public byte[] readFromStorage(String docId) throws StorageException {
+    @Override
+    public byte[] getDocument(String docId) throws StorageException {
         if (!mInitialized) {
             throw new StorageException();
         }
         return mDocuments.get(docId);
+    }
+
+    @Override
+    public void persistDocument(String docId, byte[] document) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
+        mDocuments.put(docId, document);
+    }
+
+    @Override
+    public byte[] getDocumentSchema(String docId) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
+        return mSchema.get(docId);
+    }
+
+    @Override
+    public void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
+        mSchema.put(docId, documentSchema);
     }
 
     @Override
@@ -78,14 +97,35 @@ public class FakeStorage implements IStorage {
     }
 
     @Override
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
+        if (!mInitialized) {
+            throw new StorageException();
+        }
+        transactionApplier.acceptOrThrow(this);
+    }
+
+    @Override
     public void close() {
         mInitialized = false;
     }
 
     @Override
-    public void deleteDatabase() {
+    public boolean deleteDatabase() {
         close();
         mDocuments.clear();
         mMetadata.clear();
+        mSchema.clear();
+        return true;
+    }
+
+    public boolean isOpen() {
+        return mInitialized;
+    }
+
+    /** Copy all content from another storage. */
+    public void copyAll(FakeStorage other) {
+        mDocuments.putAll(other.mDocuments);
+        mMetadata.putAll(other.mMetadata);
+        mSchema.putAll(other.mSchema);
     }
 }

@@ -17,6 +17,7 @@ package com.android.crossdevicesync.services.dagger;
 
 import com.android.crossdevicesync.data.dagger.TestDataModule;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
+import com.android.crossdevicesync.network.dagger.TestNetworkModule;
 import com.android.crossdevicesync.services.SyncService;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
@@ -27,7 +28,8 @@ import dagger.Subcomponent;
  * lifecycle of {@link SyncService}.
  */
 @SyncServiceSingleton
-@Subcomponent(modules = {TestSyncServiceModule.class, TestDataModule.class})
+@Subcomponent(
+        modules = {TestSyncServiceModule.class, TestDataModule.class, TestNetworkModule.class})
 public interface TestSyncServiceComponent extends SyncServiceComponent {
 
     /** Builder interface for TestSyncServiceComponent. */

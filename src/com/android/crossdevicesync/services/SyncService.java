@@ -20,12 +20,16 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
 
+import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -41,21 +45,27 @@ public class SyncService extends Service {
     public static final String ACTION_BIND_FOR_TESTING =
             "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
+    private final NetworkManager mNetworkManager;
+
     @Nullable private CountDownLatch mDestroyLatch;
 
     @Inject
-    public SyncService() {}
+    public SyncService(NetworkManager networkManager) {
+        mNetworkManager = networkManager;
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "onCreate()");
+        mNetworkManager.init();
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
         Log.i(TAG, "onDestroy()");
+        mNetworkManager.destroy();
         if (mDestroyLatch != null) {
             mDestroyLatch.countDown();
             mDestroyLatch = null;
@@ -69,6 +79,15 @@ public class SyncService extends Service {
         }
         // Binding is not supported unless in tests.
         return null;
+    }
+
+    @Override
+    protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        IndentingPrintWriter pw = new IndentingPrintWriter(writer, "  ");
+        pw.println("SyncService state:");
+        pw.increaseIndent();
+        mNetworkManager.dump(pw);
+        pw.decreaseIndent();
     }
 
     @VisibleForTesting

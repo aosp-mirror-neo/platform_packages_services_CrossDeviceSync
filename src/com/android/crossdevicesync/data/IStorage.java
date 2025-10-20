@@ -17,13 +17,30 @@ package com.android.crossdevicesync.data;
 
 import android.annotation.Nullable;
 
-import com.google.android.submerge.StorageInterface;
+import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
+
+import com.google.android.submerge.StorageInterface.StorageException;
 
 /** Interface representing a persistent storage. */
-public interface IStorage extends StorageInterface, AutoCloseable {
+public interface IStorage extends AutoCloseable {
 
     /** Init the storage. */
     void init();
+
+    /** Get the serialized document. */
+    byte[] getDocument(String docId) throws StorageException;
+
+    /** Save the serialized document into the persistent storage. */
+    void persistDocument(String docId, byte[] document) throws StorageException;
+
+    /**
+     * Get the serialized document schema. This is a submerge document that can be merged via
+     * network update to mutate schema.
+     */
+    byte[] getDocumentSchema(String docId) throws StorageException;
+
+    /** Save the serialized document schema into the persistent storage. */
+    void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException;
 
     /** Get the serialized metadata of a document. */
     @Nullable
@@ -32,8 +49,13 @@ public interface IStorage extends StorageInterface, AutoCloseable {
     /** Save the serialized document metadata into the persistent storage. */
     void persistMetadata(String docId, byte[] metadata) throws StorageException;
 
+    /**
+     * Open a database transaction and apply the given transaction applier within the transaction.
+     */
+    void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception;
+
     /** Delete the database. */
-    void deleteDatabase();
+    boolean deleteDatabase();
 
     /** Close the database. */
     void close();

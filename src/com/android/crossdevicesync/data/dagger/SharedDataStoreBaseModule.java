@@ -16,16 +16,20 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
+import com.android.crossdevicesync.data.INetwork;
 import com.android.crossdevicesync.data.IStorage;
+import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
+import com.android.crossdevicesync.data.SubmergeSharedDataStore;
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 
 import com.google.android.submerge.Converter;
-import com.google.android.submerge.DataStore;
-import com.google.android.submerge.NetworkInterface;
 import com.google.android.submerge.TimestampProvider;
 import com.google.common.util.concurrent.ListeningExecutorService;
 
 import dagger.Binds;
+import dagger.Lazy;
 import dagger.Module;
 import dagger.Provides;
 
@@ -39,21 +43,35 @@ import java.util.concurrent.ExecutorService;
 @Module
 public abstract class SharedDataStoreBaseModule {
 
-    @SuppressWarnings("MustBeClosedChecker")
     @SharedDataStoreSingleton
     @Provides
-    static DataStore<?> provideSubmergeDataStore(
+    static SubmergeSchemaUpgradeHelper<?> provideSubmergeSchemaUpgradeHelper(
+            IStorage storage, Converter<?> converter, @DataStoreName String dataStoreName) {
+        return new SubmergeSchemaUpgradeHelper(storage, converter, dataStoreName);
+    }
+
+    @SharedDataStoreSingleton
+    @Provides
+    static SubmergeSharedDataStore<?> provideSubmergeSharedDataStore(
+            @DataStoreName String name,
             DeviceNodeIdProvider deviceNodeIdProvider,
-            NetworkInterface networkInterface,
+            @IOThread Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
+            INetwork.Factory networkFactory,
             TimestampProvider timestampProvider,
-            Converter<?> converter) {
-        return new DataStore<>(
-                deviceNodeIdProvider.getLocalDeviceNodeId(),
-                networkInterface,
+            Converter<?> converter,
+            SchemaProvider<?> schemaProvider,
+            SubmergeSchemaUpgradeHelper<?> schemaUpgradeHelper) {
+        return new SubmergeSharedDataStore(
+                name,
+                deviceNodeIdProvider,
+                ioThreadExecutor,
                 storage,
+                networkFactory,
                 timestampProvider,
-                converter);
+                converter,
+                schemaProvider,
+                schemaUpgradeHelper);
     }
 
     @SharedDataStoreSingleton

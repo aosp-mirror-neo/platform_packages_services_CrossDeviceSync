@@ -17,9 +17,22 @@ package com.android.crossdevicesync.dagger;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 
+import com.android.crossdevicesync.common.Clock;
+import com.android.crossdevicesync.common.ClockImpl;
+import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.CompanionDeviceManagerProxyImpl;
+import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
+import com.android.crossdevicesync.dagger.qualifier.Main;
+
+import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+
+import java.util.concurrent.Executor;
 
 import javax.inject.Singleton;
 
@@ -39,4 +52,42 @@ public abstract class ApplicationModule {
     static SharedPreferences provideDefaultSharedPrefs(Context context) {
         return context.getSharedPreferences(DEFAULT_SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
     }
+
+    /** Binds the {@link CompanionDeviceManagerProxy} implementation. */
+    @Singleton
+    @Binds
+    abstract CompanionDeviceManagerProxy bindsCompanionDeviceManagerProxy(
+            CompanionDeviceManagerProxyImpl proxy);
+
+    @Provides
+    @Singleton
+    @Main
+    static Looper provideMainLooper() {
+        return Looper.getMainLooper();
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static Handler provideMainHandler(@Main Looper looper) {
+        return new Handler(looper);
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static Executor provideMainExecutor(Context context) {
+        return context.getMainExecutor();
+    }
+
+    @Provides
+    @Singleton
+    @Main
+    static DelayedExecutor provideMainDelayedExecutor(@Main Handler handler) {
+        return new HandlerDelayedExecutorImpl(handler);
+    }
+
+    @Singleton
+    @Binds
+    abstract Clock bindsClock(ClockImpl clock);
 }

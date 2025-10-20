@@ -15,39 +15,66 @@
  */
 package com.android.crossdevicesync.data;
 
+import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
+import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 import com.android.crossdevicesync.data.fake.FakeNetwork;
 import com.android.crossdevicesync.data.fake.FakeStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
-import com.google.android.submerge.DataStore;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import javax.inject.Inject;
 
 /** Base class for tests dependent on the shared storage component. */
 public abstract class SharedDataStoreComponentTestBase extends SyncServiceComponentTestBase {
+    public static final String DOC_ID = "test_doc";
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
     @Inject protected RoomStorage mRoomStorage;
     @Inject protected FakeStorage mFakeStorage;
-    @Inject protected FakeNetwork mFakeNetwork;
-    @Inject protected DataStore<?> mSubmergeDataStore;
     @Inject @DataStoreName protected String mDataStoreName;
+    @Inject protected SubmergeSharedDataStore<?> mSubmergeSharedDataStore;
+    @Inject @IOThread protected ExecutorService mExecutorService;
+    protected FakeNetwork.Factory mNetworkFactory;
 
     @Override
     public void setUp() {
         super.setUp();
-        mSharedDataStoreComponent = newSharedDataStoreComponent(getClass().getSimpleName());
+        mNetworkFactory = new FakeNetwork.Factory();
+        mSharedDataStoreComponent =
+                newSharedDataStoreComponent(getClass().getSimpleName(), getSchemaProvider());
         mSharedDataStoreComponent.inject(this);
     }
 
-    protected TestSharedDataStoreComponent newSharedDataStoreComponent(String dataStoreName) {
+    protected TestSharedDataStoreComponent newSharedDataStoreComponent(
+            String dataStoreName, SchemaProvider<String> schemaProvider) {
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
+                        .networkFactory(mNetworkFactory)
                         .name(dataStoreName)
                         .converter(mStringConverter)
+                        .schemaProvider(schemaProvider)
                         .build();
+    }
+
+    protected SchemaProvider<String> getSchemaProvider() {
+        return new SchemaProvider<String>() {
+            @Override
+            public List<DocumentSchemaInfo> getAllDocumentSchema() {
+                return List.of();
+            }
+
+            @Override
+            public void migrateDocument(MutableDocument<String> document) {}
+        };
+    }
+
+    protected FakeNetwork getNetwork() {
+        // This will create a new network or get the existing one if available.
+        return mNetworkFactory.create(mSubmergeSharedDataStore.getLocalDeviceNodeId());
     }
 }

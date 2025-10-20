@@ -19,7 +19,12 @@ import android.content.Context;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.android.crossdevicesync.common.fake.FakeClock;
+import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
+import com.android.crossdevicesync.dagger.qualifier.Main;
+
+import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
@@ -30,10 +35,14 @@ public abstract class ApplicationComponentTestBase {
     protected TestApplication mApplication;
     protected TestApplicationComponent mApplicationComponent;
     @Inject protected BootReceiver mBootReceiver;
+    @Inject protected FakeCompanionDeviceManagerProxy mFakeCompanionDeviceManagerProxy;
+    @Inject @Main protected Executor mMainExecutor;
+    @Inject protected FakeClock mFakeClock;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();
         mApplication = (TestApplication) mContext;
+        mApplication.reCreateDaggerComponent();
         mApplicationComponent = mApplication.getApplicationComponent();
         mApplicationComponent.inject(this);
     }

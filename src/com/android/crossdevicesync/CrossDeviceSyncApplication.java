@@ -25,7 +25,7 @@ import com.android.crossdevicesync.dagger.DaggerApplicationComponent;
 public class CrossDeviceSyncApplication extends Application {
     private static final String TAG = "XDeviceSyncApplication";
 
-    @Nullable private ApplicationComponent mAppComponent;
+    @Nullable protected ApplicationComponent mAppComponent;
 
     @Override
     public void onCreate() {

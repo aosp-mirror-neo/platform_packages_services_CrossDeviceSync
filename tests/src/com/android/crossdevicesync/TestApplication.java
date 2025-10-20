@@ -33,4 +33,8 @@ public class TestApplication extends CrossDeviceSyncApplication {
     public TestApplicationComponent getApplicationComponent() {
         return (TestApplicationComponent) super.getApplicationComponent();
     }
+
+    public void reCreateDaggerComponent() {
+        mAppComponent = createDaggerComponent();
+    }
 }
