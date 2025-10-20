@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.network.advertiser;
 
+import android.util.IndentingPrintWriter;
+
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import javax.inject.Inject;
@@ -33,4 +35,7 @@ public class AdvertiserImpl implements Advertiser {
 
     @Override
     public void closeAllAdvertisingSessions() {}
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {}
 }

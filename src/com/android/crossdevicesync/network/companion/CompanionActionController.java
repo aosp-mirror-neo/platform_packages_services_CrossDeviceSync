@@ -15,10 +15,18 @@
  */
 package com.android.crossdevicesync.network.companion;
 
+import com.android.crossdevicesync.common.Dumpable;
+
 import com.google.common.util.concurrent.ListenableFuture;
 
 /** An interface for requesting companion actions. */
-public interface CompanionActionController {
+public interface CompanionActionController extends Dumpable {
+
+    /** Initialize this companion action controller. */
+    void init();
+
+    /** Destroy this companion action controller. */
+    void destroy();
 
     /** Requests to attach transport. */
     ListenableFuture<?> attachTransport(int associationId);

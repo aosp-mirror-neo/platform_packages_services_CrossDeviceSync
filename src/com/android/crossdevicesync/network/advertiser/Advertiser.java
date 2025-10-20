@@ -15,8 +15,10 @@
  */
 package com.android.crossdevicesync.network.advertiser;
 
+import com.android.crossdevicesync.common.Dumpable;
+
 /** A interface managing advertising behavior. */
-public interface Advertiser {
+public interface Advertiser extends Dumpable {
 
     /**
      * Start advertising my presence to the target device.

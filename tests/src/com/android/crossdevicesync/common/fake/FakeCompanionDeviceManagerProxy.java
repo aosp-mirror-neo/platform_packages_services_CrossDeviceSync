@@ -16,10 +16,13 @@
 package com.android.crossdevicesync.common.fake;
 
 import android.annotation.UserIdInt;
+import android.companion.ActionRequest;
+import android.companion.ActionResult;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.os.UserHandle;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 
@@ -28,8 +31,10 @@ import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -40,6 +45,7 @@ import javax.inject.Singleton;
 /** A fake implementation of {@link CompanionDeviceManagerProxy} for testing. */
 @Singleton
 public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerProxy {
+    private static final String TAG = "FakeCDM";
 
     private record AssociationListener(
             Executor executor, OnAssociationsChangedListener listener, int userId) {}
@@ -57,6 +63,12 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     private record SentMessageListener(
             int messageType, Consumer<SentMessage> listener, Executor executor) {}
 
+    public record ActionResultListener(
+            int[] associationIds,
+            String serviceName,
+            Executor executor,
+            BiConsumer<Integer, ActionResult> listener) {}
+
     private final Map<Integer, List<AssociationRecord>> mAssociations = new HashMap<>();
     private final List<AssociationListener> mAssociationListeners = new ArrayList<>();
     private final List<TransportListener> mTransportListeners = new ArrayList<>();
@@ -64,6 +76,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     private final List<DevicePresenceListener> mDevicePresenceListeners = new ArrayList<>();
     private final List<SentMessage> mSentMessages = new ArrayList<>();
     private final List<SentMessageListener> mSentMessageListeners = new ArrayList<>();
+    private final List<ActionResultListener> mActionResultListeners = new ArrayList<>();
 
     @Inject
     FakeCompanionDeviceManagerProxy() {}
@@ -200,6 +213,159 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
         }
     }
 
+    @Override
+    public void requestAction(ActionRequest request, String serviceName, int[] associationIds) {
+        Log.d(TAG, "Received action request: " + request);
+        boolean isActivateOp = request.getOperation() == ActionRequest.OP_ACTIVATE;
+        for (int associationId : associationIds) {
+            AssociationRecord associationRecord = findAssociationById(associationId);
+            if (associationRecord == null) {
+                continue;
+            }
+            switch (request.getAction()) {
+                case ActionRequest.REQUEST_NEARBY_SCANNING -> {
+                    if (isActivateOp) {
+                        associationRecord.servicesRequestedScanning.add(serviceName);
+                    } else {
+                        associationRecord.servicesRequestedScanning.remove(serviceName);
+                    }
+                    if (isActivateOp == associationRecord.scanningRequestSucceeded) {
+                        notifyActionResult(
+                                associationId,
+                                request.getAction(),
+                                isActivateOp
+                                        ? ActionResult.RESULT_ACTIVATED
+                                        : ActionResult.RESULT_DEACTIVATED,
+                                serviceName);
+                    }
+                }
+                case ActionRequest.REQUEST_NEARBY_ADVERTISING -> {
+                    if (isActivateOp) {
+                        associationRecord.servicesRequestedAdvertising.add(serviceName);
+                    } else {
+                        associationRecord.servicesRequestedAdvertising.remove(serviceName);
+                    }
+                    if (isActivateOp == associationRecord.advertisingRequestSucceeded) {
+                        notifyActionResult(
+                                associationId,
+                                request.getAction(),
+                                isActivateOp
+                                        ? ActionResult.RESULT_ACTIVATED
+                                        : ActionResult.RESULT_DEACTIVATED,
+                                serviceName);
+                    }
+                }
+                case ActionRequest.REQUEST_TRANSPORT -> {
+                    if (isActivateOp) {
+                        associationRecord.servicesRequestedTransport.add(serviceName);
+                    } else {
+                        associationRecord.servicesRequestedTransport.remove(serviceName);
+                    }
+                    if (isActivateOp == associationRecord.transportAttachRequestSucceeded) {
+                        notifyActionResult(
+                                associationId,
+                                request.getAction(),
+                                isActivateOp
+                                        ? ActionResult.RESULT_ACTIVATED
+                                        : ActionResult.RESULT_DEACTIVATED,
+                                serviceName);
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public void setOnActionResultListener(
+            int[] associationIds,
+            String serviceName,
+            Executor executor,
+            BiConsumer<Integer, ActionResult> listener) {
+        mActionResultListeners.add(
+                new ActionResultListener(associationIds, serviceName, executor, listener));
+    }
+
+    @Override
+    public void removeOnActionResultListener(String serviceName) {
+        mActionResultListeners.removeIf(l -> l.serviceName().equals(serviceName));
+    }
+
+    public boolean hasActionRequest(String serviceName, int associationId, int actionId) {
+        AssociationRecord r = findAssociationById(associationId);
+        if (r == null) {
+            return false;
+        }
+        return switch (actionId) {
+            case ActionRequest.REQUEST_TRANSPORT ->
+                    r.servicesRequestedTransport.contains(serviceName);
+            case ActionRequest.REQUEST_NEARBY_ADVERTISING ->
+                    r.servicesRequestedAdvertising.contains(serviceName);
+            case ActionRequest.REQUEST_NEARBY_SCANNING ->
+                    r.servicesRequestedScanning.contains(serviceName);
+            default -> false;
+        };
+    }
+
+    public void simulateActionResult(int associationId, int actionId, boolean activated) {
+        AssociationRecord association = findAssociationById(associationId);
+        if (association == null) {
+            Log.w(TAG, "Ignoring result for unknown association: " + associationId);
+            return;
+        }
+        boolean changed = false;
+        Set<String> requestedServices =
+                switch (actionId) {
+                    case ActionRequest.REQUEST_NEARBY_SCANNING -> {
+                        if (association.scanningRequestSucceeded != activated) {
+                            association.scanningRequestSucceeded = activated;
+                            changed = true;
+                        }
+                        yield association.servicesRequestedScanning;
+                    }
+                    case ActionRequest.REQUEST_NEARBY_ADVERTISING -> {
+                        if (association.advertisingRequestSucceeded != activated) {
+                            association.advertisingRequestSucceeded = activated;
+                            changed = true;
+                        }
+                        yield association.servicesRequestedAdvertising;
+                    }
+                    case ActionRequest.REQUEST_TRANSPORT -> {
+                        if (association.transportAttachRequestSucceeded != activated) {
+                            association.transportAttachRequestSucceeded = activated;
+                            changed = true;
+                        }
+                        yield association.servicesRequestedTransport;
+                    }
+                    default -> throw new IllegalArgumentException("Unknown actionId: " + actionId);
+                };
+        boolean requestedActive = !requestedServices.isEmpty();
+        if (requestedActive && !activated) {
+            requestedServices.clear();
+            changed = true;
+        }
+        if (changed) {
+            Log.d(TAG, "Notifying action results.");
+            notifyActionResult(
+                    associationId,
+                    actionId,
+                    activated ? ActionResult.RESULT_ACTIVATED : ActionResult.RESULT_DEACTIVATED,
+                    /* serviceName= */ null);
+        } else {
+            Log.w(TAG, "Ignoring result for action: " + actionId + ", activated=" + activated);
+        }
+    }
+
+    private void notifyActionResult(
+            int associationId, int actionId, int result, @Nullable String serviceName) {
+        ActionResult actionResult = new ActionResult.Builder(actionId, result).build();
+        for (ActionResultListener listener : new ArrayList<>(mActionResultListeners)) {
+            if (serviceName == null || listener.serviceName.equals(serviceName)) {
+                listener.executor.execute(
+                        () -> listener.listener.accept(associationId, actionResult));
+            }
+        }
+    }
+
     /** Simulates a device presence event. */
     public void simulateDevicePresenceEvent(DevicePresenceEvent event) {
         AssociationRecord r = findAssociationById(event.getAssociationId());
@@ -324,6 +490,9 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
 
     private static class AssociationRecord {
         public final int associationId;
+        public final Set<String> servicesRequestedTransport = new HashSet<>();
+        public final Set<String> servicesRequestedScanning = new HashSet<>();
+        public final Set<String> servicesRequestedAdvertising = new HashSet<>();
         public AssociationInfo associationInfo;
         public boolean hasTransport;
         @Nullable public DevicePresenceEvent blePresenceEvent;
@@ -333,6 +502,9 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
         @Nullable public DevicePresenceEvent selfManagedNearbyEvent;
 
         @Nullable public DevicePresenceEvent associationRemovedEvent;
+        public boolean transportAttachRequestSucceeded;
+        public boolean scanningRequestSucceeded;
+        public boolean advertisingRequestSucceeded;
 
         AssociationRecord(AssociationInfo info) {
             this.associationId = info.getId();

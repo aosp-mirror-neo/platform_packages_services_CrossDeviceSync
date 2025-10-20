@@ -17,6 +17,8 @@ package com.android.crossdevicesync.network.companion.fake;
 
 import static com.android.crossdevicesync.common.Utils.isFutureFailed;
 
+import android.util.IndentingPrintWriter;
+
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
@@ -40,6 +42,7 @@ public class FakeCompanionActionController implements CompanionActionController 
     private final Map<Integer, SettableFuture<?>> mScanningRequests = new HashMap<>();
     private final Map<Integer, SettableFuture<?>> mAdvertisingRequests = new HashMap<>();
     private boolean mAutomaticallyAttachTransport;
+    private boolean mInitialized;
 
     @Inject
     FakeCompanionActionController(FakeCompanionDeviceManagerProxy companionDeviceManager) {
@@ -51,7 +54,38 @@ public class FakeCompanionActionController implements CompanionActionController 
     }
 
     @Override
+    public void init() {
+        if (mInitialized) {
+            return;
+        }
+        mInitialized = true;
+    }
+
+    @Override
+    public void destroy() {
+        if (!mInitialized) {
+            return;
+        }
+        mInitialized = false;
+        mTransportRequests.values().forEach(f -> f.setException(new RuntimeException("destroyed")));
+        mTransportRequests.clear();
+        mScanningRequests.values().forEach(f -> f.setException(new RuntimeException("destroyed")));
+        mScanningRequests.clear();
+        mAdvertisingRequests
+                .values()
+                .forEach(f -> f.setException(new RuntimeException("destroyed")));
+        mAdvertisingRequests.clear();
+    }
+
+    private void throwIfUninitialized() {
+        if (!mInitialized) {
+            throw new IllegalStateException("Not initialized!");
+        }
+    }
+
+    @Override
     public ListenableFuture<?> attachTransport(int associationId) {
+        throwIfUninitialized();
         SettableFuture<?> future = newFutureIfAbsentOrFailed(mTransportRequests, associationId);
         if (mAutomaticallyAttachTransport && !future.isDone()) {
             mCompanionDeviceManager.setTransportAttachedState(associationId, true);
@@ -62,6 +96,7 @@ public class FakeCompanionActionController implements CompanionActionController 
 
     @Override
     public ListenableFuture<?> detachTransport(int associationId) {
+        throwIfUninitialized();
         SettableFuture<?> future = mTransportRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
@@ -71,16 +106,19 @@ public class FakeCompanionActionController implements CompanionActionController 
 
     @Nullable
     public SettableFuture<?> getAttachTransportFuture(int associationId) {
+        throwIfUninitialized();
         return mTransportRequests.get(associationId);
     }
 
     @Override
     public ListenableFuture<?> startNearbyScanning(int associationId) {
+        throwIfUninitialized();
         return newFutureIfAbsentOrFailed(mScanningRequests, associationId);
     }
 
     @Override
     public ListenableFuture<?> stopNearbyScanning(int associationId) {
+        throwIfUninitialized();
         SettableFuture<?> future = mScanningRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
@@ -90,16 +128,19 @@ public class FakeCompanionActionController implements CompanionActionController 
 
     @Nullable
     public SettableFuture<?> getScanningFuture(int associationId) {
+        throwIfUninitialized();
         return mScanningRequests.get(associationId);
     }
 
     @Override
     public ListenableFuture<?> startNearbyAdvertising(int associationId) {
+        throwIfUninitialized();
         return newFutureIfAbsentOrFailed(mAdvertisingRequests, associationId);
     }
 
     @Override
     public ListenableFuture<?> stopNearbyAdvertising(int associationId) {
+        throwIfUninitialized();
         SettableFuture<?> future = mAdvertisingRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
@@ -109,6 +150,7 @@ public class FakeCompanionActionController implements CompanionActionController 
 
     @Nullable
     public SettableFuture<?> getAdvertisingFuture(int associationId) {
+        throwIfUninitialized();
         return mAdvertisingRequests.get(associationId);
     }
 
@@ -121,4 +163,7 @@ public class FakeCompanionActionController implements CompanionActionController 
         }
         return future;
     }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {}
 }

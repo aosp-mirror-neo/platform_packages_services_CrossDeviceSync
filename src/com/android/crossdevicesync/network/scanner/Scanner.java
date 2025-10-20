@@ -15,8 +15,10 @@
  */
 package com.android.crossdevicesync.network.scanner;
 
+import com.android.crossdevicesync.common.Dumpable;
+
 /** A interface managing scanning behavior. */
-public interface Scanner {
+public interface Scanner extends Dumpable {
 
     /**
      * Scan for a device. The implementation can decide how to scan, scanning frequency, scanning
