@@ -23,11 +23,12 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.data.INetwork.NetworkListener;
 import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
 import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
+import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.DataStore;
@@ -50,7 +51,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
@@ -89,21 +92,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     private final Lazy<ListeningExecutorService> mIOThreadExecutor;
     private final IStorage mStorage;
-    private final INetwork.Factory mNetworkFactory;
+    private final Network mNetwork;
     private final TimestampProvider mTimestampProvider;
     private final Converter<T> mConverter;
     private final SchemaProvider<T> mSchemaProvider;
     private final SubmergeSchemaUpgradeHelper<T> mSchemaUpgradeHelper;
     private final NetworkInterface mNetworkInterface =
-            new NetworkInterface() {
-                @Override
-                public void onNewUpdate(String docId, byte[] updateMessage) {
-                    synchronized (mLock) {
-                        requireStateLocked(STATE_UPGRADING, STATE_OPEN);
-                        requireNonNull(mNetwork)
-                                .broadcastMessage(encodeDocUpdateMessage(docId, updateMessage));
-                    }
-                }
+            (docId, message) -> {
+                Log.i(TAG, "Broadcasting update message for " + getDebugDocIdentityString(docId));
+                broadcastMessageForDoc(docId, encodeDocUpdateMessage(docId, message));
             };
     private final StorageInterface mDocumentStorageInterface =
             new StorageInterface() {
@@ -121,12 +118,11 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             };
 
     @GuardedBy("mLock")
-    @Nullable
-    private DataStore<T> mSubmergeDataStore;
+    private final Map<String, Long> mDocBroadcastMessageIds = new HashMap<>();
 
     @GuardedBy("mLock")
     @Nullable
-    private INetwork mNetwork;
+    private DataStore<T> mSubmergeDataStore;
 
     @GuardedBy("mLock")
     @Nullable
@@ -144,7 +140,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             DeviceNodeIdProvider deviceNodeIdProvider,
             Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
-            INetwork.Factory networkFactory,
+            Network network,
             TimestampProvider timestampProvider,
             Converter<T> converter,
             SchemaProvider<T> schemaProvider,
@@ -153,7 +149,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         this.mDeviceNodeIdProvider = deviceNodeIdProvider;
         this.mIOThreadExecutor = ioThreadExecutor;
         this.mStorage = storage;
-        this.mNetworkFactory = networkFactory;
+        this.mNetwork = network;
         this.mTimestampProvider = timestampProvider;
         this.mConverter = converter;
         this.mSchemaProvider = schemaProvider;
@@ -167,7 +163,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             requireStateLocked(STATE_UNINITIALIZED);
             mState = STATE_UPGRADING;
             mNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
-            mNetwork = mNetworkFactory.create(mNodeId);
             mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
             // Init the storage and upgrade the data store asynchronously.
             return mIOThreadExecutor.get().submit(this::doInit);
@@ -177,7 +172,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private boolean doInit() throws Exception {
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING);
-            requireNonNull(mNetwork).registerNetworkListener(mIOThreadExecutor.get(), this);
+            mNetwork.registerListener(mIOThreadExecutor.get(), this);
         }
         mStorage.init();
         upgrade();
@@ -286,10 +281,14 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 throw e;
             }
         }
+        DataStore<T> submergeDataStore;
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING);
             mState = STATE_OPEN;
+            submergeDataStore = requireNonNull(mSubmergeDataStore);
         }
+        Log.i(TAG, "Broadcasting all versions for " + mName + ".");
+        broadcastAllVersions(submergeDataStore);
     }
 
     /** Open the submerge document data store. */
@@ -312,6 +311,33 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         DocumentMetadata metadata = loadDocMetadata(docId);
         return new SubmergeDocument<>(
                 mName, docId, documentDataStore.newDocumentTransaction(docId), nodeId, metadata);
+    }
+
+    private void broadcastAllVersions(DataStore<T> submergeDataStore) {
+        // Sending version vector to remote device will trigger a delta update.
+        for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
+            String docId = schema.getDocId();
+            try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
+                broadcastMessageForDoc(
+                        docId, encodeVersionVectorMessage(docId, version.toByteArray()));
+            }
+        }
+    }
+
+    private void broadcastMessageForDoc(String docId, byte[] message) {
+        synchronized (mLock) {
+            requireStateLocked(STATE_UPGRADING, STATE_OPEN);
+            if (mDocBroadcastMessageIds.containsKey(docId)) {
+                mNetwork.cancelMessage(mDocBroadcastMessageIds.get(docId));
+            }
+            long msgId =
+                    mNetwork.broadcastMessage(
+                            message,
+                            Network.MESSAGE_FLAG_STICKY
+                                    | Network.MESSAGE_FLAG_NEARBY_ONLY
+                                    | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT);
+            mDocBroadcastMessageIds.put(docId, msgId);
+        }
     }
 
     @Override
@@ -375,10 +401,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     /** Called on IO thread when a network message is received. */
     @Override
-    public void onNetworkMessage(String nodeId, byte[] message) {
-        Log.i(TAG, "onNetworkMessage: nodeId = " + nodeId);
+    public void onNetworkMessage(int associationId, byte[] message) {
+        Log.i(TAG, "onNetworkMessage: associationId = " + associationId);
         DataStore<T> submergeDataStore;
-        INetwork network;
         synchronized (mLock) {
             if (mState != STATE_OPEN) {
                 Log.w(
@@ -391,7 +416,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 return;
             }
             submergeDataStore = requireNonNull(mSubmergeDataStore);
-            network = requireNonNull(mNetwork);
         }
         NetworkMessage networkMessage;
         try {
@@ -452,8 +476,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         if (responseUpdate != null || responseVersionVector != null) {
             Log.i(
                     TAG,
-                    "onNetworkMessage: sending response to "
-                            + nodeId
+                    "onNetworkMessage: sending response to association "
+                            + associationId
                             + " for "
                             + getDebugDocIdentityString(docId)
                             + ". Has doc: "
@@ -461,16 +485,13 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                             + ". Has version: "
                             + (responseVersionVector != null)
                             + ".");
-            network.unicastMessage(
-                    nodeId, encodeMessage(docId, responseUpdate, responseVersionVector));
+            mNetwork.unicastMessage(
+                    associationId,
+                    encodeMessage(docId, responseUpdate, responseVersionVector),
+                    Network.MESSAGE_FLAG_NEARBY_ONLY
+                            | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT
+                            | Network.MESSAGE_FLAG_RETRY_IF_FAILED);
         }
-    }
-
-    /** Called on IO thread when a node is connected. */
-    @Override
-    public void onNodeAppeared(String nodeId) {
-        Log.i(TAG, "Node " + nodeId + " appeared for " + mName);
-        requestSyncWithRemoteDevice(nodeId);
     }
 
     private static boolean isPartiallyOlder(VersionVector a, VersionVector b) {
@@ -517,35 +538,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         }
     }
 
-    /** Called on IO thread for syncing. */
-    private void requestSyncWithRemoteDevice(String remoteDeviceNodeId) {
-        DataStore<T> submergeDataStore;
-        INetwork network;
-        synchronized (mLock) {
-            if (mState != STATE_OPEN) {
-                Log.w(
-                        TAG,
-                        "requestSyncWithRemoteDevice: ignored - illegal state "
-                                + stateToString(mState)
-                                + " in data store \""
-                                + mName
-                                + "\".");
-                return;
-            }
-            submergeDataStore = requireNonNull(mSubmergeDataStore);
-            network = requireNonNull(mNetwork);
-        }
-        // Sending version vector to remote device will trigger a delta update.
-        for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
-            String docId = schema.getDocId();
-            try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
-                network.unicastMessage(
-                        remoteDeviceNodeId,
-                        encodeVersionVectorMessage(docId, version.toByteArray()));
-            }
-        }
-    }
-
     @Override
     public void close() {
         synchronized (mLock) {
@@ -564,8 +556,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             mRemoteChangeListeners.clear();
             DataStore<T> submergeDataStore = requireNonNull(mSubmergeDataStore);
             mSubmergeDataStore = null;
-            requireNonNull(mNetwork).unregisterNetworkListener(this);
-            mNetwork = null;
+            mNetwork.unregisterListener(this);
+            mDocBroadcastMessageIds.values().forEach(mNetwork::cancelMessage);
+            mDocBroadcastMessageIds.clear();
             mNodeId = null;
             mIOThreadExecutor
                     .get()

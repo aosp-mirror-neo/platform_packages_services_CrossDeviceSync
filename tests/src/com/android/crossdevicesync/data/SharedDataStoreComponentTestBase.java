@@ -19,8 +19,8 @@ import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
-import com.android.crossdevicesync.data.fake.FakeNetwork;
 import com.android.crossdevicesync.data.fake.FakeStorage;
+import com.android.crossdevicesync.network.fake.FakeNetworkManager;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import java.util.List;
@@ -31,6 +31,7 @@ import javax.inject.Inject;
 /** Base class for tests dependent on the shared storage component. */
 public abstract class SharedDataStoreComponentTestBase extends SyncServiceComponentTestBase {
     public static final String DOC_ID = "test_doc";
+    public static final String NETWORK_ID = "test_network";
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
     @Inject protected RoomStorage mRoomStorage;
@@ -38,12 +39,11 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     @Inject @DataStoreName protected String mDataStoreName;
     @Inject protected SubmergeSharedDataStore<?> mSubmergeSharedDataStore;
     @Inject @IOThread protected ExecutorService mExecutorService;
-    protected FakeNetwork.Factory mNetworkFactory;
 
     @Override
     public void setUp() {
         super.setUp();
-        mNetworkFactory = new FakeNetwork.Factory();
+        mFakeNetworkManager.init();
         mSharedDataStoreComponent =
                 newSharedDataStoreComponent(getClass().getSimpleName(), getSchemaProvider());
         mSharedDataStoreComponent.inject(this);
@@ -54,7 +54,12 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
-                        .networkFactory(mNetworkFactory)
+                        .network(
+                                getNetworkManager()
+                                        .createNetwork(
+                                                NETWORK_ID,
+                                                device -> true,
+                                                associationInfo -> true))
                         .name(dataStoreName)
                         .converter(mStringConverter)
                         .schemaProvider(schemaProvider)
@@ -73,8 +78,8 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         };
     }
 
-    protected FakeNetwork getNetwork() {
+    protected FakeNetworkManager getNetworkManager() {
         // This will create a new network or get the existing one if available.
-        return mNetworkFactory.create(mSubmergeSharedDataStore.getLocalDeviceNodeId());
+        return mFakeNetworkManager;
     }
 }

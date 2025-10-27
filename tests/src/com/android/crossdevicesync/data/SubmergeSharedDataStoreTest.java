@@ -1048,8 +1048,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 if (a == b) {
                     continue;
                 }
-                a.getNetwork().connect(b.getNetwork());
-                b.getNetwork().connect(a.getNetwork());
+                a.getNetworkManager().connect(b.getNetworkManager());
             }
         }
     }
@@ -1058,7 +1057,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         while (true) {
             boolean allFlushed = true;
             for (SharedDataStoreComponentTestBase t : testContexts) {
-                allFlushed &= !t.getNetwork().flushMessages();
+                allFlushed &= !t.getNetworkManager().flushAllMessages();
             }
             if (allFlushed) {
                 break;
