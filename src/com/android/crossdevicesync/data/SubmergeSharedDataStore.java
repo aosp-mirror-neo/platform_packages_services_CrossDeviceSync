@@ -97,11 +97,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private final Converter<T> mConverter;
     private final SchemaProvider<T> mSchemaProvider;
     private final SubmergeSchemaUpgradeHelper<T> mSchemaUpgradeHelper;
-    private final NetworkInterface mNetworkInterface =
-            (docId, message) -> {
-                Log.i(TAG, "Broadcasting update message for " + getDebugDocIdentityString(docId));
-                broadcastMessageForDoc(docId, encodeDocUpdateMessage(docId, message));
-            };
+    private final NetworkInterface mNetworkInterface = this::broadcastUpdateMessage;
     private final StorageInterface mDocumentStorageInterface =
             new StorageInterface() {
                 @Override
@@ -119,6 +115,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     @GuardedBy("mLock")
     private final Map<String, Long> mDocBroadcastMessageIds = new HashMap<>();
+
+    @GuardedBy("mLock")
+    private final Map<String, Map<String, Long>> mDocUnicastMessageIds = new HashMap<>();
 
     @GuardedBy("mLock")
     @Nullable
@@ -154,6 +153,19 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         this.mConverter = converter;
         this.mSchemaProvider = schemaProvider;
         this.mSchemaUpgradeHelper = schemaUpgradeHelper;
+    }
+
+    private void broadcastUpdateMessage(String docId, byte[] updateMessage) {
+        Log.i(TAG, "Broadcasting update message for " + getDebugDocIdentityString(docId));
+        synchronized (mLock) {
+            broadcastMessageForDoc(
+                    docId,
+                    encodeDocUpdateMessage(
+                            docId,
+                            updateMessage,
+                            requireNonNull(mNodeId),
+                            /* receiverNodeId= */ null));
+        }
     }
 
     @SuppressWarnings("MustBeClosedChecker")
@@ -282,13 +294,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             }
         }
         DataStore<T> submergeDataStore;
+        String myNodeId;
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING);
             mState = STATE_OPEN;
             submergeDataStore = requireNonNull(mSubmergeDataStore);
+            myNodeId = requireNonNull(mNodeId);
         }
         Log.i(TAG, "Broadcasting all versions for " + mName + ".");
-        broadcastAllVersions(submergeDataStore);
+        broadcastAllVersions(submergeDataStore, myNodeId);
     }
 
     /** Open the submerge document data store. */
@@ -313,13 +327,18 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 mName, docId, documentDataStore.newDocumentTransaction(docId), nodeId, metadata);
     }
 
-    private void broadcastAllVersions(DataStore<T> submergeDataStore) {
+    private void broadcastAllVersions(DataStore<T> submergeDataStore, String senderNodeId) {
         // Sending version vector to remote device will trigger a delta update.
         for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
             String docId = schema.getDocId();
             try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
                 broadcastMessageForDoc(
-                        docId, encodeVersionVectorMessage(docId, version.toByteArray()));
+                        docId,
+                        encodeVersionVectorMessage(
+                                docId,
+                                version.toByteArray(),
+                                senderNodeId,
+                                /* receiverNodeId= */ null));
             }
         }
     }
@@ -404,6 +423,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     public void onNetworkMessage(int associationId, byte[] message) {
         Log.i(TAG, "onNetworkMessage: associationId = " + associationId);
         DataStore<T> submergeDataStore;
+        String myNodeId;
         synchronized (mLock) {
             if (mState != STATE_OPEN) {
                 Log.w(
@@ -416,12 +436,18 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 return;
             }
             submergeDataStore = requireNonNull(mSubmergeDataStore);
+            myNodeId = requireNonNull(mNodeId);
         }
         NetworkMessage networkMessage;
         try {
             networkMessage = NetworkMessage.parseFrom(message);
         } catch (InvalidProtocolBufferException e) {
             Log.e(TAG, "onNetworkUpdate: failed to parse network message", e);
+            return;
+        }
+        if (networkMessage.hasReceiverNodeId()
+                && !myNodeId.equals(networkMessage.getReceiverNodeId())) {
+            // The message is targeting another node. Ignore.
             return;
         }
         String docId = networkMessage.getDocId();
@@ -474,23 +500,42 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             }
         }
         if (responseUpdate != null || responseVersionVector != null) {
-            Log.i(
-                    TAG,
-                    "onNetworkMessage: sending response to association "
-                            + associationId
-                            + " for "
-                            + getDebugDocIdentityString(docId)
-                            + ". Has doc: "
-                            + (responseUpdate != null)
-                            + ". Has version: "
-                            + (responseVersionVector != null)
-                            + ".");
-            mNetwork.unicastMessage(
-                    associationId,
-                    encodeMessage(docId, responseUpdate, responseVersionVector),
-                    Network.MESSAGE_FLAG_NEARBY_ONLY
-                            | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT
-                            | Network.MESSAGE_FLAG_RETRY_IF_FAILED);
+            synchronized (mLock) {
+                if (mState != STATE_OPEN) {
+                    return;
+                }
+                Log.i(
+                        TAG,
+                        "onNetworkMessage: sending response to association "
+                                + associationId
+                                + " for "
+                                + getDebugDocIdentityString(docId)
+                                + ". Has doc: "
+                                + (responseUpdate != null)
+                                + ". Has version: "
+                                + (responseVersionVector != null)
+                                + ".");
+                Map<String, Long> unicastMessages =
+                        mDocUnicastMessageIds.computeIfAbsent(docId, k -> new HashMap<>());
+                String targetNode = networkMessage.getSenderNodeId();
+                Long existingMessage = unicastMessages.get(targetNode);
+                if (existingMessage != null) {
+                    mNetwork.cancelMessage(existingMessage);
+                }
+                long msgId =
+                        mNetwork.unicastMessage(
+                                associationId,
+                                encodeMessage(
+                                        docId,
+                                        responseUpdate,
+                                        responseVersionVector,
+                                        myNodeId,
+                                        targetNode),
+                                Network.MESSAGE_FLAG_NEARBY_ONLY
+                                        | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT
+                                        | Network.MESSAGE_FLAG_STICKY);
+                unicastMessages.put(targetNode, msgId);
+            }
         }
     }
 
@@ -499,16 +544,22 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         return comp == VersionVector.OLDER || comp == VersionVector.CONCURRENT;
     }
 
-    private byte[] encodeVersionVectorMessage(String docId, byte[] version) {
-        return encodeMessage(docId, /* docUpdate= */ null, version);
+    private byte[] encodeVersionVectorMessage(
+            String docId, byte[] version, String senderNodeId, @Nullable String receiverNodeId) {
+        return encodeMessage(docId, /* docUpdate= */ null, version, senderNodeId, receiverNodeId);
     }
 
-    private byte[] encodeDocUpdateMessage(String docId, byte[] docUpdate) {
-        return encodeMessage(docId, docUpdate, /* version= */ null);
+    private byte[] encodeDocUpdateMessage(
+            String docId, byte[] docUpdate, String senderNodeId, @Nullable String receiverNodeId) {
+        return encodeMessage(docId, docUpdate, /* version= */ null, senderNodeId, receiverNodeId);
     }
 
     private byte[] encodeMessage(
-            String docId, @Nullable byte[] docUpdate, @Nullable byte[] version) {
+            String docId,
+            @Nullable byte[] docUpdate,
+            @Nullable byte[] version,
+            String senderNodeId,
+            @Nullable String receiverNodeId) {
         if (docUpdate == null && version == null) {
             throw new IllegalArgumentException("Must have a docUpdate or version.");
         }
@@ -518,6 +569,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         }
         if (version != null) {
             builder.setDocVersion(ByteString.copyFrom(version));
+        }
+        builder.setSenderNodeId(senderNodeId);
+        if (receiverNodeId != null) {
+            builder.setReceiverNodeId(receiverNodeId);
         }
         return builder.build().toByteArray();
     }
@@ -559,6 +614,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             mNetwork.unregisterListener(this);
             mDocBroadcastMessageIds.values().forEach(mNetwork::cancelMessage);
             mDocBroadcastMessageIds.clear();
+            mDocUnicastMessageIds
+                    .values()
+                    .forEach(docMessages -> docMessages.values().forEach(mNetwork::cancelMessage));
+            mDocUnicastMessageIds.clear();
             mNodeId = null;
             mIOThreadExecutor
                     .get()

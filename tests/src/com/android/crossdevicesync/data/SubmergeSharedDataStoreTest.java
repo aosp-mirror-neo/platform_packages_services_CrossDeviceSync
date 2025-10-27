@@ -1030,6 +1030,67 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     }
 
     @Test
+    public void testSharedNetwork_multiplexing() throws Exception {
+        // Create a new data store sharing the same network.
+        SubmergeSharedDataStore<String> newDataStore =
+                (SubmergeSharedDataStore<String>)
+                        newSharedDataStoreComponent("newDataStore", getSchemaProvider())
+                                .getSubmergeSharedDataStore();
+        newDataStore.init();
+        // Both data store connect to a remote device.
+        connectNetworks(this, mRemoteDevice1);
+
+        // Remote device changes.
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "val"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Both data store receive the update.
+        ThrowingConsumer<MutableDocument<String>> verifier =
+                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val");
+        transactDataStore(this, verifier);
+        transactDataStore(newDataStore, verifier);
+
+        // One of the local data store changes.
+        transactDataStore(this, doc -> doc.putData("/root/register", "val2"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Remote device has the change first, while the other local data store doesn't have the
+        // change yet.
+        transactDataStore(
+                mRemoteDevice1,
+                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val2"));
+        transactDataStore(
+                newDataStore,
+                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val"));
+
+        // The other local data store changes.
+        transactDataStore(newDataStore, doc -> doc.putData("/root/register", "val3"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Remote device has the change first, while the other local data store doesn't have the
+        // change yet.
+        transactDataStore(
+                mRemoteDevice1,
+                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val3"));
+        transactDataStore(
+                this, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val2"));
+
+        // Remote device has a change.
+        transactDataStore(mRemoteDevice1, doc -> doc.addDataToSet("/root/set", "val"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Now all 3 data stores are on the same page.
+        verifier =
+                doc -> {
+                    assertThat(doc.getRecord("/root/register").get()).isEqualTo("val3");
+                    assertThat(doc.getRecord("/root/set").get()).isEqualTo("val");
+                };
+        transactDataStore(this, verifier);
+        transactDataStore(newDataStore, verifier);
+        transactDataStore(mRemoteDevice1, verifier);
+    }
+
+    @Test
     public void testClose() throws Exception {
         transactDataStore(doc -> doc.putData("/root/register", "abc"));
 
@@ -1118,7 +1179,15 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             SharedDataStoreComponentTestBase testContext,
             ThrowingConsumer<MutableDocument<String>> consumer)
             throws Exception {
-        ((SubmergeSharedDataStore<String>) testContext.mSubmergeSharedDataStore)
+        transactDataStore(
+                (SubmergeSharedDataStore<String>) testContext.mSubmergeSharedDataStore, consumer);
+    }
+
+    private void transactDataStore(
+            SubmergeSharedDataStore<String> dataStore,
+            ThrowingConsumer<MutableDocument<String>> consumer)
+            throws Exception {
+        dataStore
                 .transact(
                         DOC_ID,
                         doc -> {
