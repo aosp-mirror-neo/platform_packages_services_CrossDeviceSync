@@ -54,12 +54,16 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
             Executor executor,
             Consumer<DevicePresenceEvent> listener) {}
 
+    private record SentMessageListener(
+            int messageType, Consumer<SentMessage> listener, Executor executor) {}
+
     private final Map<Integer, List<AssociationRecord>> mAssociations = new HashMap<>();
     private final List<AssociationListener> mAssociationListeners = new ArrayList<>();
     private final List<TransportListener> mTransportListeners = new ArrayList<>();
     private final Map<Integer, List<MessageListener>> mMessageListeners = new HashMap<>();
     private final List<DevicePresenceListener> mDevicePresenceListeners = new ArrayList<>();
     private final List<SentMessage> mSentMessages = new ArrayList<>();
+    private final List<SentMessageListener> mSentMessageListeners = new ArrayList<>();
 
     @Inject
     FakeCompanionDeviceManagerProxy() {}
@@ -166,7 +170,18 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
                 return;
             }
         }
-        mSentMessages.add(new SentMessage(messageType, data, associationIds));
+        SentMessage sentMessage = new SentMessage(messageType, data, associationIds);
+        mSentMessages.add(sentMessage);
+        for (SentMessageListener listener : mSentMessageListeners) {
+            if (listener.messageType == messageType) {
+                listener.executor.execute(() -> listener.listener.accept(sentMessage));
+            }
+        }
+    }
+
+    public void addSentMessageListener(
+            int messageType, Consumer<SentMessage> listener, Executor executor) {
+        mSentMessageListeners.add(new SentMessageListener(messageType, listener, executor));
     }
 
     @Override

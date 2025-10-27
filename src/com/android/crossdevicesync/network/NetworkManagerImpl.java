@@ -307,6 +307,7 @@ public class NetworkManagerImpl implements NetworkManager {
             if (changed) {
                 // Transport has changed. Need to re-evaluate network members.
                 invalidateNetworks();
+                mMessenger.onTransportsChanged(idsWithTransport);
             }
         }
     }
@@ -676,6 +677,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 mMessageRecords.values().forEach(record -> record.dump(pw));
                 pw.decreaseIndent();
             }
+            mMessenger.dump(pw);
             pw.decreaseIndent();
         }
     }

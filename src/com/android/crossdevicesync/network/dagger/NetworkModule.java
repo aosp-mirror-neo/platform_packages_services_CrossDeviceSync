@@ -19,6 +19,8 @@ import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.AdvertiserImpl;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
+import com.android.crossdevicesync.network.companion.CompanionActionControllerImpl;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.MessengerImpl;
 import com.android.crossdevicesync.network.scanner.Scanner;
@@ -30,6 +32,11 @@ import dagger.Module;
 
 @Module(includes = {NetworkBaseModule.class})
 public abstract class NetworkModule {
+
+    @SyncServiceSingleton
+    @Binds
+    abstract CompanionActionController bindsCompanionActionController(
+            CompanionActionControllerImpl impl);
 
     @SyncServiceSingleton
     @Binds

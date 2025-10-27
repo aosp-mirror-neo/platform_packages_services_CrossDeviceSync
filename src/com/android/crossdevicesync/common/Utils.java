@@ -15,8 +15,12 @@
  */
 package com.android.crossdevicesync.common;
 
+import androidx.annotation.Nullable;
+
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /** Utils class hosting common static methods. */
 public class Utils {
@@ -29,5 +33,32 @@ public class Utils {
             res[i] = iterator.next();
         }
         return res;
+    }
+
+    @Nullable
+    public static Throwable getException(Future<?> future) {
+        try {
+            future.get();
+            return null;
+        } catch (InterruptedException e) {
+            return null;
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            return cause == null ? e : cause;
+        }
+    }
+
+    public static boolean isFutureSucceeded(Future<?> future) {
+        if (!future.isDone()) {
+            return false;
+        }
+        return getException(future) == null;
+    }
+
+    public static boolean isFutureFailed(Future<?> future) {
+        if (!future.isDone()) {
+            return false;
+        }
+        return getException(future) != null;
     }
 }

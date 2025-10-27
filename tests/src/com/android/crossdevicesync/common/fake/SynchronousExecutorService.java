@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data.fake;
+package com.android.crossdevicesync.common.fake;
 
 import java.util.Collections;
 import java.util.LinkedList;

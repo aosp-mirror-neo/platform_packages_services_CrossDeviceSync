@@ -15,12 +15,15 @@
  */
 package com.android.crossdevicesync.network.messenger;
 
+import com.android.crossdevicesync.common.Dumpable;
+
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /** Interface for exchanging messages with remote devices. */
-public interface Messenger {
+public interface Messenger extends Dumpable {
 
     /** Initialize the messenger. */
     void init();
@@ -45,6 +48,12 @@ public interface Messenger {
 
     /** Unregister a message listener. */
     void unregisterMessageListener(MessageListener listener);
+
+    /**
+     * Notify the messenger of transports change. Messages will not be sent until transport is
+     * attached.
+     */
+    void onTransportsChanged(Set<Integer> associationsWithTransport);
 
     /** Message listener for monitoring incoming messages. */
     interface MessageListener {
