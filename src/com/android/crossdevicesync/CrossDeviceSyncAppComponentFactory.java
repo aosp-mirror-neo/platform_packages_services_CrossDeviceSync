@@ -25,6 +25,7 @@ import android.util.Log;
 
 import com.android.crossdevicesync.dagger.ApplicationComponent;
 
+import java.lang.ref.WeakReference;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -38,7 +39,11 @@ import javax.inject.Provider;
 public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
     private static final String TAG = "XDeviceSyncApp";
 
-    @Nullable private CrossDeviceSyncApplication mApplication;
+    // This is a workaround of b/141008541 to ensure we cache the application instance and have
+    // access to it regardless of how many SystemUIAppComponentFactory instances are created.
+    private static WeakReference<CrossDeviceSyncApplication> sApplication =
+            new WeakReference<>(null);
+
     @Nullable @Inject Map<Class<?>, Provider<Service>> mServiceProviders;
     @Nullable @Inject Map<Class<?>, Provider<BroadcastReceiver>> mReceiverProviders;
 
@@ -46,7 +51,7 @@ public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
     public Application instantiateApplication(ClassLoader cl, String className)
             throws InstantiationException, IllegalAccessException, ClassNotFoundException {
         Application app = super.instantiateApplication(cl, className);
-        mApplication = (CrossDeviceSyncApplication) app;
+        sApplication = new WeakReference<>((CrossDeviceSyncApplication) app);
         return app;
     }
 
@@ -71,11 +76,12 @@ public class CrossDeviceSyncAppComponentFactory extends AppComponentFactory {
     }
 
     private void injectBindings() {
-        if (mApplication == null) {
+        CrossDeviceSyncApplication app = sApplication.get();
+        if (app == null) {
             Log.e(TAG, "injectBindings: no application!");
             return;
         }
-        ApplicationComponent component = mApplication.getApplicationComponent();
+        ApplicationComponent component = app.getApplicationComponent();
         if (component == null) {
             Log.e(TAG, "injectBindings: unable to get dagger application component!");
             return;
