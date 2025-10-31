@@ -172,12 +172,16 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @Override
     public ListenableFuture<Boolean> init() {
         synchronized (mLock) {
-            requireStateLocked(STATE_UNINITIALIZED);
-            mState = STATE_UPGRADING;
-            mNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
-            mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
-            // Init the storage and upgrade the data store asynchronously.
-            return mIOThreadExecutor.get().submit(this::doInit);
+            try {
+                requireStateLocked(STATE_UNINITIALIZED);
+                mState = STATE_UPGRADING;
+                mNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
+                mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
+                // Init the storage and upgrade the data store asynchronously.
+                return mIOThreadExecutor.get().submit(this::doInit);
+            } catch (IllegalStateException e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
@@ -640,8 +644,12 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @Override
     public ListenableFuture<Boolean> delete() {
         synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-            return mIOThreadExecutor.get().submit(this::doDelete);
+            try {
+                requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
+                return mIOThreadExecutor.get().submit(this::doDelete);
+            } catch (IllegalStateException e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 

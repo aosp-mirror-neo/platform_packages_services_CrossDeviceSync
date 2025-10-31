@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.data;
 
+import static com.android.crossdevicesync.common.Utils.getException;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
@@ -1096,9 +1098,9 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         mDataStore.close();
 
-        assertThrows(
-                ExecutionException.class, () -> mDataStore.transact(DOC_ID, doc -> null).get());
-        assertThrows(IllegalStateException.class, () -> mDataStore.init());
+        assertThat(getException(mDataStore.transact(DOC_ID, doc -> null)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(getException(mDataStore.init())).isInstanceOf(IllegalStateException.class);
         assertThat(mFakeStorage.isOpen()).isFalse();
         assertThat(mExecutorService.isShutdown()).isTrue();
     }
