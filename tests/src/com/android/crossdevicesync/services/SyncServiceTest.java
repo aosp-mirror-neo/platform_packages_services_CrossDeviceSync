@@ -15,18 +15,28 @@
  */
 package com.android.crossdevicesync.services;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
 import android.content.Intent;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
 
+import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.network.NetworkManager;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
+
+import javax.inject.Provider;
 
 @RunWith(AndroidJUnit4.class)
 public final class SyncServiceTest {
@@ -45,5 +55,25 @@ public final class SyncServiceTest {
     @Test
     public void testStartService_serviceStarted() throws TimeoutException {
         mServiceRule.startService(mIntent);
+    }
+
+    @Test
+    public void testFeatureManagerLifeCycle() {
+        // Create a new service with mock feature manager.
+        NetworkManager networkManager = mock(NetworkManager.class);
+        FeatureManager featureManager = mock(FeatureManager.class);
+        Map<Class<?>, Provider<FeatureManager>> providerMap = new HashMap<>();
+        providerMap.put(FeatureManager.class, () -> featureManager);
+        SyncService service = new SyncService(networkManager, providerMap);
+
+        // Service created.
+        service.onCreate();
+
+        verify(featureManager).init();
+
+        // Service destroyed.
+        service.onDestroy();
+
+        verify(featureManager).destroy();
     }
 }

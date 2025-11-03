@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.network.scanner;
 
+import android.util.IndentingPrintWriter;
+
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import javax.inject.Inject;
@@ -32,4 +34,7 @@ public class ScannerImpl implements Scanner {
 
     @Override
     public void closeAllScanningSessions() {}
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {}
 }

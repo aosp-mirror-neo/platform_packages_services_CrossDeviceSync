@@ -16,11 +16,11 @@
 package com.android.crossdevicesync.network.dagger;
 
 import com.android.crossdevicesync.network.NetworkManager;
-import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.fake.FakeAdvertiser;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
+import com.android.crossdevicesync.network.fake.FakeNetworkManager;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.fake.FakeMessenger;
 import com.android.crossdevicesync.network.scanner.Scanner;
@@ -34,7 +34,7 @@ import dagger.Module;
 public abstract class TestNetworkModule {
     @Binds
     @SyncServiceSingleton
-    abstract NetworkManager bindNetworkManager(NetworkManagerImpl impl);
+    abstract NetworkManager bindNetworkManager(FakeNetworkManager impl);
 
     @Binds
     @SyncServiceSingleton

@@ -67,6 +67,7 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         RemoteDeviceContext remoteContext2 = simulateConnectedRemoteDevice(/* associationId= */ 2);
         mRemoteMessenger2 = remoteContext2.getMessenger();
         linkDeviceAttachmentEvent();
+        mFakeCompanionActionController.init();
     }
 
     @Test
@@ -854,6 +855,7 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
     private static class RemoteDeviceContext extends SyncServiceComponentTestBase {
         RemoteDeviceContext() {
             super.setUp();
+            mFakeCompanionActionController.init();
         }
 
         public FakeCompanionDeviceManagerProxy getCDM() {

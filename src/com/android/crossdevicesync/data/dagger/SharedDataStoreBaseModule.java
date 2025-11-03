@@ -16,13 +16,13 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
-import com.android.crossdevicesync.data.INetwork;
 import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
+import com.android.crossdevicesync.network.NetworkManager.Network;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.TimestampProvider;
@@ -57,7 +57,7 @@ public abstract class SharedDataStoreBaseModule {
             DeviceNodeIdProvider deviceNodeIdProvider,
             @IOThread Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
-            INetwork.Factory networkFactory,
+            Network network,
             TimestampProvider timestampProvider,
             Converter<?> converter,
             SchemaProvider<?> schemaProvider,
@@ -67,7 +67,7 @@ public abstract class SharedDataStoreBaseModule {
                 deviceNodeIdProvider,
                 ioThreadExecutor,
                 storage,
-                networkFactory,
+                network,
                 timestampProvider,
                 converter,
                 schemaProvider,

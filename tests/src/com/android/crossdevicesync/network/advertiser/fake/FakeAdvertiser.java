@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.network.advertiser.fake;
 
+import android.util.IndentingPrintWriter;
+
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
@@ -71,6 +73,9 @@ public class FakeAdvertiser implements Advertiser {
     public FakeAdvertisingSession getAnySession() {
         return mSessions.isEmpty() ? null : mSessions.iterator().next();
     }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {}
 
     /** A fake implementation of {@link AdvertisingSession}. */
     public class FakeAdvertisingSession implements AdvertisingSession {

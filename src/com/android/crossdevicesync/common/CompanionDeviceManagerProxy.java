@@ -16,6 +16,8 @@
 package com.android.crossdevicesync.common;
 
 import android.annotation.UserIdInt;
+import android.companion.ActionRequest;
+import android.companion.ActionResult;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
@@ -79,4 +81,20 @@ public interface CompanionDeviceManagerProxy {
 
     /** See {@link CompanionDeviceManager#removeOnMessageReceivedListener(int, BiConsumer)}. */
     void removeOnMessageReceivedListener(int messageType, BiConsumer<Integer, byte[]> listener);
+
+    /** See {@link CompanionDeviceManager#requestAction(ActionRequest, String, int[])}. */
+    void requestAction(ActionRequest request, String serviceName, int[] associationIds);
+
+    /**
+     * See {@link CompanionDeviceManager#setOnActionResultListener(int[], String, Executor,
+     * BiConsumer)}.
+     */
+    void setOnActionResultListener(
+            int[] associationIds,
+            String serviceName,
+            Executor executor,
+            BiConsumer<Integer, ActionResult> listener);
+
+    /** See {@link CompanionDeviceManager#removeOnActionResultListener(String)}. */
+    void removeOnActionResultListener(String serviceName);
 }

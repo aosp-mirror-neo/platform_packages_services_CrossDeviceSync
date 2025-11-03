@@ -22,6 +22,8 @@ package com.android.crossdevicesync.data.proto;
 // Next ID: 3
 message NetworkMessage {
     string doc_id = 1;
-    optional bytes doc_version = 2;
-    optional bytes doc_update = 3;
+    string sender_node_id = 2;
+    optional string receiver_node_id = 3;
+    optional bytes doc_version = 4;
+    optional bytes doc_update = 5;
 }

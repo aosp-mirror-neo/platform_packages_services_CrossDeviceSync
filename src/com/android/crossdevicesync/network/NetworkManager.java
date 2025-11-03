@@ -184,9 +184,9 @@ public interface NetworkManager extends Dumpable {
         void onNetworkMessage(int associationId, byte[] message);
 
         /** Called when a remote device is added to the network or changed. */
-        void onDeviceChanged(int associationId);
+        default void onDeviceChanged(int associationId) {}
 
         /** Called when a remote device is removed from the network. */
-        void onDeviceRemoved(int associationId);
+        default void onDeviceRemoved(int associationId) {}
     }
 }

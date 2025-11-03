@@ -36,6 +36,7 @@ import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.Messenger.MessageListener;
@@ -69,6 +70,7 @@ public class NetworkManagerImpl implements NetworkManager {
     private final Object mLock;
     private final Executor mMainExecutor;
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
+    private final CompanionActionController mCompanionActionController;
     private final Messenger mMessenger;
     private final Advertiser mAdvertiser;
     private final Scanner mScanner;
@@ -105,6 +107,7 @@ public class NetworkManagerImpl implements NetworkManager {
             @NetworkLock Object lock,
             @Main Executor mainExecutor,
             CompanionDeviceManagerProxy companionDeviceManager,
+            CompanionActionController companionActionController,
             Messenger messenger,
             Advertiser advertiser,
             Scanner scanner,
@@ -113,6 +116,7 @@ public class NetworkManagerImpl implements NetworkManager {
         mLock = lock;
         mMainExecutor = mainExecutor;
         mCompanionDeviceManager = companionDeviceManager;
+        mCompanionActionController = companionActionController;
         mAdvertiser = advertiser;
         mScanner = scanner;
         mMessenger = messenger;
@@ -135,6 +139,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     mMainExecutor, mOnTransportChanged);
             mMessenger.init();
             mMessenger.registerMessageListener(mMainExecutor, mOnMessage);
+            mCompanionActionController.init();
         }
     }
 
@@ -159,6 +164,7 @@ public class NetworkManagerImpl implements NetworkManager {
             mMessenger.destroy();
             mScanner.closeAllScanningSessions();
             mAdvertiser.closeAllAdvertisingSessions();
+            mCompanionActionController.destroy();
         }
     }
 
@@ -653,6 +659,9 @@ public class NetworkManagerImpl implements NetworkManager {
             pw.println("mInitialized=" + mInitialized);
             pw.println("mPendingInvalidation=" + mPendingInvalidation);
             pw.println("mNextMessageId=" + mNextMessageId);
+            mScanner.dump(pw);
+            mAdvertiser.dump(pw);
+            mCompanionActionController.dump(pw);
             if (mRemoteDevices.isEmpty()) {
                 pw.println("No remote devices.");
             } else {
