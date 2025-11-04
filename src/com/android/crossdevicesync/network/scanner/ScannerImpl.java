@@ -16,25 +16,168 @@
 package com.android.crossdevicesync.network.scanner;
 
 import android.util.IndentingPrintWriter;
+import android.util.Log;
 
+import androidx.annotation.GuardedBy;
+
+import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
+import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
 /** Default implementation of {@link Scanner}. */
 @SyncServiceSingleton
 public class ScannerImpl implements Scanner {
-    @Inject
-    ScannerImpl() {}
+    private static final String TAG = "Scanner";
 
-    @Override
-    public ScanningSession startScanning(int associationId, String requestName) {
-        return null;
+    private final Object mLock;
+    private final CompanionActionController mCompanionActionController;
+    private final Executor mExecutor;
+
+    @GuardedBy("mLock")
+    private final Set<ScanningSessionImpl> mSessions = new HashSet<>();
+
+    private final Set<Integer> mAssociationsRequestedScanning = new HashSet<>();
+
+    @GuardedBy("mLock")
+    private boolean mInvalidationPending;
+
+    @Inject
+    ScannerImpl(
+            @NetworkLock Object lock,
+            CompanionActionController companionActionController,
+            @Main Executor executor) {
+        mLock = lock;
+        mCompanionActionController = companionActionController;
+        mExecutor = executor;
     }
 
     @Override
-    public void closeAllScanningSessions() {}
+    public ScanningSession startScanning(int associationId, String requestName) {
+        synchronized (mLock) {
+            ScanningSessionImpl session = new ScanningSessionImpl(associationId, requestName);
+            mSessions.add(session);
+            invalidateLocked();
+            Log.d(TAG, "Started scanning session " + session);
+            return session;
+        }
+    }
 
     @Override
-    public void dump(IndentingPrintWriter pw) {}
+    public void closeAllScanningSessions() {
+        synchronized (mLock) {
+            List.copyOf(mSessions).forEach(ScanningSessionImpl::close);
+        }
+    }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        synchronized (mLock) {
+            pw.println("Scanner:");
+            pw.increaseIndent();
+            pw.println("mInvalidationPending=" + mInvalidationPending);
+            pw.println("mAssociationsRequestedScanning=" + mAssociationsRequestedScanning);
+            if (mSessions.isEmpty()) {
+                pw.println("No scanning sessions.");
+            } else {
+                pw.println("Scanning sessions:");
+                pw.increaseIndent();
+                mSessions.forEach(pw::println);
+                pw.decreaseIndent();
+            }
+            pw.decreaseIndent();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void invalidateLocked() {
+        if (mInvalidationPending) {
+            return;
+        }
+        mInvalidationPending = true;
+        mExecutor.execute(this::doInvalidate);
+    }
+
+    private void doInvalidate() {
+        synchronized (mLock) {
+            if (!mInvalidationPending) {
+                return;
+            }
+            mInvalidationPending = false;
+            Set<Integer> associationsWithSession = new HashSet<>();
+            for (ScanningSessionImpl session : mSessions) {
+                associationsWithSession.add(session.getAssociationId());
+            }
+
+            // Start scanning for new sessions.
+            for (int associationId : associationsWithSession) {
+                if (mAssociationsRequestedScanning.add(associationId)) {
+                    // Fire and forgot the action request. We fully delegate the scan management
+                    // to companion apps.
+                    mCompanionActionController.startNearbyScanning(associationId);
+                }
+            }
+            // Stop scanning for sessions that are no longer active.
+            mAssociationsRequestedScanning.removeIf(
+                    associationId -> {
+                        if (associationsWithSession.contains(associationId)) {
+                            return false;
+                        }
+                        // Fire and forget the action request. Don't expect failure to happen
+                        // for deactivate request.
+                        mCompanionActionController.stopNearbyScanning(associationId);
+                        return true;
+                    });
+        }
+    }
+
+    private final class ScanningSessionImpl implements ScanningSession {
+        private final int mAssociationId;
+        private final String mRequestName;
+
+        ScanningSessionImpl(int associationId, String requestName) {
+            mAssociationId = associationId;
+            mRequestName = requestName;
+        }
+
+        @Override
+        public int getAssociationId() {
+            return mAssociationId;
+        }
+
+        @Override
+        public boolean isActive() {
+            synchronized (mLock) {
+                return mSessions.contains(this);
+            }
+        }
+
+        @Override
+        public void close() {
+            synchronized (mLock) {
+                if (mSessions.remove(this)) {
+                    invalidateLocked();
+                    Log.d(TAG, "Closed scanning session " + this);
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "ScanningSession(associationId="
+                    + mAssociationId
+                    + ",requestName="
+                    + mRequestName
+                    + ",isActive="
+                    + isActive()
+                    + ")";
+        }
+    }
 }
