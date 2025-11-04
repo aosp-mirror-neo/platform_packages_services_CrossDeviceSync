@@ -785,9 +785,8 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         FakeCompanionDeviceManagerProxy remoteCDM = remoteContext.getCDM();
 
         // Setup associations on both devices.
-        remoteCDM.addAssociationForUser(/* userId= */ 0, createAssociationInfo(/* id= */ 1));
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), createAssociationInfo(associationId));
+        remoteCDM.addAssociation(/* userId= */ createAssociationInfo(/* id= */ 1));
+        mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(associationId));
 
         // Hook messages
         remoteCDM.addSentMessageListener(

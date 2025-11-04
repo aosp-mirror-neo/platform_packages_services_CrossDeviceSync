@@ -30,6 +30,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import androidx.annotation.GuardedBy;
+import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
@@ -90,7 +91,7 @@ public class NetworkManagerImpl implements NetworkManager {
     private final Map<Integer, RemoteDeviceImpl> mRemoteDevices = new HashMap<>();
 
     @GuardedBy("mLock")
-    private final Map<String, NetworkImpl> mNetworks = new HashMap<>();
+    private final Map<String, Map<Integer, NetworkImpl>> mNetworks = new HashMap<>();
 
     @GuardedBy("mLock")
     private boolean mPendingInvalidation;
@@ -152,10 +153,10 @@ public class NetworkManagerImpl implements NetworkManager {
             mCompanionDeviceManager.removeOnTransportsChangedListener(mOnTransportChanged);
             mCompanionDeviceManager.removeOnDevicePresenceEventListener(mContext.getPackageName());
             mRemoteDevices.clear();
-            // Use while loop to prevent ConcurrentModificationException when calling NetworkImpl
-            // .destroy().
-            while (!mNetworks.isEmpty()) {
-                mNetworks.values().iterator().next().destroy();
+            for (Map<Integer, NetworkImpl> userNetworks : new ArrayList<>(mNetworks.values())) {
+                for (NetworkImpl network : new ArrayList<>(userNetworks.values())) {
+                    network.destroy();
+                }
             }
             mPendingInvalidation = false;
             // Clear all messages and stop any message processing.
@@ -173,17 +174,59 @@ public class NetworkManagerImpl implements NetworkManager {
             String networkId,
             Predicate<RemoteDevice> remoteDeviceCondition,
             Predicate<AssociationInfo> associationCondition) {
+        return createNetworkForUser(
+                UserHandle.USER_ALL, networkId, remoteDeviceCondition, associationCondition);
+    }
+
+    @Override
+    public Network createNetworkForUser(
+            int userId,
+            String networkId,
+            Predicate<RemoteDevice> remoteDeviceCondition,
+            Predicate<AssociationInfo> associationCondition) {
         synchronized (mLock) {
             throwIfUninitializedLocked();
-            if (mNetworks.containsKey(networkId)) {
-                return mNetworks.get(networkId);
+            NetworkImpl network = getNetworkLocked(networkId, userId);
+            if (network != null) {
+                if (network.getUserId() != userId) {
+                    throw new IllegalArgumentException(
+                            "Unable to create network '"
+                                    + networkId
+                                    + "' for user "
+                                    + userId
+                                    + ". A conflicting network already exists for user "
+                                    + network.getUserId()
+                                    + ".");
+                }
+                return network;
             }
-            NetworkImpl network =
-                    new NetworkImpl(networkId, remoteDeviceCondition, associationCondition);
-            mNetworks.put(networkId, network);
+            network =
+                    new NetworkImpl(userId, networkId, remoteDeviceCondition, associationCondition);
+            mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
             invalidateNetworks();
             return network;
         }
+    }
+
+    @GuardedBy("mLock")
+    @Nullable
+    private NetworkImpl getNetworkLocked(String networkId, int userId) {
+        Map<Integer, NetworkImpl> userNetworkMap = mNetworks.get(networkId);
+        if (userNetworkMap == null || userNetworkMap.isEmpty()) {
+            return null;
+        }
+        NetworkImpl network = userNetworkMap.get(userId);
+        if (network != null) {
+            // Match exact user id first.
+            return network;
+        }
+        if (userId == UserHandle.USER_ALL) {
+            // Match any network if we want USER_ALL.
+            return userNetworkMap.values().iterator().next();
+        }
+        // We want a specific user but can't find a network with the exact same user. Match against
+        // USER_ALL.
+        return userNetworkMap.get(UserHandle.USER_ALL);
     }
 
     @GuardedBy("mLock")
@@ -261,9 +304,18 @@ public class NetworkManagerImpl implements NetworkManager {
         // Update network members.
         Map<Integer, AssociationInfo> associationsMap =
                 Maps.uniqueIndex(allInfo, AssociationInfo::getId);
-        mNetworks.values().forEach(n -> n.invalidateLocked(associationsMap));
+        forEachNetworkLocked(n -> n.invalidateLocked(associationsMap));
         // Process messages.
         processMessagesLocked();
+    }
+
+    @GuardedBy("mLock")
+    private void forEachNetworkLocked(Consumer<NetworkImpl> consumer) {
+        for (Map<Integer, NetworkImpl> userNetworks : mNetworks.values()) {
+            for (NetworkImpl network : userNetworks.values()) {
+                consumer.accept(network);
+            }
+        }
     }
 
     @GuardedBy("mLock")
@@ -305,9 +357,8 @@ public class NetworkManagerImpl implements NetworkManager {
                                     + (device.hasTransport() ? " established" : " lost")
                                     + " transport");
                     changed = true;
-                    mNetworks
-                            .values()
-                            .forEach(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
+                    forEachNetworkLocked(
+                            n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
                 }
             }
             if (changed) {
@@ -357,9 +408,7 @@ public class NetworkManagerImpl implements NetworkManager {
                         }
                     };
             if (changed) {
-                mNetworks
-                        .values()
-                        .forEach(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
+                forEachNetworkLocked(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
                 Log.d(TAG, "Device presence flag changed for " + device + ", event: " + event);
                 // Device presence state changed. Need to re-evaluate network members.
                 invalidateNetworks();
@@ -377,30 +426,45 @@ public class NetworkManagerImpl implements NetworkManager {
                                 + " since network manager is not initialized!");
                 return;
             }
-            if (!mNetworks.containsKey(networkId)) {
+            RemoteDeviceImpl device = mRemoteDevices.get(associationId);
+            if (device == null) {
                 Log.w(
                         TAG,
                         "onMessage: ignore incoming message from "
                                 + getAddressString(networkId, associationId)
-                                + " since network is not found!");
+                                + " since device is not found!");
+                return;
+            }
+            NetworkImpl network = getNetworkLocked(networkId, device.getUserId());
+            if (network == null) {
+                Log.w(
+                        TAG,
+                        "onMessage: ignore incoming message from "
+                                + getAddressString(networkId, associationId)
+                                + " since network is not found for user "
+                                + device.getUserId()
+                                + "!");
                 return;
             }
             // Always invalidate networks to ensure the network members are up-to-date.
             invalidate(/* async= */ false);
-            if (mNetworks.get(networkId).notifyInboundMessageLocked(associationId, message)) {
+            if (network.notifyInboundMessageLocked(associationId, message)) {
                 Log.d(
                         TAG,
                         "onMessage: delivered message from "
                                 + getAddressString(networkId, associationId)
                                 + " to network "
                                 + networkId
+                                + " for user "
+                                + network.getUserId()
                                 + ".");
             } else {
                 Log.i(
                         TAG,
                         "onMessage: dropped incoming message from "
                                 + getAddressString(networkId, associationId)
-                                + " since the source address is not found.");
+                                + " since the source address is not found for user "
+                                + network.getUserId());
             }
         }
     }
@@ -413,9 +477,11 @@ public class NetworkManagerImpl implements NetworkManager {
     }
 
     @Override
-    public Map<String, Network> getNetworks() {
+    public List<Network> getNetworks() {
         synchronized (mLock) {
-            return Collections.unmodifiableMap(mNetworks);
+            List<Network> networks = new ArrayList<>();
+            forEachNetworkLocked(networks::add);
+            return networks;
         }
     }
 
@@ -424,6 +490,7 @@ public class NetworkManagerImpl implements NetworkManager {
             byte[] message,
             Collection<Integer> targetAssociationIds,
             int flags,
+            int userId,
             String networkId,
             boolean isBroadcast) {
         if (!mInitialized) {
@@ -437,6 +504,7 @@ public class NetworkManagerImpl implements NetworkManager {
                         message,
                         targetAssociationIds,
                         flags,
+                        userId,
                         networkId,
                         isBroadcast,
                         mClock.elapsedRealtime());
@@ -464,7 +532,7 @@ public class NetworkManagerImpl implements NetworkManager {
     @SuppressWarnings("GuardedBy")
     @GuardedBy("mLock")
     private void processMessageLocked(MessageRecord record, final long now) {
-        NetworkImpl network = mNetworks.get(record.networkId);
+        NetworkImpl network = getNetworkLocked(record.networkId, record.userId);
         Set<Integer> associationIds =
                 network == null ? Collections.emptySet() : network.getAssociationIdsLocked();
         if (network == null) {
@@ -485,7 +553,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 (associationId, deliveryState) -> {
                     Pair<Integer, String> nextStateAndReason =
                             getNextDeliveryStateAndReasonLocked(
-                                    record, associationId, deliveryState, associationIds);
+                                    record, associationId, deliveryState, associationIds, network);
                     int nextDeliveryState = nextStateAndReason.first;
                     String changeReason = nextStateAndReason.second;
                     if (!deliveryState.setState(nextDeliveryState, now, changeReason)) {
@@ -574,7 +642,8 @@ public class NetworkManagerImpl implements NetworkManager {
             MessageRecord record,
             int associationId,
             DeliveryState deliveryState,
-            Set<Integer> associationsInNetwork) {
+            Set<Integer> associationsInNetwork,
+            @Nullable NetworkImpl network) {
         final RemoteDeviceImpl device = mRemoteDevices.get(associationId);
         if (deliveryState.isDone()) {
             // End state. No change.
@@ -589,11 +658,20 @@ public class NetworkManagerImpl implements NetworkManager {
             return Pair.create(DeliveryState.CANCELLED, "message is cancelled");
         }
         if (!associationsInNetwork.contains(associationId)) {
-            // The association has been removed from network. Delivery should be
-            // cancelled.
-            return Pair.create(
-                    DeliveryState.CANCELLED,
-                    getAddressString(record.networkId, associationId) + " not found");
+            if (record.isSticky()
+                    && network != null
+                    && network.isAccessibleByUser(device.getUserId())) {
+                // Sticky message should stay queued until the device joins the network.
+                return Pair.create(
+                        DeliveryState.QUEUED,
+                        getAddressString(record.networkId, associationId) + " not found");
+            } else {
+                // The association has been removed from network. Delivery should be
+                // cancelled.
+                return Pair.create(
+                        DeliveryState.CANCELLED,
+                        getAddressString(record.networkId, associationId) + " not found");
+            }
         }
 
         final boolean devicePresent = isDevicePresentForMessage(device, record);
@@ -675,7 +753,7 @@ public class NetworkManagerImpl implements NetworkManager {
             } else {
                 pw.println("Networks:");
                 pw.increaseIndent();
-                mNetworks.values().forEach(network -> network.dump(pw));
+                forEachNetworkLocked(network -> network.dump(pw));
                 pw.decreaseIndent();
             }
             if (mMessageRecords.isEmpty()) {
@@ -692,7 +770,9 @@ public class NetworkManagerImpl implements NetworkManager {
     }
 
     /** A class representing a group of devices. */
+    @SuppressWarnings("EffectivelyPrivate")
     private class NetworkImpl implements Network {
+        private final int mUserId;
         private final String mId;
         private final Predicate<RemoteDevice> mDeviceCondition;
         private final Predicate<AssociationInfo> mAssociationInfoCondition;
@@ -710,9 +790,11 @@ public class NetworkManagerImpl implements NetworkManager {
         private boolean mDestroyed;
 
         NetworkImpl(
+                int userId,
                 String id,
                 Predicate<RemoteDevice> deviceCondition,
                 Predicate<AssociationInfo> associationInfoCondition) {
+            mUserId = userId;
             mId = id;
             mDeviceCondition = deviceCondition;
             mAssociationInfoCondition = associationInfoCondition;
@@ -721,6 +803,11 @@ public class NetworkManagerImpl implements NetworkManager {
         @Override
         public String getNetworkId() {
             return mId;
+        }
+
+        @Override
+        public int getUserId() {
+            return mUserId;
         }
 
         @SuppressWarnings("GuardedBy")
@@ -745,7 +832,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     return -1;
                 }
                 return enqueueMessageLocked(
-                        message, mAssociationIds, flags, mId, /* isBroadcast= */ true);
+                        message, mAssociationIds, flags, mUserId, mId, /* isBroadcast= */ true);
             }
         }
 
@@ -757,7 +844,18 @@ public class NetworkManagerImpl implements NetworkManager {
                     return -1;
                 }
                 return enqueueMessageLocked(
-                        message, associationIds, flags, mId, /* isBroadcast= */ false);
+                        message, associationIds, flags, mUserId, mId, /* isBroadcast= */ false);
+            }
+        }
+
+        @Override
+        public boolean isMessagePending(long id) {
+            synchronized (mLock) {
+                if (mDestroyed) {
+                    return false;
+                }
+                MessageRecord r = mMessageRecords.get(id);
+                return r != null && r.networkId.equals(mId) && r.userId == mUserId;
             }
         }
 
@@ -769,7 +867,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     return;
                 }
                 MessageRecord r = mMessageRecords.get(id);
-                if (r == null || !r.networkId.equals(mId)) {
+                if (r == null || !r.networkId.equals(mId) || r.userId != mUserId) {
                     return;
                 }
                 if (r.cancelAll()) {
@@ -807,6 +905,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 int associationId = device.getAssociationId();
                 AssociationInfo associationInfo = associations.get(associationId);
                 if (associationInfo != null
+                        && isAccessibleByUser(device.getUserId())
                         && mDeviceCondition.test(device)
                         && mAssociationInfoCondition.test(associationInfo)
                         && !device.isAssociationRemoved()) {
@@ -867,7 +966,11 @@ public class NetworkManagerImpl implements NetworkManager {
                 mDestroyed = true;
                 mAssociationIds.clear();
                 mListeners.clear();
-                mNetworks.remove(mId);
+                Map<Integer, NetworkImpl> userNetworkMap = mNetworks.get(mId);
+                userNetworkMap.remove(mUserId);
+                if (userNetworkMap.isEmpty()) {
+                    mNetworks.remove(mId);
+                }
                 mAdvertisingSessions.values().forEach(AdvertisingSession::close);
                 mAdvertisingSessions.clear();
                 maybeInvalidateMessagesLocked();
@@ -878,11 +981,15 @@ public class NetworkManagerImpl implements NetworkManager {
         @GuardedBy("mLock")
         private void maybeInvalidateMessagesLocked() {
             for (MessageRecord r : mMessageRecords.values()) {
-                if (r.networkId.equals(mId)) {
+                if (r.networkId.equals(mId) && r.userId == mUserId) {
                     invalidate(/* async= */ true);
                     return;
                 }
             }
+        }
+
+        public boolean isAccessibleByUser(int userId) {
+            return mUserId == userId || mUserId == UserHandle.USER_ALL;
         }
 
         @Override
@@ -890,6 +997,7 @@ public class NetworkManagerImpl implements NetworkManager {
             pw.println("NetworkImpl:");
             pw.increaseIndent();
             synchronized (mLock) {
+                pw.println("userId=" + (mUserId == UserHandle.USER_ALL ? "USER_ALL" : mUserId));
                 pw.println("id=" + mId);
                 pw.println("destroyed=" + mDestroyed);
                 pw.println("deviceCondition=" + mDeviceCondition);

@@ -16,6 +16,7 @@
 package com.android.crossdevicesync.network.fake;
 
 import android.companion.AssociationInfo;
+import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
 import android.util.Pair;
 
@@ -36,13 +37,14 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 @SyncServiceSingleton
 public class FakeNetworkManager implements NetworkManager {
 
     private final Map<Integer, FakeRemoteDevice> mRemoteDevices = new HashMap<>();
-    private final Map<String, FakeNetwork> mNetworks = new HashMap<>();
+    private final Map<String, Map<Integer, FakeNetwork>> mNetworks = new HashMap<>();
     private boolean mInitialized = false;
     private int mNextAssociationId = 0;
 
@@ -60,7 +62,11 @@ public class FakeNetworkManager implements NetworkManager {
     @Override
     public void destroy() {
         throwIfUninitialized();
-        new ArrayList<>(mNetworks.values()).forEach(Network::destroy);
+        new ArrayList<>(mNetworks.values())
+                .forEach(
+                        userNetworks ->
+                                new ArrayList<>(userNetworks.values())
+                                        .forEach(FakeNetwork::destroy));
         mNetworks.clear();
         mRemoteDevices.clear();
         mInitialized = false;
@@ -73,9 +79,11 @@ public class FakeNetworkManager implements NetworkManager {
     }
 
     @Override
-    public Map<String, Network> getNetworks() {
+    public List<Network> getNetworks() {
         throwIfUninitialized();
-        return Collections.unmodifiableMap(mNetworks);
+        List<Network> networks = new ArrayList<>();
+        forEachNetwork(networks::add);
+        return networks;
     }
 
     @Override
@@ -83,16 +91,46 @@ public class FakeNetworkManager implements NetworkManager {
             String networkId,
             Predicate<RemoteDevice> remoteDeviceCondition,
             Predicate<AssociationInfo> associationCondition) {
+        return createNetworkForUser(
+                UserHandle.USER_ALL, networkId, remoteDeviceCondition, associationCondition);
+    }
+
+    @Override
+    public Network createNetworkForUser(
+            int userId,
+            String networkId,
+            Predicate<RemoteDevice> remoteDeviceCondition,
+            Predicate<AssociationInfo> associationCondition) {
         throwIfUninitialized();
-        if (mNetworks.containsKey(networkId)) {
-            return mNetworks.get(networkId);
+        FakeNetwork network = getNetwork(networkId, userId);
+        if (network != null) {
+            return network;
         }
-        FakeNetwork network = new FakeNetwork(networkId, remoteDeviceCondition);
-        mNetworks.put(networkId, network);
+        network = new FakeNetwork(userId, networkId, remoteDeviceCondition);
+        mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
         for (RemoteDevice device : mRemoteDevices.values()) {
             network.maybeAddDevice(device);
         }
         return network;
+    }
+
+    private FakeNetwork getNetwork(String networkId, int userId) {
+        Map<Integer, FakeNetwork> userNetworkMap = mNetworks.get(networkId);
+        if (userNetworkMap == null || userNetworkMap.isEmpty()) {
+            return null;
+        }
+        FakeNetwork network = userNetworkMap.get(userId);
+        if (network != null) {
+            // Match exact user id first.
+            return network;
+        }
+        if (userId == UserHandle.USER_ALL) {
+            // Match any network if we want USER_ALL.
+            return userNetworkMap.values().iterator().next();
+        }
+        // We want a specific user but can't find a network with the exact same user. Match against
+        // USER_ALL.
+        return userNetworkMap.get(UserHandle.USER_ALL);
     }
 
     @Override
@@ -113,6 +151,10 @@ public class FakeNetworkManager implements NetworkManager {
         }
     }
 
+    private void forEachNetwork(Consumer<FakeNetwork> consumer) {
+        mNetworks.values().forEach(userNetworks -> userNetworks.values().forEach(consumer));
+    }
+
     /** Returns whether the manager is initialized. */
     public boolean isInitialized() {
         return mInitialized;
@@ -120,7 +162,12 @@ public class FakeNetworkManager implements NetworkManager {
 
     /** Adds a remote device to this manager for testing. */
     public FakeRemoteDevice addRemoteDevice() {
-        FakeRemoteDevice device = new FakeRemoteDevice(mNextAssociationId++);
+        return addRemoteDeviceForUser(UserHandle.USER_SYSTEM);
+    }
+
+    /** Adds a remote device to this manager for testing. */
+    public FakeRemoteDevice addRemoteDeviceForUser(int userId) {
+        FakeRemoteDevice device = new FakeRemoteDevice(mNextAssociationId++, userId);
         addRemoteDevice(device);
         return device;
     }
@@ -132,9 +179,7 @@ public class FakeNetworkManager implements NetworkManager {
                     "Device with association ID " + device.getAssociationId() + " already exists.");
         }
         mRemoteDevices.put(device.getAssociationId(), device);
-        for (FakeNetwork network : mNetworks.values()) {
-            network.maybeAddDevice(device);
-        }
+        forEachNetwork(n -> n.maybeAddDevice(device));
     }
 
     /** Connect with a remote network manager for exchanging messages with the other device. */
@@ -165,15 +210,7 @@ public class FakeNetworkManager implements NetworkManager {
     public void removeRemoteDevice(int associationId) {
         throwIfUninitialized();
         mRemoteDevices.remove(associationId);
-        for (FakeNetwork network : mNetworks.values()) {
-            network.removeDevice(associationId);
-        }
-    }
-
-    /** Returns the fake network for testing. */
-    public FakeNetwork getFakeNetwork(String networkId) {
-        throwIfUninitialized();
-        return mNetworks.get(networkId);
+        forEachNetwork(n -> n.removeDevice(associationId));
     }
 
     public boolean flushAllMessages() {
@@ -188,20 +225,21 @@ public class FakeNetworkManager implements NetworkManager {
         if (!mInitialized) {
             return;
         }
-        if (!mNetworks.containsKey(networkId)) {
-            return;
-        }
         FakeRemoteDevice device = findRemoteDevice(remoteNetworkManager);
-        if (device == null
-                || !mNetworks.get(networkId).mAssociationIds.contains(device.getAssociationId())) {
+        if (device == null) {
             return;
         }
-        mNetworks.get(networkId).receiveMessage(device.getAssociationId(), message);
+        FakeNetwork network = getNetwork(networkId, device.getUserId());
+        if (network == null || !network.mAssociationIds.contains(device.getAssociationId())) {
+            return;
+        }
+        network.receiveMessage(device.getAssociationId(), message);
     }
 
     /** A fake implementation of {@link RemoteDevice} for testing. */
     public class FakeRemoteDevice implements RemoteDevice {
         private final int mAssociationId;
+        private final int mUserId;
         private final Queue<SentMessage> mSentMessages = new LinkedList<>();
         private CharSequence mDisplayName;
         private String mDeviceProfile;
@@ -213,13 +251,19 @@ public class FakeNetworkManager implements NetworkManager {
         private boolean mIsAssociationRemoved;
         @Nullable FakeNetworkManager mRemoteNetworkManager;
 
-        public FakeRemoteDevice(int associationId) {
+        public FakeRemoteDevice(int associationId, int userId) {
             mAssociationId = associationId;
+            mUserId = userId;
         }
 
         @Override
         public int getAssociationId() {
             return mAssociationId;
+        }
+
+        @Override
+        public int getUserId() {
+            return mUserId;
         }
 
         @Override
@@ -331,6 +375,7 @@ public class FakeNetworkManager implements NetworkManager {
 
     /** A fake implementation of {@link Network} for testing. */
     public class FakeNetwork implements Network {
+        private final int mUserId;
         private final String mNetworkId;
         private final Predicate<RemoteDevice> mDevicePredicate;
         private final Set<Integer> mAssociationIds = new HashSet<>();
@@ -340,7 +385,8 @@ public class FakeNetworkManager implements NetworkManager {
         private long mNextMessageId = 0;
         private boolean mIsDestroyed = false;
 
-        FakeNetwork(String networkId, Predicate<RemoteDevice> devicePredicate) {
+        FakeNetwork(int userId, String networkId, Predicate<RemoteDevice> devicePredicate) {
+            mUserId = userId;
             mNetworkId = networkId;
             mDevicePredicate = devicePredicate;
         }
@@ -349,6 +395,12 @@ public class FakeNetworkManager implements NetworkManager {
         public String getNetworkId() {
             throwIfDestroyed();
             return mNetworkId;
+        }
+
+        @Override
+        public int getUserId() {
+            throwIfDestroyed();
+            return mUserId;
         }
 
         @Override
@@ -389,6 +441,12 @@ public class FakeNetworkManager implements NetworkManager {
                 }
             }
             return id;
+        }
+
+        @Override
+        public boolean isMessagePending(long id) {
+            throwIfDestroyed();
+            return mStickyBroadcastRecipients.containsKey(id);
         }
 
         @Override
@@ -446,7 +504,8 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         private void maybeAddDevice(RemoteDevice device) {
-            if (mDevicePredicate.test(device)) {
+            if (mDevicePredicate.test(device)
+                    && (device.getUserId() == mUserId || mUserId == UserHandle.USER_ALL)) {
                 addDeviceInternal(device);
             }
         }

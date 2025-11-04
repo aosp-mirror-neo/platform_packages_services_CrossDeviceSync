@@ -17,6 +17,7 @@ package com.android.crossdevicesync.network;
 
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
+import android.os.UserHandle;
 
 import com.android.crossdevicesync.common.Dumpable;
 
@@ -37,8 +38,8 @@ public interface NetworkManager extends Dumpable {
     /** Returns the mapping of association ID to the remote device. */
     Map<Integer, RemoteDevice> getRemoteDevices();
 
-    /** Returns the mapping of network ID to all networks. */
-    Map<String, Network> getNetworks();
+    /** Returns a list of all networks. */
+    List<Network> getNetworks();
 
     /**
      * Creates a new network with the given network ID and predicate for filtering remote devices.
@@ -47,6 +48,20 @@ public interface NetworkManager extends Dumpable {
      * CompanionDeviceManager}.
      */
     Network createNetwork(
+            String networkId,
+            Predicate<RemoteDevice> remoteDeviceCondition,
+            Predicate<AssociationInfo> associationCondition);
+
+    /**
+     * Same as {@link #createNetwork(String, Predicate, Predicate)} but make the network private to
+     * a user id. Only devices owned by the same user can join this network.
+     *
+     * <p>Note: this method allows each user to have its own network instance under the same network
+     * id. This is useful for multi-user features that want to share the same network id across
+     * users.
+     */
+    Network createNetworkForUser(
+            int userId,
             String networkId,
             Predicate<RemoteDevice> remoteDeviceCondition,
             Predicate<AssociationInfo> associationCondition);
@@ -68,6 +83,9 @@ public interface NetworkManager extends Dumpable {
 
         /** Returns the device profile. */
         String getDeviceProfile();
+
+        /** Returns the id of user who owns this remote device. */
+        int getUserId();
 
         /** Returns {@code true} if the device has transport. */
         boolean hasTransport();
@@ -127,6 +145,12 @@ public interface NetworkManager extends Dumpable {
          */
         String getNetworkId();
 
+        /**
+         * Get the id of user who owns this network. Return {@link UserHandle#USER_ALL} if this
+         * network is shared across all users.
+         */
+        int getUserId();
+
         /** Returns the mapping of association ID to the remote device. */
         Map<Integer, RemoteDevice> getRemoteDevices();
 
@@ -160,6 +184,9 @@ public interface NetworkManager extends Dumpable {
          * @return a message id that refers to this message.
          */
         long multicastMessage(List<Integer> associationIds, byte[] message, int flags);
+
+        /** Check if a message is still pending. */
+        boolean isMessagePending(long id);
 
         /**
          * Cancel a message if it's not delivered yet.

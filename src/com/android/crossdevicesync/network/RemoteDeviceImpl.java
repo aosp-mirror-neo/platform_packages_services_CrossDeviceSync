@@ -30,12 +30,14 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
     private static final int FLAG_ASSOCIATION_REMOVED = 1 << 5;
 
     private final int mAssociationId;
+    private final int mUserId;
     @Nullable private final CharSequence mDisplayName;
     @Nullable private final String mDeviceProfile;
     private int mFlags;
 
     RemoteDeviceImpl(AssociationInfo associationInfo) {
         mAssociationId = associationInfo.getId();
+        mUserId = associationInfo.getUserId();
         mDisplayName = associationInfo.getDisplayName();
         mDeviceProfile = associationInfo.getDeviceProfile();
     }
@@ -49,6 +51,11 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
     @Override
     public CharSequence getDisplayName() {
         return mDisplayName;
+    }
+
+    @Override
+    public int getUserId() {
+        return mUserId;
     }
 
     @Nullable
@@ -154,6 +161,7 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
         pw.println("RemoteDevice:");
         pw.increaseIndent();
         pw.println("associationId=" + mAssociationId);
+        pw.println("userId=" + mUserId);
         pw.println("displayName='" + mDisplayName + "'");
         pw.println("deviceProfile='" + mDeviceProfile + "'");
         pw.println("hasTransport=" + hasTransport());
@@ -172,11 +180,11 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
                 + mAssociationId
                 + ", displayName='"
                 + mDisplayName
-                + "'"
-                + ", deviceProfile='"
+                + "', deviceProfile='"
                 + mDeviceProfile
-                + "'"
-                + ", hasTransport="
+                + ", userId="
+                + getUserId()
+                + "', hasTransport="
                 + hasTransport()
                 + ", isBleAppeared="
                 + isBleAppeared()

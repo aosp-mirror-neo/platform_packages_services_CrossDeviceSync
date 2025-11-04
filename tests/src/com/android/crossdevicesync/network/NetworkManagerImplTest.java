@@ -23,6 +23,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -31,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import android.companion.AssociationInfo;
 import android.companion.DevicePresenceEvent;
 import android.os.PersistableBundle;
+import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -79,10 +81,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mNetworkManagerImpl.destroy();
         AssociationInfo info1 = createAssociationInfo(/* id= */ 1);
         AssociationInfo info2 = createAssociationInfo(/* id= */ 2);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info2);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info1);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info2);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 2, /* attached= */ true);
+                /* associationId= */ 2, /* hasTransport= */ true);
 
         mNetworkManagerImpl.init();
 
@@ -95,11 +97,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void destroy_listenersAreCleared() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mNetworkManagerImpl.destroy();
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), createAssociationInfo(/* id= */ 2));
+        mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(/* id= */ 2));
 
         assertThat(mNetworkManagerImpl.getRemoteDevices()).isEmpty();
         assertThat(mFakeCompanionDeviceManagerProxy.getDevicePresenceListeners()).isEmpty();
@@ -109,7 +110,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     public void onAssociationsChanged_addAssociation_createsRemoteDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
 
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         Map<Integer, RemoteDevice> devices = mNetworkManagerImpl.getRemoteDevices();
         assertThat(devices.keySet()).containsExactly(1);
@@ -118,7 +119,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onAssociationsChanged_addAssociation_registersPresenceListener() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         assertThat(mFakeCompanionDeviceManagerProxy.getDevicePresenceListeners()).hasSize(1);
         DevicePresenceListener listener =
@@ -130,7 +131,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onAssociationsChanged_removeAssociation_removesRemoteDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.removeAssociation(/* associationId= */ 1);
 
@@ -140,7 +141,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onAssociationsChanged_removeAssociation_unregistersPresenceListener() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.removeAssociation(/* associationId= */ 1);
 
@@ -150,10 +151,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onAssociationsChanged_noChange_doesNothing() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         // Adding the same info again should not trigger the listener.
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         Map<Integer, RemoteDevice> devices = mNetworkManagerImpl.getRemoteDevices();
         assertThat(devices.keySet()).containsExactly(1);
@@ -163,10 +164,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onTransportChanged_addTransport_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
 
         assertThat(mNetworkManagerImpl.getRemoteDevices().get(1).hasTransport()).isTrue();
     }
@@ -174,12 +175,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onTransportChanged_removeTransport_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ false);
+                /* associationId= */ 1, /* hasTransport= */ false);
 
         assertThat(mNetworkManagerImpl.getRemoteDevices().get(1).hasTransport()).isFalse();
     }
@@ -187,7 +188,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_bleAppeared_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
@@ -199,7 +200,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_bleDisappeared_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
@@ -214,7 +215,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_btConnected_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
@@ -226,7 +227,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_btDisconnected_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1, DevicePresenceEvent.EVENT_BT_CONNECTED, null));
@@ -241,7 +242,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_selfManagedAppeared_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
@@ -255,7 +256,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_selfManagedDisappeared_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1,
@@ -274,7 +275,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_selfManagedNearby_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
@@ -288,7 +289,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_selfManagedNotNearby_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1,
@@ -307,7 +308,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_duplicateEvent_doesNotChangeState() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
@@ -324,7 +325,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void onDevicePresenceEvent_associationRemoved_updatesDevice() {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1,
@@ -339,7 +340,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThat(network).isNotNull();
         assertThat(network.getNetworkId()).isEqualTo("network1");
-        assertThat(mNetworkManagerImpl.getNetworks().get("network1")).isSameInstanceAs(network);
+        assertThat(mNetworkManagerImpl.getNetworks().get(0)).isSameInstanceAs(network);
     }
 
     @Test
@@ -360,23 +361,39 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     @Test
+    public void createNetwork_throwsWhenUserIdConflicts() {
+        mNetworkManagerImpl.createNetworkForUser(
+                UserHandle.USER_SYSTEM, "network1", v -> true, v -> true);
+        mNetworkManagerImpl.createNetwork("network2", v -> true, v -> true);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        mNetworkManagerImpl.createNetworkForUser(
+                                UserHandle.USER_SYSTEM, "network2", v -> true, v -> true));
+    }
+
+    @Test
     public void networkMembership_deviceAddedAndRemoved() {
         Network network =
                 mNetworkManagerImpl.createNetwork(
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
 
         assertThat(network.getRemoteDevices()).hasSize(1);
         verify(mListener).onDeviceChanged(1);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ false);
+                /* associationId= */ 1, /* hasTransport= */ false);
 
         assertThat(network.getRemoteDevices()).isEmpty();
         verify(mListener).onDeviceRemoved(1);
@@ -389,12 +406,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         assertThat(network.getRemoteDevices()).isEmpty();
         verify(mListener, never()).onDeviceChanged(1);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
 
         assertThat(network.getRemoteDevices()).hasSize(1);
         verify(mListener).onDeviceChanged(1);
@@ -407,9 +424,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).hasSize(1);
         verify(mListener).onDeviceChanged(1);
         reset(mListener);
@@ -421,15 +438,38 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     @Test
+    public void networkMembership_onlyMatchedUserCanJoin() {
+        Network network1 = mNetworkManagerImpl.createNetwork("network1", v -> true, v -> true);
+        NetworkListener listener1 = mock(NetworkListener.class);
+        network1.registerListener(mMainExecutor, listener1);
+        Network network2 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        UserHandle.USER_SYSTEM, "network2", v -> true, v -> true);
+        NetworkListener listener2 = mock(NetworkListener.class);
+        network2.registerListener(mMainExecutor, listener2);
+        AssociationInfo info1 = createAssociationInfo(/* id= */ 1, UserHandle.USER_SYSTEM);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info1);
+        AssociationInfo info2 = createAssociationInfo(/* id= */ 2, /* userId= */ 10);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info2);
+
+        assertThat(network1.getRemoteDevices()).hasSize(2);
+        assertThat(network2.getRemoteDevices()).hasSize(1);
+        verify(listener1).onDeviceChanged(1);
+        verify(listener1).onDeviceChanged(2);
+        verify(listener2).onDeviceChanged(1);
+        verify(listener2, never()).onDeviceChanged(2);
+    }
+
+    @Test
     public void network_destroy() {
         Network network =
                 mNetworkManagerImpl.createNetwork(
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).hasSize(1);
         verify(mListener).onDeviceChanged(1);
 
@@ -437,7 +477,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThat(mNetworkManagerImpl.getNetworks()).isEmpty();
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ false);
+                /* associationId= */ 1, /* hasTransport= */ false);
         verify(mListener, never()).onDeviceRemoved(1);
     }
 
@@ -448,9 +488,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         verify(mListener).onDeviceChanged(1);
         reset(mListener);
 
@@ -462,7 +502,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ false);
+                /* associationId= */ 1, /* hasTransport= */ false);
 
         verify(mListener).onDeviceRemoved(1);
     }
@@ -486,16 +526,16 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         verify(mListener).onDeviceChanged(1);
 
         network.unregisterListener(mListener);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ false);
+                /* associationId= */ 1, /* hasTransport= */ false);
         verify(mListener, never()).onDeviceRemoved(1);
     }
 
@@ -512,9 +552,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         // Add a device with empty metadata and verify it doesn't join.
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).isEmpty();
         verify(mListener, never()).onDeviceChanged(1);
 
@@ -523,7 +563,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         metadata.putBoolean("is_wearable", true);
         AssociationInfo wearableInfo =
                 new AssociationInfo.Builder(info).setMetadata(metadata).build();
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), wearableInfo);
+        mFakeCompanionDeviceManagerProxy.addAssociation(wearableInfo);
 
         // Verify the device now joins the network.
         assertThat(network.getRemoteDevices()).hasSize(1);
@@ -533,8 +573,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         // Update the association to use empty metadata again.
         AssociationInfo nonWearableInfo =
                 new AssociationInfo.Builder(info).setMetadata(new PersistableBundle()).build();
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), nonWearableInfo);
+        mFakeCompanionDeviceManagerProxy.addAssociation(nonWearableInfo);
 
         // Verify the device leaves the network.
         assertThat(network.getRemoteDevices()).isEmpty();
@@ -548,9 +587,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                         "network1", RemoteDevice::hasTransport, v -> true);
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
         verify(mListener).onDeviceChanged(1);
         assertThat(network.getRemoteDevices().get(1).isBleAppeared()).isFalse();
         reset(mListener);
@@ -570,9 +609,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         network.registerListener(mMainExecutor, mListener);
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
-                /* associationId= */ 1, /* attached= */ true);
+                /* associationId= */ 1, /* hasTransport= */ true);
 
         verify(mListener, never()).onDeviceChanged(1);
     }
@@ -590,6 +629,39 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(message1.message).isEqualTo(new byte[] {1, 2, 3});
         SentMessage message2 = mFakeMessenger.getSentMessages().get(1);
         assertThat(message2.associationId).isEqualTo(2);
+    }
+
+    @Test
+    public void broadcastMessageToUserNetwork_sendsToAllDevicesInNetwork() {
+        // Setup 4 devices belonging to 2 users.
+        setupTwoDevices(/* userId= */ 1, /* present= */ true, /* nearby= */ true);
+        setupTwoDevices(/* userId= */ 2, /* present= */ true, /* nearby= */ true);
+        // Setup 2 networks with the same network id but owned by different users.
+        Network network1 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 1, "network", v -> true, v -> true);
+        Network network2 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 2, "network", v -> true, v -> true);
+
+        network1.broadcastMessage(new byte[] {1, 2, 3}, 0);
+        network2.broadcastMessage(new byte[] {4, 5, 6}, 0);
+
+        assertThat(mFakeMessenger.getSentMessages()).hasSize(4);
+        // First 2 messages are sent to device 1 and 2
+        SentMessage message1 = mFakeMessenger.getSentMessages().get(0);
+        assertThat(message1.associationId).isEqualTo(1);
+        assertThat(message1.message).isEqualTo(new byte[] {1, 2, 3});
+        SentMessage message2 = mFakeMessenger.getSentMessages().get(1);
+        assertThat(message2.associationId).isEqualTo(2);
+        assertThat(message2.message).isEqualTo(new byte[] {1, 2, 3});
+        // Second 2 messages are sent to device 3 and 4.
+        SentMessage message3 = mFakeMessenger.getSentMessages().get(2);
+        assertThat(message3.associationId).isEqualTo(3);
+        assertThat(message3.message).isEqualTo(new byte[] {4, 5, 6});
+        SentMessage message4 = mFakeMessenger.getSentMessages().get(3);
+        assertThat(message4.associationId).isEqualTo(4);
+        assertThat(message4.message).isEqualTo(new byte[] {4, 5, 6});
     }
 
     @Test
@@ -614,9 +686,37 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
         network.cancelMessage(messageId);
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+    }
+
+    @Test
+    public void cancelMessage_notCancelingMessageFromAnotherNetwork() {
+        Network network1 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        UserHandle.USER_SYSTEM, "network1", v -> true, v -> true);
+        Network network2 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 10, "network1", v -> true, v -> true);
+        long msg1 = network1.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
+        long msg2 = network2.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
+
+        // Network1 cannot cancel message 2.
+        network1.cancelMessage(msg2);
+        assertThat(network2.isMessagePending(msg2)).isTrue();
+
+        // Network2 cannot cancel message 1.
+        network2.cancelMessage(msg1);
+        assertThat(network1.isMessagePending(msg1)).isTrue();
+
+        // Network1 can cancel message 1.
+        network1.cancelMessage(msg1);
+        assertThat(network1.isMessagePending(msg1)).isFalse();
+
+        // Network2 can cancel message 2.
+        network2.cancelMessage(msg2);
+        assertThat(network2.isMessagePending(msg2)).isFalse();
     }
 
     @Test
@@ -628,11 +728,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
     }
 
+    @Test
     public void messageWithScanFlag_triggersScanner() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
         Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
@@ -646,7 +747,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageWithNearbyOnlyFlag_notSentToFarDevice() {
         setupTwoDevices(/* present= */ true, /* nearby= */ false);
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
         Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
 
         network.broadcastMessage(new byte[] {3}, Network.MESSAGE_FLAG_NEARBY_ONLY);
@@ -699,7 +800,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         network.destroy();
 
         // This would have triggered onDeviceChanged if the listener was still registered.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ false);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ false);
 
         verify(mListener, times(countBeforeDestroy)).onDeviceChanged(anyInt());
     }
@@ -714,7 +815,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
         assertThat(mFakeMessenger.getSentMessages().get(0).associationId).isEqualTo(1);
@@ -728,8 +829,8 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
         network.destroy();
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
-        makeDevicePresent(/* associationId= */ 2, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
+        makeDevicePresent(/* associationId= */ 2, /* nearby= */ true);
 
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
     }
@@ -754,6 +855,34 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeMessenger.receiveMessage("unknown_network", 1, new byte[] {7, 8});
 
         verify(mListener, never()).onNetworkMessage(1, new byte[] {7, 8});
+    }
+
+    @Test
+    public void inboundMessage_sentToRightUser() {
+        // Setup 2 devices for 2 users.
+        setupDevice(/* id= */ 1, /* userId= */ 1, /* present= */ true, /* nearby= */ true);
+        setupDevice(/* id= */ 2, /* userId= */ 2, /* present= */ true, /* nearby= */ true);
+        // Setup 2 networks for 2 users sharing the same network id.
+        Network network1 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 1, "network", v -> true, v -> true);
+        NetworkListener listener1 = mock(NetworkListener.class);
+        network1.registerListener(mMainExecutor, listener1);
+        Network network2 =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 2, "network", v -> true, v -> true);
+        NetworkListener listener2 = mock(NetworkListener.class);
+        network2.registerListener(mMainExecutor, listener2);
+
+        // Inbound message from device 1 sent to network 1
+        mFakeMessenger.receiveMessage("network", 1, new byte[] {1, 2});
+        verify(listener1).onNetworkMessage(1, new byte[] {1, 2});
+        verify(listener2, never()).onNetworkMessage(1, new byte[] {1, 2});
+
+        // Inbound message from device 2 sent to network 2
+        mFakeMessenger.receiveMessage("network", 2, new byte[] {3, 4});
+        verify(listener1, never()).onNetworkMessage(2, new byte[] {3, 4});
+        verify(listener2).onNetworkMessage(2, new byte[] {3, 4});
     }
 
     @Test
@@ -883,7 +1012,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         network1.destroy();
 
         Network network2 = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify the sticky message from the old network was not sent.
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
@@ -974,6 +1103,35 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     @Test
+    public void stickyBroadcastDeliveredAfterDeviceLeaveAndRejoinNetwork() {
+        Network network =
+                mNetworkManagerImpl.createNetwork("test", RemoteDevice::hasTransport, v -> true);
+        // Add a new device to the network.
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ false);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
+                /* associationId= */ 1, /* hasTransport= */ true);
+
+        // Send a sticky broadcast.
+        network.broadcastMessage(
+                new byte[] {1}, Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_NEARBY_ONLY);
+        assertThat(mFakeMessenger.getSentMessages()).hasSize(0);
+
+        // Device removed from network, then rejoin
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
+                /* associationId= */ 1, /* hasTransport= */ false);
+        assertThat(network.getRemoteDevices()).hasSize(0);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
+                /* associationId= */ 1, /* hasTransport= */ true);
+        assertThat(network.getRemoteDevices()).hasSize(1);
+
+        // Becomes nearby.
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
+
+        // Verify that the message is sent to that device.
+        assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
+    }
+
+    @Test
     public void nonStickyBroadcastNotDeliveredToNewDevices() {
         Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
 
@@ -1005,7 +1163,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(session.isActive()).isTrue();
 
         // Now, make the device present.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify the message was sent and the scan was stopped to save resources.
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
@@ -1029,14 +1187,14 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(session.isActive()).isTrue();
 
         // Make the device present but not nearby.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ false);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ false);
 
         // Verify that scan continues and message is not sent
         assertThat(session.isActive()).isTrue();
         assertThat(mFakeMessenger.getSentMessages()).hasSize(0);
 
         // Device becomes nearby
-        makeDevicePresent(/* associationid= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationid= */ 1, /* nearby= */ true);
 
         // Verify that scan stops and message is sent
         assertThat(session.isActive()).isFalse();
@@ -1056,7 +1214,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
 
         // Device present and message failed.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
         SentMessage message = mFakeMessenger.getSentMessages().get(0);
         message.completeWithException(new Exception("Failed to send"));
 
@@ -1067,7 +1225,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeScanner.getSessions()).hasSize(0);
 
         // Device appears.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify that message is not resent.
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
@@ -1086,7 +1244,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
 
         // Device present and message failed.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
         SentMessage message = mFakeMessenger.getSentMessages().get(0);
         message.completeWithException(new Exception("Failed to send"));
 
@@ -1098,7 +1256,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeScanner.getAnySession().isActive()).isTrue();
 
         // Device appears.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify that scanning stopped and the message is resent.
         assertThat(mFakeScanner.getSessions()).hasSize(0);
@@ -1113,7 +1271,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeScanner.getSessions()).hasSize(0);
 
         // Device appears.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify that message is not resent.
         assertThat(mFakeMessenger.getSentMessages()).hasSize(2);
@@ -1124,10 +1282,9 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
 
         // Send a sticky scan broadcast.
-        long messageId =
-                network.broadcastMessage(
-                        new byte[] {1},
-                        Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT);
+        network.broadcastMessage(
+                new byte[] {1},
+                Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT);
         assertThat(mFakeMessenger.getSentMessages()).hasSize(0);
 
         // Add a new device to the network.
@@ -1138,11 +1295,88 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(mFakeScanner.getAnySession().isActive()).isTrue();
 
         // New device is present.
-        makeDevicePresent(/* associationId= */ 1, /* isNearby= */ true);
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify that scanning stopped and the message is sent to that device.
         assertThat(mFakeScanner.getSessions()).hasSize(0);
         assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
+    }
+
+    @Test
+    public void stickyMessageDoesNotSurviveNetworkDestroy() {
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ false);
+        Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
+        // Send a sticky broadcast
+        network.broadcastMessage(
+                new byte[] {1}, Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_NEARBY_ONLY);
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+
+        // Destroy and re-create
+        network.destroy();
+        mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
+        // Make device nearby
+        makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
+
+        // Message is not sent.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+    }
+
+    @Test
+    public void stickyMessageSticksIfDeviceIsOutOfNetwork() {
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
+        Network network =
+                mNetworkManagerImpl.createNetwork("test", RemoteDevice::hasTransport, v -> true);
+        // Send a sticky message to an out-of-network device.
+        long msgId =
+                network.unicastMessage(
+                        /* associationId= */ 1, new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
+        // Not sent since device is not in network.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+        // Message sticks.
+        assertThat(network.isMessagePending(msgId)).isTrue();
+
+        // Device joins network later.
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
+                /* associationId= */ 1, /* hasTransport= */ true);
+
+        // Message is sent.
+        assertThat(mFakeMessenger.getSentMessages()).hasSize(1);
+    }
+
+    @Test
+    public void stickyMessageDoesNotStickIfDeviceNotExisting() {
+        Network network = mNetworkManagerImpl.createNetwork("test", v -> true, v -> true);
+        // Send a sticky message to a non-existing device.
+        long msgId =
+                network.unicastMessage(
+                        /* associationId= */ 1, new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
+        // Not sent since device does not exist.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+        // Message doesn't stick.
+        assertThat(network.isMessagePending(msgId)).isFalse();
+
+        // Device associates later.
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
+
+        // Message is not sent since it didn't stick.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+    }
+
+    @Test
+    public void stickyMessageDoesNotStickIfDeviceUserIdMismatch() {
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
+        Network network =
+                mNetworkManagerImpl.createNetworkForUser(
+                        /* userId= */ 10, "test", v -> true, v -> true);
+        // Send a sticky message to an out-of-network device with mismatched user id.
+        long msgId =
+                network.unicastMessage(
+                        /* associationId= */ 1, new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
+
+        // Not sent since device is not in network.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+        // Message doesn't stick.
+        assertThat(network.isMessagePending(msgId)).isFalse();
     }
 
     @Test
@@ -1283,23 +1517,37 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     private void setupDevice(int id, boolean present, boolean nearby) {
-        AssociationInfo info = createAssociationInfo(id);
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(mContext.getUserId(), info);
+        setupDevice(id, mContext.getUserId(), present, nearby);
+    }
+
+    private void setupDevice(int id, int userId, boolean present, boolean nearby) {
+        AssociationInfo info = createAssociationInfo(id, userId);
+        mFakeCompanionDeviceManagerProxy.addAssociation(info);
         if (present) {
             makeDevicePresent(id, nearby);
         }
     }
 
     private void setupTwoDevices(boolean present, boolean nearby) {
-        setupDevice(/* id= */ 1, present, nearby);
-        setupDevice(/* id= */ 2, present, nearby);
+        setupTwoDevices(mContext.getUserId(), present, nearby);
     }
 
-    private void makeDevicePresent(int associationId, boolean isNearby) {
+    private void setupTwoDevices(int userId, boolean present, boolean nearby) {
+        int nextAssociationId = 0;
+        for (AssociationInfo associationInfo :
+                mFakeCompanionDeviceManagerProxy.getAllAssociations(UserHandle.USER_ALL)) {
+            nextAssociationId = Math.max(nextAssociationId, associationInfo.getId());
+        }
+        nextAssociationId++;
+        setupDevice(/* id= */ nextAssociationId, userId, present, nearby);
+        setupDevice(/* id= */ nextAssociationId + 1, userId, present, nearby);
+    }
+
+    private void makeDevicePresent(int associationId, boolean nearby) {
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         associationId, DevicePresenceEvent.EVENT_SELF_MANAGED_APPEARED, null));
-        if (isNearby) {
+        if (nearby) {
             mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                     new DevicePresenceEvent(
                             associationId, DevicePresenceEvent.EVENT_BT_CONNECTED, null));
@@ -1320,7 +1568,11 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     private AssociationInfo createAssociationInfo(int id) {
-        return new AssociationInfo.Builder(id, mContext.getUserId(), "com.android.crossdevicesync")
+        return createAssociationInfo(id, mContext.getUserId());
+    }
+
+    private AssociationInfo createAssociationInfo(int id, int userId) {
+        return new AssociationInfo.Builder(id, userId, "com.android.crossdevicesync")
                 .setDisplayName("displayName" + id)
                 .build();
     }

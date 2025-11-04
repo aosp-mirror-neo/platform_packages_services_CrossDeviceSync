@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.network;
 
+import android.os.UserHandle;
+
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
@@ -33,6 +35,7 @@ class MessageRecord implements Dumpable {
     public final long id;
     public final byte[] message;
     public final int maxAttempts;
+    public final int userId;
     public final String networkId;
     public final boolean isBroadcast;
     private final int mFlags;
@@ -44,6 +47,7 @@ class MessageRecord implements Dumpable {
             byte[] message,
             Collection<Integer> targetAssociationIds,
             int flags,
+            int userId,
             String networkId,
             boolean isBroadcast,
             long now) {
@@ -51,6 +55,7 @@ class MessageRecord implements Dumpable {
         this.message = message;
         this.mFlags = flags;
         this.maxAttempts = shouldRetryAfterFail() ? MAX_DELIVERY_ATTEMPT : 1;
+        this.userId = userId;
         this.networkId = networkId;
         this.isBroadcast = isBroadcast;
         for (Integer associationId : targetAssociationIds) {
@@ -138,10 +143,11 @@ class MessageRecord implements Dumpable {
         return "MessageRecord{"
                 + "id="
                 + id
+                + ", userId="
+                + userId
                 + ", networkId='"
                 + networkId
-                + '\''
-                + ", isBroadcast="
+                + "', isBroadcast="
                 + isBroadcast
                 + ", flags="
                 + mFlags
@@ -159,6 +165,7 @@ class MessageRecord implements Dumpable {
         pw.println("MessageRecord:");
         pw.increaseIndent();
         pw.println("id=" + id);
+        pw.println("userId=" + (userId == UserHandle.USER_ALL ? " USER_ALL" : userId));
         pw.println("networkId='" + networkId + "'");
         pw.println("isBroadcast=" + isBroadcast);
         pw.println("flags=" + mFlags);
