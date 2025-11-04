@@ -47,24 +47,18 @@ public interface NetworkManager extends Dumpable {
      * predicate. Predicate will be evaluated dynamically by observing events from {@link
      * CompanionDeviceManager}.
      */
-    Network createNetwork(
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition);
+    Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition);
 
     /**
-     * Same as {@link #createNetwork(String, Predicate, Predicate)} but make the network private to
-     * a user id. Only devices owned by the same user can join this network.
+     * Same as {@link #createNetwork(String, Predicate)} but make the network private to a user id.
+     * Only devices owned by the same user can join this network.
      *
      * <p>Note: this method allows each user to have its own network instance under the same network
      * id. This is useful for multi-user features that want to share the same network id across
      * users.
      */
     Network createNetworkForUser(
-            int userId,
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition);
+            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition);
 
     /**
      * Invalidates all networks and add or remove devices from networks based on the latest
@@ -104,6 +98,14 @@ public interface NetworkManager extends Dumpable {
 
         /** Returns {@code true} if the association is removed. */
         boolean isAssociationRemoved();
+
+        /**
+         * Returns the last received association info.
+         *
+         * <p>Note: this could be outdated, so only use this to access static information or
+         * information whose staleness can be checked (e.g. metadata).
+         */
+        AssociationInfo getAssociationInfoCache();
     }
 
     /**

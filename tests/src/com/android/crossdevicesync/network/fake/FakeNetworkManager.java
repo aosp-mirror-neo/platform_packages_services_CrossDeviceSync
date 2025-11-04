@@ -46,7 +46,7 @@ public class FakeNetworkManager implements NetworkManager {
     private final Map<Integer, FakeRemoteDevice> mRemoteDevices = new HashMap<>();
     private final Map<String, Map<Integer, FakeNetwork>> mNetworks = new HashMap<>();
     private boolean mInitialized = false;
-    private int mNextAssociationId = 0;
+    private int mNextAssociationId = 1;
 
     @Inject
     FakeNetworkManager() {}
@@ -87,20 +87,13 @@ public class FakeNetworkManager implements NetworkManager {
     }
 
     @Override
-    public Network createNetwork(
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition) {
-        return createNetworkForUser(
-                UserHandle.USER_ALL, networkId, remoteDeviceCondition, associationCondition);
+    public Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+        return createNetworkForUser(UserHandle.USER_ALL, networkId, remoteDeviceCondition);
     }
 
     @Override
     public Network createNetworkForUser(
-            int userId,
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition) {
+            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
         throwIfUninitialized();
         FakeNetwork network = getNetwork(networkId, userId);
         if (network != null) {
@@ -250,15 +243,33 @@ public class FakeNetworkManager implements NetworkManager {
         private boolean mIsSelfManagedNearby;
         private boolean mIsAssociationRemoved;
         @Nullable FakeNetworkManager mRemoteNetworkManager;
+        private AssociationInfo mAssociationInfoCache;
 
         public FakeRemoteDevice(int associationId, int userId) {
-            mAssociationId = associationId;
-            mUserId = userId;
+            this(
+                    new AssociationInfo.Builder(associationId, userId, "package")
+                            .setDisplayName("name")
+                            .build());
+        }
+
+        public FakeRemoteDevice(AssociationInfo associationInfo) {
+            mAssociationId = associationInfo.getId();
+            mUserId = associationInfo.getUserId();
+            mAssociationInfoCache = associationInfo;
         }
 
         @Override
         public int getAssociationId() {
             return mAssociationId;
+        }
+
+        @Override
+        public AssociationInfo getAssociationInfoCache() {
+            return mAssociationInfoCache;
+        }
+
+        public void setAssociationInfoCache(AssociationInfo associationInfo) {
+            mAssociationInfoCache = associationInfo;
         }
 
         @Override

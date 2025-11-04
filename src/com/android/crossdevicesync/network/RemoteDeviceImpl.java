@@ -15,9 +15,12 @@
  */
 package com.android.crossdevicesync.network;
 
+import static java.util.Objects.requireNonNull;
+
 import android.companion.AssociationInfo;
 import android.util.IndentingPrintWriter;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /** A class representing a remote device. */
@@ -34,17 +37,29 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
     @Nullable private final CharSequence mDisplayName;
     @Nullable private final String mDeviceProfile;
     private int mFlags;
+    private AssociationInfo mAssociationInfoCache;
 
     RemoteDeviceImpl(AssociationInfo associationInfo) {
         mAssociationId = associationInfo.getId();
         mUserId = associationInfo.getUserId();
         mDisplayName = associationInfo.getDisplayName();
         mDeviceProfile = associationInfo.getDeviceProfile();
+        mAssociationInfoCache = associationInfo;
     }
 
     @Override
     public int getAssociationId() {
         return mAssociationId;
+    }
+
+    @Override
+    public AssociationInfo getAssociationInfoCache() {
+        return mAssociationInfoCache;
+    }
+
+    /** Update the cached {@link AssociationInfo}. */
+    public void setAssociationInfoCache(@NonNull AssociationInfo associationInfo) {
+        mAssociationInfoCache = requireNonNull(associationInfo);
     }
 
     @Nullable
@@ -164,6 +179,7 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
         pw.println("userId=" + mUserId);
         pw.println("displayName='" + mDisplayName + "'");
         pw.println("deviceProfile='" + mDeviceProfile + "'");
+        pw.println("associationInfoCache=" + mAssociationInfoCache);
         pw.println("hasTransport=" + hasTransport());
         pw.println("isBleAppeared=" + isBleAppeared());
         pw.println("isBtConnected=" + isBtConnected());

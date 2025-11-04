@@ -170,20 +170,13 @@ public class NetworkManagerImpl implements NetworkManager {
     }
 
     @Override
-    public Network createNetwork(
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition) {
-        return createNetworkForUser(
-                UserHandle.USER_ALL, networkId, remoteDeviceCondition, associationCondition);
+    public Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+        return createNetworkForUser(UserHandle.USER_ALL, networkId, remoteDeviceCondition);
     }
 
     @Override
     public Network createNetworkForUser(
-            int userId,
-            String networkId,
-            Predicate<RemoteDevice> remoteDeviceCondition,
-            Predicate<AssociationInfo> associationCondition) {
+            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
         synchronized (mLock) {
             throwIfUninitializedLocked();
             NetworkImpl network = getNetworkLocked(networkId, userId);
@@ -200,8 +193,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 }
                 return network;
             }
-            network =
-                    new NetworkImpl(userId, networkId, remoteDeviceCondition, associationCondition);
+            network = new NetworkImpl(userId, networkId, remoteDeviceCondition);
             mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
             invalidateNetworks();
             return network;
@@ -289,8 +281,11 @@ public class NetworkManagerImpl implements NetworkManager {
         for (AssociationInfo info : allInfo) {
             int id = info.getId();
             allInfoIds.add(id);
-            if (!mRemoteDevices.containsKey(id)) {
-                RemoteDeviceImpl device = new RemoteDeviceImpl(info);
+            RemoteDeviceImpl device = mRemoteDevices.get(id);
+            if (device != null) {
+                device.setAssociationInfoCache(info);
+            } else {
+                device = new RemoteDeviceImpl(info);
                 mRemoteDevices.put(id, device);
                 deviceChanged = true;
                 Log.d(TAG, "Added remote device " + device);
@@ -301,10 +296,7 @@ public class NetworkManagerImpl implements NetworkManager {
         if (deviceChanged) {
             updateDevicePresenceListenerLocked();
         }
-        // Update network members.
-        Map<Integer, AssociationInfo> associationsMap =
-                Maps.uniqueIndex(allInfo, AssociationInfo::getId);
-        forEachNetworkLocked(n -> n.invalidateLocked(associationsMap));
+        forEachNetworkLocked(NetworkImpl::invalidateLocked);
         // Process messages.
         processMessagesLocked();
     }
@@ -775,7 +767,6 @@ public class NetworkManagerImpl implements NetworkManager {
         private final int mUserId;
         private final String mId;
         private final Predicate<RemoteDevice> mDeviceCondition;
-        private final Predicate<AssociationInfo> mAssociationInfoCondition;
 
         @GuardedBy("mLock")
         private final Map<Integer, AdvertisingSession> mAdvertisingSessions = new HashMap<>();
@@ -789,15 +780,10 @@ public class NetworkManagerImpl implements NetworkManager {
         @GuardedBy("mLock")
         private boolean mDestroyed;
 
-        NetworkImpl(
-                int userId,
-                String id,
-                Predicate<RemoteDevice> deviceCondition,
-                Predicate<AssociationInfo> associationInfoCondition) {
+        NetworkImpl(int userId, String id, Predicate<RemoteDevice> deviceCondition) {
             mUserId = userId;
             mId = id;
             mDeviceCondition = deviceCondition;
-            mAssociationInfoCondition = associationInfoCondition;
         }
 
         @Override
@@ -900,14 +886,11 @@ public class NetworkManagerImpl implements NetworkManager {
 
         /** Re-evaluate devices in this network. */
         @GuardedBy("mLock")
-        private void invalidateLocked(Map<Integer, AssociationInfo> associations) {
+        private void invalidateLocked() {
             for (RemoteDeviceImpl device : mRemoteDevices.values()) {
                 int associationId = device.getAssociationId();
-                AssociationInfo associationInfo = associations.get(associationId);
-                if (associationInfo != null
-                        && isAccessibleByUser(device.getUserId())
+                if (isAccessibleByUser(device.getUserId())
                         && mDeviceCondition.test(device)
-                        && mAssociationInfoCondition.test(associationInfo)
                         && !device.isAssociationRemoved()) {
                     if (mAssociationIds.add(associationId)) {
                         Log.i(TAG, "Device " + device + " joined network " + mId);
@@ -918,19 +901,25 @@ public class NetworkManagerImpl implements NetworkManager {
                     }
                 } else if (mAssociationIds.remove(associationId)) {
                     notifyListenersLocked(l -> l.onDeviceRemoved(associationId));
+                    stopAdvertisingLocked(associationId);
                     Log.i(TAG, "Device " + device + " left network " + mId);
                 }
             }
             Set<Integer> set = new ArraySet<>(mAssociationIds);
-            mAssociationIds.retainAll(associations.keySet());
+            mAssociationIds.retainAll(mRemoteDevices.keySet());
             set.removeAll(mAssociationIds);
             for (Integer removedId : set) {
                 Log.i(TAG, "Device with id " + removedId + " left network " + mId);
                 notifyListenersLocked(l -> l.onDeviceRemoved(removedId));
-                AdvertisingSession advertisingSession = mAdvertisingSessions.remove(removedId);
-                if (advertisingSession != null) {
-                    advertisingSession.close();
-                }
+                stopAdvertisingLocked(removedId);
+            }
+        }
+
+        @GuardedBy("mLock")
+        private void stopAdvertisingLocked(int associationId) {
+            AdvertisingSession advertisingSession = mAdvertisingSessions.remove(associationId);
+            if (advertisingSession != null) {
+                advertisingSession.close();
             }
         }
 
@@ -1001,7 +990,6 @@ public class NetworkManagerImpl implements NetworkManager {
                 pw.println("id=" + mId);
                 pw.println("destroyed=" + mDestroyed);
                 pw.println("deviceCondition=" + mDeviceCondition);
-                pw.println("associationInfoCondition=" + mAssociationInfoCondition);
                 pw.println("advertisingSessions=" + mAdvertisingSessions);
                 pw.println("listeners=" + mListeners.size());
                 pw.println("devices=" + mAssociationIds);
