@@ -80,8 +80,8 @@ class DeliveryState {
                 + reason
                 + ", hasMessageSendingFuture="
                 + (messageSendingFuture != null)
-                + ", scanningSession="
-                + scanningSession
+                + ", hasScanningSession="
+                + (scanningSession != null)
                 + ", isDone="
                 + isDone()
                 + "}";

@@ -990,7 +990,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 pw.println("id=" + mId);
                 pw.println("destroyed=" + mDestroyed);
                 pw.println("deviceCondition=" + mDeviceCondition);
-                pw.println("advertisingSessions=" + mAdvertisingSessions);
+                pw.println("advertisingSessions=" + mAdvertisingSessions.keySet());
                 pw.println("listeners=" + mListeners.size());
                 pw.println("devices=" + mAssociationIds);
             }
