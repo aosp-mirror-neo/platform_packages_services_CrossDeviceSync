@@ -22,4 +22,7 @@ public interface Clock {
 
     /** See {@link SystemClock#elapsedRealtime()}. */
     long elapsedRealtime();
+
+    /** See {@link System#currentTimeMillis()}. */
+    long currentTimeMillis();
 }

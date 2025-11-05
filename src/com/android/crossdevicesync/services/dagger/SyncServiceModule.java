@@ -15,8 +15,16 @@
  */
 package com.android.crossdevicesync.services.dagger;
 
+import com.android.crossdevicesync.metadata.MetadataPublisher;
+import com.android.crossdevicesync.metadata.MetadataPublisherImpl;
+
+import dagger.Binds;
 import dagger.Module;
 
 /** Dagger module for common objects in {@link SyncServiceSingleton} scope. */
 @Module
-public abstract class SyncServiceModule {}
+public abstract class SyncServiceModule {
+    @Binds
+    @SyncServiceSingleton
+    abstract MetadataPublisher bindsMetadataPublisher(MetadataPublisherImpl impl);
+}

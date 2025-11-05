@@ -15,6 +15,9 @@
  */
 package com.android.crossdevicesync.dagger;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
@@ -37,6 +40,7 @@ import javax.inject.Singleton;
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
 @Module(includes = {ApplicationBaseModule.class})
 public abstract class TestApplicationModule {
+    private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
 
     @Binds
     @Singleton
@@ -66,5 +70,11 @@ public abstract class TestApplicationModule {
     @Singleton
     static boolean providesIsWatch(IsWatchProvider isWatchProvider) {
         return isWatchProvider.isWatch;
+    }
+
+    @Singleton
+    @Provides
+    static SharedPreferences provideSharedPreferences(Context context) {
+        return context.getSharedPreferences(SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
     }
 }

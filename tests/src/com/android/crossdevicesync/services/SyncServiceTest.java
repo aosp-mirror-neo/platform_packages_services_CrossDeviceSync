@@ -25,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
 
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 
 import org.junit.Rule;
@@ -51,22 +52,29 @@ public final class SyncServiceTest {
     public void testFeatureManagerLifeCycle() {
         // Create a new service with mock feature manager.
         NetworkManager networkManager = mock(NetworkManager.class);
+        MetadataPublisher metadataPublisher = mock(MetadataPublisher.class);
         FeatureManager featureManager = mock(FeatureManager.class);
         SyncService service =
-                new SyncService(networkManager, Map.of(FeatureManager.class, () -> featureManager));
-        InOrder inOrder = inOrder(networkManager, featureManager);
+                new SyncService(
+                        networkManager,
+                        metadataPublisher,
+                        Map.of(FeatureManager.class, () -> featureManager));
+        InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager);
 
         // Service created.
         service.onCreate();
 
         inOrder.verify(networkManager).init();
+        inOrder.verify(metadataPublisher).init();
         inOrder.verify(featureManager).init();
 
         // Service destroyed.
         service.onDestroy();
 
-        // Verify destroying each feature before destroying the networkManager.
+        // Verify destroying each feature before destroying the metadata publisher and the
+        // networkManager.
         inOrder.verify(featureManager).destroy();
+        inOrder.verify(metadataPublisher).destroy();
         inOrder.verify(networkManager).destroy();
     }
 }

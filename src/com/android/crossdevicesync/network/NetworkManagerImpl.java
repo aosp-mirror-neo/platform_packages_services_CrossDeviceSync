@@ -468,6 +468,14 @@ public class NetworkManagerImpl implements NetworkManager {
         }
     }
 
+    @Nullable
+    @Override
+    public RemoteDevice getRemoteDevice(int associationId) {
+        synchronized (mLock) {
+            return mRemoteDevices.get(associationId);
+        }
+    }
+
     @Override
     public List<Network> getNetworks() {
         synchronized (mLock) {
@@ -862,6 +870,7 @@ public class NetworkManagerImpl implements NetworkManager {
             }
         }
 
+        @SuppressWarnings("GuardedBy")
         @Override
         public void registerListener(Executor executor, NetworkListener listener) {
             synchronized (mLock) {
@@ -870,6 +879,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     return;
                 }
                 mListeners.add(Pair.create(executor, listener));
+                mAssociationIds.forEach(this::notifyDeviceChangedLocked);
             }
         }
 
@@ -894,7 +904,7 @@ public class NetworkManagerImpl implements NetworkManager {
                         && !device.isAssociationRemoved()) {
                     if (mAssociationIds.add(associationId)) {
                         Log.i(TAG, "Device " + device + " joined network " + mId);
-                        notifyListenersLocked(l -> l.onDeviceChanged(associationId));
+                        notifyListenersLocked(l -> l.onDeviceChanged(device));
                         mAdvertisingSessions.put(
                                 associationId,
                                 mAdvertiser.startAdvertising(associationId, "Network " + mId));
@@ -932,7 +942,14 @@ public class NetworkManagerImpl implements NetworkManager {
         @GuardedBy("mLock")
         private void notifyDeviceChangedLocked(int associationId) {
             if (mAssociationIds.contains(associationId)) {
-                notifyListenersLocked(l -> l.onDeviceChanged(associationId));
+                RemoteDeviceImpl device = mRemoteDevices.get(associationId);
+                if (device == null) {
+                    Log.w(
+                            TAG,
+                            "notifyDeviceChangedLocked: device not found for id " + associationId);
+                    return;
+                }
+                notifyListenersLocked(l -> l.onDeviceChanged(device));
             }
         }
 

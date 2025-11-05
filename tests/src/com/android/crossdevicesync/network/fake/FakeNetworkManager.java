@@ -78,6 +78,12 @@ public class FakeNetworkManager implements NetworkManager {
         return Collections.unmodifiableMap(mRemoteDevices);
     }
 
+    @Nullable
+    @Override
+    public FakeRemoteDevice getRemoteDevice(int associationId) {
+        return mRemoteDevices.get(associationId);
+    }
+
     @Override
     public List<Network> getNetworks() {
         throwIfUninitialized();
@@ -162,6 +168,13 @@ public class FakeNetworkManager implements NetworkManager {
     /** Adds a remote device to this manager for testing. */
     public FakeRemoteDevice addRemoteDeviceForUser(int userId) {
         FakeRemoteDevice device = new FakeRemoteDevice(mNextAssociationId++, userId);
+        addRemoteDevice(device);
+        return device;
+    }
+
+    /** Adds a remote device to this manager for testing. */
+    public FakeRemoteDevice addRemoteDevice(AssociationInfo associationInfo) {
+        FakeRemoteDevice device = new FakeRemoteDevice(associationInfo);
         addRemoteDevice(device);
         return device;
     }
@@ -405,6 +418,10 @@ public class FakeNetworkManager implements NetworkManager {
             }
             return hasMessage;
         }
+
+        public List<SentMessage> getSentMessages() {
+            return new ArrayList<>(mSentMessages);
+        }
     }
 
     /** A fake implementation of {@link Network} for testing. */
@@ -495,6 +512,12 @@ public class FakeNetworkManager implements NetworkManager {
         public void registerListener(Executor executor, NetworkListener listener) {
             throwIfDestroyed();
             mListeners.add(Pair.create(executor, listener));
+            mAssociationIds.forEach(
+                    associationId ->
+                            executor.execute(
+                                    () ->
+                                            listener.onDeviceChanged(
+                                                    mRemoteDevices.get(associationId))));
         }
 
         @Override
@@ -550,7 +573,8 @@ public class FakeNetworkManager implements NetworkManager {
             int associationId = device.getAssociationId();
             if (mAssociationIds.add(associationId)) {
                 for (Pair<Executor, NetworkListener> pair : mListeners) {
-                    pair.first.execute(() -> pair.second.onDeviceChanged(associationId));
+                    pair.first.execute(
+                            () -> pair.second.onDeviceChanged(mRemoteDevices.get(associationId)));
                 }
                 for (Map.Entry<Long, Set<Integer>> entry : mStickyBroadcastRecipients.entrySet()) {
                     long stickyId = entry.getKey();

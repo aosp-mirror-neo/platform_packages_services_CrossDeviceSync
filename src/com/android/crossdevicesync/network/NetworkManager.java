@@ -19,6 +19,8 @@ import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.os.UserHandle;
 
+import androidx.annotation.Nullable;
+
 import com.android.crossdevicesync.common.Dumpable;
 
 import java.util.List;
@@ -37,6 +39,10 @@ public interface NetworkManager extends Dumpable {
 
     /** Returns the mapping of association ID to the remote device. */
     Map<Integer, RemoteDevice> getRemoteDevices();
+
+    /** Find a remote device from an association ID. */
+    @Nullable
+    RemoteDevice getRemoteDevice(int associationId);
 
     /** Returns a list of all networks. */
     List<Network> getNetworks();
@@ -229,7 +235,7 @@ public interface NetworkManager extends Dumpable {
         void onNetworkMessage(int associationId, byte[] message);
 
         /** Called when a remote device is added to the network or changed. */
-        default void onDeviceChanged(int associationId) {}
+        default void onDeviceChanged(RemoteDevice device) {}
 
         /** Called when a remote device is removed from the network. */
         default void onDeviceRemoved(int associationId) {}

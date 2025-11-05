@@ -26,6 +26,7 @@ import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
@@ -51,6 +52,7 @@ public class SyncService extends Service {
             "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
     private final NetworkManager mNetworkManager;
+    private final MetadataPublisher mMetadataPublisher;
     private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
     private final Set<FeatureManager> mFeatureManagers = new HashSet<>();
 
@@ -59,8 +61,10 @@ public class SyncService extends Service {
     @Inject
     public SyncService(
             NetworkManager networkManager,
+            MetadataPublisher metadataPublisher,
             Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
         mNetworkManager = networkManager;
+        mMetadataPublisher = metadataPublisher;
         mFeatureManagerProviders = featureManagerProviders;
     }
 
@@ -69,6 +73,7 @@ public class SyncService extends Service {
         super.onCreate();
         Log.i(TAG, "onCreate()");
         mNetworkManager.init();
+        mMetadataPublisher.init();
         for (var entry : mFeatureManagerProviders.entrySet()) {
             try {
                 Log.i(TAG, "Initializing " + entry.getKey().getSimpleName() + "...");
@@ -87,6 +92,7 @@ public class SyncService extends Service {
         Log.i(TAG, "onDestroy()");
         mFeatureManagers.forEach(FeatureManager::destroy);
         mFeatureManagers.clear();
+        mMetadataPublisher.destroy();
         mNetworkManager.destroy();
         if (mDestroyLatch != null) {
             mDestroyLatch.countDown();
@@ -109,6 +115,7 @@ public class SyncService extends Service {
         pw.println("SyncService state:");
         pw.increaseIndent();
         mNetworkManager.dump(pw);
+        mMetadataPublisher.dump(pw);
         mFeatureManagers.forEach(f -> f.dump(pw));
         pw.decreaseIndent();
     }
