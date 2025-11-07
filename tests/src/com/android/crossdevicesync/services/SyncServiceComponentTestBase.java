@@ -61,4 +61,8 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     protected TestSyncServiceComponent newSyncServiceComponent() {
         return mApplicationComponent.getTestSyncServiceComponentBuilder().build();
     }
+
+    public FakeNetworkManager getNetworkManager() {
+        return mFakeNetworkManager;
+    }
 }

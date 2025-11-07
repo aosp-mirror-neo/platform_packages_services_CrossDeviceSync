@@ -1,0 +1,10 @@
+# Preserve submerge APIs
+-keep class com.google.android.submerge.StorageInterface {
+    public *;
+}
+-keep class com.google.android.submerge.TimestampProvider {
+    public *;
+}
+-keep class com.google.android.submerge.NetworkInterface {
+    public *;
+}

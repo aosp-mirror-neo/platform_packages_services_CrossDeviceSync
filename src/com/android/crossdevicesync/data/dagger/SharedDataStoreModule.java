@@ -16,8 +16,8 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.IStorage;
-import com.android.crossdevicesync.data.RoomStorage;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
+import com.android.crossdevicesync.data.storage.RoomStorage;
 
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -36,14 +36,15 @@ import java.util.concurrent.Executors;
  * SharedDataStoreBaseModule} instead.
  */
 @Module(includes = {SharedDataStoreBaseModule.class})
-public abstract class SharedDataStoreModule {
-    @SharedDataStoreSingleton
-    @Binds
-    abstract IStorage bindsIStorage(RoomStorage storage);
+interface SharedDataStoreModule {
 
+    @Binds
+    @SharedDataStoreSingleton
+    IStorage bindsIStorage(RoomStorage storage);
+
+    @Provides
     @IOThread
     @SharedDataStoreSingleton
-    @Provides
     static ListeningExecutorService provideIOThreadListeningExecutorService() {
         return MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
     }

@@ -24,15 +24,12 @@ import static org.junit.Assert.assertThrows;
 import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
-import com.android.crossdevicesync.data.SchemaProvider.PathSchemaInfo;
 import com.android.crossdevicesync.data.SharedDataStore.Document;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
 import com.android.crossdevicesync.data.fake.FakeStorage;
-import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -48,6 +45,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
+@SuppressWarnings({"unchecked", "DataFlowIssue"})
 @RunWith(AndroidJUnit4.class)
 public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBase {
     private SubmergeSharedDataStore<String> mDataStore;
@@ -58,7 +56,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @Before
     public void setUp() {
         super.setUp();
-        mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
+        mDataStore = (SubmergeSharedDataStore<String>) mSharedDataStore;
         mDataStore.init();
         mRemoteDevice1 = new RemoteDeviceContext();
         mRemoteDevice2 = new RemoteDeviceContext();
@@ -79,13 +77,9 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(1)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/register", SchemaProvider.TYPE_REGISTER, 1))
-                        .putPathSchema(new PathSchemaInfo("/root/set", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/unmerged", SchemaProvider.TYPE_UNMERGED, 1))
+                        .putPathSchema("/root/register", RecordType.TYPE_REGISTER, 1)
+                        .putPathSchema("/root/set", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/unmerged", RecordType.TYPE_UNMERGED, 1)
                         .build());
     }
 
@@ -117,8 +111,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/set", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/v2/set", RecordType.TYPE_SET, 2)
                         .build());
 
         transactDataStore(
@@ -138,8 +131,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/set", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/v2/set", RecordType.TYPE_SET, 2)
                         .build();
         upgradeSchema(mRemoteDevice1, schema);
 
@@ -177,9 +169,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/v2/register", SchemaProvider.TYPE_REGISTER, 2))
+                        .putPathSchema("/root/v2/register", RecordType.TYPE_REGISTER, 2)
                         .build();
         upgradeSchema(mRemoteDevice1, schema);
 
@@ -200,9 +190,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Local device upgrades schema, but overrides the new path.
         upgradeSchema(
-                /* migrator= */ doc -> {
-                    doc.putData("/root/v2/register", null);
-                },
+                /* migrator= */ doc -> doc.putData("/root/v2/register", null),
                 /* validator= */ null,
                 schema);
 
@@ -232,9 +220,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/v2/register", SchemaProvider.TYPE_REGISTER, 2))
+                        .putPathSchema("/root/v2/register", RecordType.TYPE_REGISTER, 2)
                         .build();
         upgradeSchema(mRemoteDevice1, schema);
 
@@ -243,9 +229,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Local device upgrades schema, but overrides the new path.
         upgradeSchema(
-                /* migrator= */ doc -> {
-                    doc.putData("/root/v2/register", null);
-                },
+                /* migrator= */ doc -> doc.putData("/root/v2/register", null),
                 /* validator= */ null,
                 schema);
 
@@ -273,15 +257,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     }
 
     @Test
-    public void testInit_upgradePathIsBad_fails() throws Exception {
+    public void testInit_upgradePathIsBad_fails() {
         ListenableFuture<Boolean> future =
                 upgradeSchema(
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
                                 .setVersion(2)
-                                .putPathSchema(
-                                        new PathSchemaInfo(
-                                                "/root/register", SchemaProvider.TYPE_SET, 2))
+                                .putPathSchema("/root/register", RecordType.TYPE_SET, 2)
                                 .build());
 
         assertThrows(ExecutionException.class, future::get);
@@ -290,7 +272,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     }
 
     @Test
-    public void testInit_upgradeValidationFails() throws Exception {
+    public void testInit_upgradeValidationFails() {
         ListenableFuture<Boolean> future =
                 upgradeSchema(
                         /* migrator= */ null,
@@ -300,9 +282,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
                                 .setVersion(2)
-                                .putPathSchema(
-                                        new PathSchemaInfo(
-                                                "/root/v2/set", SchemaProvider.TYPE_SET, 2))
+                                .putPathSchema("/root/v2/set", RecordType.TYPE_SET, 2)
                                 .build());
 
         assertThrows(ExecutionException.class, future::get);
@@ -313,25 +293,21 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @Test
     public void testInit_upgradeIgnoredWithSameSchemaVersion() throws Exception {
         ListenableFuture<Boolean> future =
-                upgradeSchema(getSchemaProvider().getAllDocumentSchema().get(0));
+                upgradeSchema(getSchemaProvider().getAllDocumentSchema().getFirst());
 
         assertThat(future.get()).isTrue();
         assertThat(mDataStore.isOpen()).isTrue();
     }
 
     @Test
-    public void testInit_upgradeSchemaWithSameVersion_failedValidation() throws Exception {
+    public void testInit_upgradeSchemaWithSameVersion_failedValidation() {
         // Changes schema without changing version.
         ListenableFuture<Boolean> future =
                 upgradeSchema(
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
                                 .setVersion(1)
-                                .putPathSchema(
-                                        new PathSchemaInfo(
-                                                "/root/v2/register",
-                                                SchemaProvider.TYPE_REGISTER,
-                                                1))
+                                .putPathSchema("/root/v2/register", RecordType.TYPE_REGISTER, 1)
                                 .build());
 
         assertThrows(ExecutionException.class, future::get);
@@ -344,15 +320,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         // Remote device 1 upgrades the schema.
         upgradeSchema(
                 mRemoteDevice1,
-                /* migrator= */ doc -> {
-                    doc.putData("/root/v2/new", "abc");
-                },
+                /* migrator= */ doc -> doc.putData("/root/v2/new", "abc"),
                 /* validator= */ null,
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/new", SchemaProvider.TYPE_REGISTER, 2))
+                        .putPathSchema("/root/v2/new", RecordType.TYPE_REGISTER, 2)
                         .build());
 
         // Connect with remote device 1 and sync.
@@ -368,9 +341,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
                                 .setVersion(2)
-                                .putPathSchema(
-                                        new PathSchemaInfo(
-                                                "/root/v2/new", SchemaProvider.TYPE_SET, 2))
+                                .putPathSchema("/root/v2/new", RecordType.TYPE_SET, 2)
                                 .build());
 
         assertThrows(ExecutionException.class, future::get);
@@ -379,14 +350,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     }
 
     @Test
-    public void testInit_failureReceoveredByDeletingDB() throws Exception {
+    public void testInit_failureRecoveredByDeletingDB() throws Exception {
         // Illegal upgrade.
         DocumentSchemaInfo info =
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/register", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/register", RecordType.TYPE_SET, 2)
                         .build();
         ListenableFuture<Boolean> future = upgradeSchema(info);
         assertThrows(ExecutionException.class, future::get);
@@ -474,12 +444,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId("doc_1")
                         .setVersion(1)
-                        .putPathSchema(new PathSchemaInfo("/root", SchemaProvider.TYPE_REGISTER, 1))
+                        .putPathSchema("/root", RecordType.TYPE_REGISTER, 1)
                         .build(),
                 DocumentSchemaInfo.builder()
                         .setDocId("doc_2")
                         .setVersion(1)
-                        .putPathSchema(new PathSchemaInfo("/root", SchemaProvider.TYPE_SET, 1))
+                        .putPathSchema("/root", RecordType.TYPE_SET, 1)
                         .build());
 
         mDataStore.transact(
@@ -597,28 +567,22 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         // Remote device 1 upgrades the schema.
         upgradeSchema(
                 mRemoteDevice1,
-                /* migrator= */ doc -> {
-                    doc.putData("/root/v2/new", "abc");
-                },
+                /* migrator= */ doc -> doc.putData("/root/v2/new", "abc"),
                 /* validator= */ null,
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/new", SchemaProvider.TYPE_REGISTER, 2))
+                        .putPathSchema("/root/v2/new", RecordType.TYPE_REGISTER, 2)
                         .build());
 
         // Local device upgrades with incompatible schema.
         upgradeSchema(
-                /* migrator= */ doc -> {
-                    doc.addDataToSet("/root/v2/new", "abc");
-                },
+                /* migrator= */ doc -> doc.addDataToSet("/root/v2/new", "abc"),
                 /* validator= */ null,
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/new", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/v2/new", RecordType.TYPE_SET, 2)
                         .build());
 
         // Connect and sync.
@@ -726,15 +690,10 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/register", SchemaProvider.TYPE_REGISTER, 1))
-                        .putPathSchema(new PathSchemaInfo("/root/set", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/unmerged", SchemaProvider.TYPE_UNMERGED, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/set", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/register", RecordType.TYPE_REGISTER, 1)
+                        .putPathSchema("/root/set", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/unmerged", RecordType.TYPE_UNMERGED, 1)
+                        .putPathSchema("/root/v2/set", RecordType.TYPE_SET, 2)
                         .build();
 
         // 2. Setup Device 1 (local device), upgrading from v1 to v2.
@@ -769,28 +728,19 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/register", SchemaProvider.TYPE_REGISTER, 1))
-                        .putPathSchema(new PathSchemaInfo("/root/set", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/unmerged", SchemaProvider.TYPE_UNMERGED, 1))
+                        .putPathSchema("/root/register", RecordType.TYPE_REGISTER, 1)
+                        .putPathSchema("/root/set", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/unmerged", RecordType.TYPE_UNMERGED, 1)
                         .build();
         // Schema v3 adds a new path.
         DocumentSchemaInfo schemaV3 =
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(3)
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/register", SchemaProvider.TYPE_REGISTER, 1))
-                        .putPathSchema(new PathSchemaInfo("/root/set", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/unmerged", SchemaProvider.TYPE_UNMERGED, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v3/set", SchemaProvider.TYPE_SET, 3))
+                        .putPathSchema("/root/register", RecordType.TYPE_REGISTER, 1)
+                        .putPathSchema("/root/set", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/unmerged", RecordType.TYPE_UNMERGED, 1)
+                        .putPathSchema("/root/v3/set", RecordType.TYPE_SET, 3)
                         .build();
 
         // 2. Setup Device A (local device), starting from the default v1 schema.
@@ -836,14 +786,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(1)
-                        .putPathSchema(new PathSchemaInfo("/root/set", SchemaProvider.TYPE_SET, 1))
+                        .putPathSchema("/root/set", RecordType.TYPE_SET, 1)
                         .build();
         DocumentSchemaInfo schemaCD =
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(1)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/set", SchemaProvider.TYPE_REGISTER, 1))
+                        .putPathSchema("/root/set", RecordType.TYPE_REGISTER, 1)
                         .build();
 
         // 2. Setup devices.
@@ -892,27 +841,21 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(1)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/common", SchemaProvider.TYPE_SET, 1))
+                        .putPathSchema("/root/common", RecordType.TYPE_SET, 1)
                         .build();
         DocumentSchemaInfo schemaV2_AB =
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/common", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/v2/data", SchemaProvider.TYPE_SET, 2))
+                        .putPathSchema("/root/common", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/v2/data", RecordType.TYPE_SET, 2)
                         .build();
         DocumentSchemaInfo schemaV2_CD =
                 DocumentSchemaInfo.builder()
                         .setDocId(DOC_ID)
                         .setVersion(2)
-                        .putPathSchema(
-                                new PathSchemaInfo("/root/common", SchemaProvider.TYPE_SET, 1))
-                        .putPathSchema(
-                                new PathSchemaInfo(
-                                        "/root/v2/data", SchemaProvider.TYPE_REGISTER, 2))
+                        .putPathSchema("/root/common", RecordType.TYPE_SET, 1)
+                        .putPathSchema("/root/v2/data", RecordType.TYPE_REGISTER, 2)
                         .build();
 
         // 2. Setup devices.
@@ -1016,15 +959,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         transactDataStore(d, doc -> doc.addDataToSet("/root/common", "D_v2"));
         flushNetworks(a, b, c, d);
         ThrowingConsumer<MutableDocument<String>> verifierAB =
-                doc -> {
-                    assertThat(((SetRecord<String>) doc.getRecord("/root/common")).entries())
-                            .containsExactly("A", "B", "C", "D", "A_v2", "B_v2");
-                };
+                doc ->
+                        assertThat(((SetRecord<String>) doc.getRecord("/root/common")).entries())
+                                .containsExactly("A", "B", "C", "D", "A_v2", "B_v2");
         verifierCD =
-                doc -> {
-                    assertThat(((SetRecord<String>) doc.getRecord("/root/common")).entries())
-                            .containsExactly("C_v2", "D_v2");
-                };
+                doc ->
+                        assertThat(((SetRecord<String>) doc.getRecord("/root/common")).entries())
+                                .containsExactly("C_v2", "D_v2");
         transactDataStore(a, verifierAB);
         transactDataStore(b, verifierAB);
         transactDataStore(c, verifierCD);
@@ -1137,7 +1078,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             @Nullable ThrowingConsumer<Document<String>> validator,
             DocumentSchemaInfo... schema) {
         ListenableFuture<Boolean> future = upgradeSchema(this, migrator, validator, schema);
-        mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
+        mDataStore = (SubmergeSharedDataStore<String>) mSharedDataStore;
         return future;
     }
 
@@ -1152,7 +1093,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             @Nullable ThrowingConsumer<Document<String>> validator,
             DocumentSchemaInfo... schema) {
         // Close the current data store. And build a new one with a higher schema version.
-        testContext.mSubmergeSharedDataStore.close();
+        testContext.mSharedDataStore.close();
         FakeStorage prevStorage = testContext.mFakeStorage;
         testContext
                 .newSharedDataStoreComponent(
@@ -1162,18 +1103,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                                 .setValidator(validator))
                 .inject(testContext);
         testContext.mFakeStorage.copyAll(prevStorage);
-        return testContext.mSubmergeSharedDataStore.init();
-    }
-
-    private ListenableFuture<Boolean> reInitWithNewSchema(DocumentSchemaInfo... schema)
-            throws Exception {
-        return reInitWithNewSchema(this, schema);
+        return (ListenableFuture<Boolean>) testContext.mSharedDataStore.init();
     }
 
     private ListenableFuture<Boolean> reInitWithNewSchema(
             SharedDataStoreComponentTestBase testContext, DocumentSchemaInfo... schema)
             throws Exception {
-        testContext.mSubmergeSharedDataStore.delete().get();
+        testContext.mSharedDataStore.delete().get();
         return upgradeSchema(testContext, schema);
     }
 
@@ -1181,8 +1117,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             SharedDataStoreComponentTestBase testContext,
             ThrowingConsumer<MutableDocument<String>> consumer)
             throws Exception {
-        transactDataStore(
-                (SubmergeSharedDataStore<String>) testContext.mSubmergeSharedDataStore, consumer);
+        transactDataStore((SubmergeSharedDataStore<String>) testContext.mSharedDataStore, consumer);
     }
 
     private void transactDataStore(
@@ -1207,7 +1142,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     private class RemoteDeviceContext extends SharedDataStoreComponentTestBase {
         RemoteDeviceContext() {
             super.setUp();
-            mSubmergeSharedDataStore.init();
+            mSharedDataStore.init();
         }
 
         @Override
@@ -1215,20 +1150,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             return SubmergeSharedDataStoreTest.this.getSchemaProvider();
         }
 
-        public SubmergeSharedDataStore<String> getDataStore() {
-            return (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
-        }
-
-        public FakeTimestampProvider getTimestampProvider() {
-            return mTimestampProvider;
-        }
-
         public void close() {
-            mSubmergeSharedDataStore.close();
+            mSharedDataStore.close();
         }
 
         public String nodeId() {
-            return mSubmergeSharedDataStore.getLocalDeviceNodeId();
+            return mSharedDataStore.getLocalDeviceNodeId();
         }
     }
 
@@ -1236,10 +1163,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         private final List<DocumentSchemaInfo> mSchemaList = new ArrayList<>();
         @Nullable private Consumer<MutableDocument<String>> mMigrator;
         @Nullable private ThrowingConsumer<Document<String>> mValidator;
-
-        TestSchemaProvider(DocumentSchemaInfo schema) {
-            this(new DocumentSchemaInfo[] {schema});
-        }
 
         TestSchemaProvider(DocumentSchemaInfo... schemas) {
             Collections.addAll(mSchemaList, schemas);

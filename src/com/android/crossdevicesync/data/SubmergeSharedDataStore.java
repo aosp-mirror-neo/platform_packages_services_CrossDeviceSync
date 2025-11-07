@@ -23,7 +23,6 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
 import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
@@ -159,12 +158,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         Log.i(TAG, "Broadcasting update message for " + getDebugDocIdentityString(docId));
         synchronized (mLock) {
             broadcastMessageForDoc(
-                    docId,
-                    encodeDocUpdateMessage(
-                            docId,
-                            updateMessage,
-                            requireNonNull(mNodeId),
-                            /* receiverNodeId= */ null));
+                    docId, encodeDocUpdateMessage(docId, updateMessage, requireNonNull(mNodeId)));
         }
     }
 
@@ -338,11 +332,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
                 broadcastMessageForDoc(
                         docId,
-                        encodeVersionVectorMessage(
-                                docId,
-                                version.toByteArray(),
-                                senderNodeId,
-                                /* receiverNodeId= */ null));
+                        encodeVersionVectorMessage(docId, version.toByteArray(), senderNodeId));
             }
         }
     }
@@ -548,14 +538,14 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         return comp == VersionVector.OLDER || comp == VersionVector.CONCURRENT;
     }
 
-    private byte[] encodeVersionVectorMessage(
-            String docId, byte[] version, String senderNodeId, @Nullable String receiverNodeId) {
-        return encodeMessage(docId, /* docUpdate= */ null, version, senderNodeId, receiverNodeId);
+    private byte[] encodeVersionVectorMessage(String docId, byte[] version, String senderNodeId) {
+        return encodeMessage(
+                docId, /* docUpdate= */ null, version, senderNodeId, /* receiverNodeId= */ null);
     }
 
-    private byte[] encodeDocUpdateMessage(
-            String docId, byte[] docUpdate, String senderNodeId, @Nullable String receiverNodeId) {
-        return encodeMessage(docId, docUpdate, /* version= */ null, senderNodeId, receiverNodeId);
+    private byte[] encodeDocUpdateMessage(String docId, byte[] docUpdate, String senderNodeId) {
+        return encodeMessage(
+                docId, docUpdate, /* version= */ null, senderNodeId, /* receiverNodeId= */ null);
     }
 
     private byte[] encodeMessage(
@@ -699,14 +689,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         };
     }
 
-    private static class OnRemoteChangeListenerRecord {
-        private final Executor mExecutor;
-        private final OnRemoteChangeListener mListener;
-
-        OnRemoteChangeListenerRecord(Executor executor, OnRemoteChangeListener listener) {
-            mExecutor = executor;
-            mListener = listener;
-        }
+    private record OnRemoteChangeListenerRecord(
+            Executor mExecutor, OnRemoteChangeListener mListener) {
 
         void onRemoteChange(String path) {
             mExecutor.execute(() -> mListener.onRemoteChange(path));

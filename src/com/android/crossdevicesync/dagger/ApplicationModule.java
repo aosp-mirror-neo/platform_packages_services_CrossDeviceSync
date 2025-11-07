@@ -50,7 +50,8 @@ public abstract class ApplicationModule {
     @Singleton
     @Provides
     static SharedPreferences provideDefaultSharedPrefs(Context context) {
-        return context.getSharedPreferences(DEFAULT_SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
+        return context.createDeviceProtectedStorageContext()
+                .getSharedPreferences(DEFAULT_SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
     }
 
     /** Binds the {@link CompanionDeviceManagerProxy} implementation. */

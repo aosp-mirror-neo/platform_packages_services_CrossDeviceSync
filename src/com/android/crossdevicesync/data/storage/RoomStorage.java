@@ -13,32 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data;
+package com.android.crossdevicesync.data.storage;
 
 import android.content.Context;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.room.Dao;
-import androidx.room.Database;
-import androidx.room.Entity;
-import androidx.room.Insert;
-import androidx.room.PrimaryKey;
-import androidx.room.Query;
 import androidx.room.Room;
-import androidx.room.RoomDatabase;
-import androidx.room.Transaction;
-import androidx.room.Update;
 
+import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
-import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
 import com.google.android.submerge.StorageInterface.StorageException;
-
-import java.util.List;
 
 import javax.inject.Inject;
 
@@ -171,87 +159,5 @@ public class RoomStorage implements IStorage {
             return true;
         }
         return false;
-    }
-
-    /** Room DB schema of a document. */
-    @Entity
-    static class Document {
-        @NonNull @PrimaryKey public String docId;
-        public byte[] content;
-        public byte[] schema;
-        public byte[] metadata;
-    }
-
-    /** Room Dao for accessing {@link Document}. */
-    @Dao
-    abstract static class DocumentDao {
-        @Query("SELECT * from document where docId=:docId LIMIT 1")
-        abstract Document get(String docId);
-
-        @Insert
-        abstract void insert(Document document);
-
-        @Update
-        abstract void update(Document document);
-
-        @Query(("SELECT docId from document"))
-        abstract List<String> getAllDocIds();
-
-        @Transaction
-        void createOrUpdateContent(String docId, @Nullable byte[] content) {
-            Document doc = get(docId);
-            if (doc == null) {
-                doc = new Document();
-                doc.docId = docId;
-                doc.content = content;
-                insert(doc);
-            } else {
-                doc.content = content;
-                update(doc);
-            }
-        }
-
-        @Transaction
-        void createOrUpdateMetadata(String docId, @Nullable byte[] metadata) {
-            Document doc = get(docId);
-            if (doc == null) {
-                doc = new Document();
-                doc.docId = docId;
-                doc.metadata = metadata;
-                insert(doc);
-            } else {
-                doc.metadata = metadata;
-                update(doc);
-            }
-        }
-
-        @Transaction
-        void createOrUpdateSchema(String docId, @Nullable byte[] schema) {
-            Document doc = get(docId);
-            if (doc == null) {
-                doc = new Document();
-                doc.docId = docId;
-                doc.schema = schema;
-                insert(doc);
-            } else {
-                doc.schema = schema;
-                update(doc);
-            }
-        }
-
-        @Transaction
-        void transact(ThrowingRunnable runnable) {
-            runnable.run();
-        }
-    }
-
-    /** Entry point to the room DB. */
-    @Database(
-            entities = {Document.class},
-            version = 1)
-    abstract static class DocumentDB extends RoomDatabase {
-
-        /** Get a {@link DocumentDao}. */
-        public abstract DocumentDao documentDao();
     }
 }

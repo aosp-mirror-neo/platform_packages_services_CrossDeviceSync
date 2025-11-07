@@ -37,11 +37,11 @@ import dagger.Module;
         subcomponents = {SharedDataStoreComponent.class})
 public abstract class DataModule {
 
-    @SyncServiceSingleton
     @Binds
+    @SyncServiceSingleton
     abstract TimestampProvider bindsTimestampProvider(DefaultTimestampProvider defaultProvider);
 
-    @SyncServiceSingleton
     @Binds
+    @SyncServiceSingleton
     abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(DeviceNodeIdProviderImpl provider);
 }

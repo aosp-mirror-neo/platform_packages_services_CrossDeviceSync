@@ -106,6 +106,22 @@ public interface NetworkManager extends Dumpable {
          * information whose staleness can be checked (e.g. metadata).
          */
         AssociationInfo getAssociationInfoCache();
+
+        /** Returns {@code true} if the device is considered present. */
+        default boolean isPresent() {
+            if (isAssociationRemoved()) {
+                return false;
+            }
+            return hasTransport() || isBleAppeared() || isBtConnected() || isSelfManagedAppeared();
+        }
+
+        /** Returns {@code true} if the device is considered to be nearby. */
+        default boolean isNearby() {
+            if (!isPresent()) {
+                return false;
+            }
+            return isBleAppeared() || isBtConnected() || isSelfManagedNearby();
+        }
     }
 
     /**
