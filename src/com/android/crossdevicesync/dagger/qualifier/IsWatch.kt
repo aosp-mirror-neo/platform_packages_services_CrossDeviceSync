@@ -13,28 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.airplanemode;
+package com.android.crossdevicesync.dagger.qualifier
 
-import android.util.IndentingPrintWriter;
+import javax.inject.Qualifier
 
-import com.android.crossdevicesync.feature.FeatureManager;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
-import javax.inject.Inject;
-
-/** Airplane mode sync feature manager. */
-@SyncServiceSingleton
-public class AirplaneModeSyncManager implements FeatureManager {
-
-    @Inject
-    AirplaneModeSyncManager() {}
-
-    @Override
-    public void init() {}
-
-    @Override
-    public void destroy() {}
-
-    @Override
-    public void dump(IndentingPrintWriter pw) {}
-}
+/** Qualifier for whether this device is a watch. */
+@Qualifier @MustBeDocumented @Retention(AnnotationRetention.RUNTIME) annotation class IsWatch

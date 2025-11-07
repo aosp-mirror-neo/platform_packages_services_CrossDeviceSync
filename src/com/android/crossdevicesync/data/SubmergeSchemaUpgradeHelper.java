@@ -18,6 +18,7 @@ package com.android.crossdevicesync.data;
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.DataStore;

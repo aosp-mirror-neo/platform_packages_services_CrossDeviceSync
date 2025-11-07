@@ -17,6 +17,7 @@ package com.android.crossdevicesync.dagger;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -26,6 +27,7 @@ import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxyImpl;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
+import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 
 import dagger.Binds;
@@ -91,4 +93,11 @@ public abstract class ApplicationModule {
     @Singleton
     @Binds
     abstract Clock bindsClock(ClockImpl clock);
+
+    @Provides
+    @IsWatch
+    @Singleton
+    static boolean providesIsWatch(Context context) {
+        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
+    }
 }

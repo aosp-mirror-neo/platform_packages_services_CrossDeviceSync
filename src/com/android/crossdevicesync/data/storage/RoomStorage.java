@@ -21,7 +21,6 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.room.Room;
 
-import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;

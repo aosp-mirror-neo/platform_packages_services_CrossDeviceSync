@@ -21,7 +21,9 @@ import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
+import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 
 import dagger.Binds;
@@ -58,4 +60,11 @@ public abstract class TestApplicationModule {
     @Binds
     @Singleton
     abstract Clock bindClock(FakeClock fake);
+
+    @Provides
+    @IsWatch
+    @Singleton
+    static boolean providesIsWatch(IsWatchProvider isWatchProvider) {
+        return isWatchProvider.isWatch;
+    }
 }

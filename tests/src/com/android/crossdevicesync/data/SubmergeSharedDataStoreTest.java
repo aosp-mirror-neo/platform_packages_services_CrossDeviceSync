@@ -1103,7 +1103,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                                 .setValidator(validator))
                 .inject(testContext);
         testContext.mFakeStorage.copyAll(prevStorage);
-        return (ListenableFuture<Boolean>) testContext.mSharedDataStore.init();
+        return testContext.mSubmergeSharedDataStore.init();
     }
 
     private ListenableFuture<Boolean> reInitWithNewSchema(
@@ -1117,7 +1117,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             SharedDataStoreComponentTestBase testContext,
             ThrowingConsumer<MutableDocument<String>> consumer)
             throws Exception {
-        transactDataStore((SubmergeSharedDataStore<String>) testContext.mSharedDataStore, consumer);
+        transactDataStore(
+                (SubmergeSharedDataStore<String>) testContext.mSubmergeSharedDataStore, consumer);
     }
 
     private void transactDataStore(

@@ -17,8 +17,8 @@ package com.android.crossdevicesync.data.fake;
 
 import android.annotation.Nullable;
 
-import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface;

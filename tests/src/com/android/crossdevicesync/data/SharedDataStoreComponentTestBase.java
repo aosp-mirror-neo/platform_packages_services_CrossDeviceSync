@@ -38,6 +38,7 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     @Inject protected FakeStorage mFakeStorage;
     @Inject @DataStoreName protected String mDataStoreName;
     @Inject protected SharedDataStore<?> mSharedDataStore;
+    @Inject protected SubmergeSharedDataStore<?> mSubmergeSharedDataStore;
     @Inject @IOThread protected ExecutorService mExecutorService;
 
     @Override

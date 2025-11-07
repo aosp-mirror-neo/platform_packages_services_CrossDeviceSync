@@ -26,6 +26,7 @@ import androidx.annotation.Nullable;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
 import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 
