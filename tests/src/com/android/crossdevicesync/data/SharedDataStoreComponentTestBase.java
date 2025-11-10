@@ -54,12 +54,7 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
-                        .network(
-                                getNetworkManager()
-                                        .createNetwork(
-                                                NETWORK_ID,
-                                                device -> true,
-                                                associationInfo -> true))
+                        .network(getNetworkManager().createNetwork(NETWORK_ID, device -> true))
                         .name(dataStoreName)
                         .converter(mStringConverter)
                         .schemaProvider(schemaProvider)

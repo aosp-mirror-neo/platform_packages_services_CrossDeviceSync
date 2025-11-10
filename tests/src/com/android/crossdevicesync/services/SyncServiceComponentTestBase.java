@@ -20,12 +20,14 @@ import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
 import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
+import com.android.crossdevicesync.network.advertiser.AdvertiserImpl;
 import com.android.crossdevicesync.network.advertiser.fake.FakeAdvertiser;
 import com.android.crossdevicesync.network.companion.CompanionActionControllerImpl;
 import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
 import com.android.crossdevicesync.network.fake.FakeNetworkManager;
 import com.android.crossdevicesync.network.messenger.MessengerImpl;
 import com.android.crossdevicesync.network.messenger.fake.FakeMessenger;
+import com.android.crossdevicesync.network.scanner.ScannerImpl;
 import com.android.crossdevicesync.network.scanner.fake.FakeScanner;
 import com.android.crossdevicesync.services.dagger.TestSyncServiceComponent;
 
@@ -46,6 +48,8 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     @Inject protected FakeCompanionActionController mFakeCompanionActionController;
     @Inject protected FakeNetworkManager mFakeNetworkManager;
     @Inject protected CompanionActionControllerImpl mCompanionActionController;
+    @Inject protected AdvertiserImpl mAdvertiser;
+    @Inject protected ScannerImpl mScanner;
 
     @Override
     public void setUp() {

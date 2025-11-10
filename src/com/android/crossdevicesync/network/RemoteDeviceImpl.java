@@ -15,9 +15,12 @@
  */
 package com.android.crossdevicesync.network;
 
+import static java.util.Objects.requireNonNull;
+
 import android.companion.AssociationInfo;
 import android.util.IndentingPrintWriter;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 /** A class representing a remote device. */
@@ -30,14 +33,18 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
     private static final int FLAG_ASSOCIATION_REMOVED = 1 << 5;
 
     private final int mAssociationId;
+    private final int mUserId;
     @Nullable private final CharSequence mDisplayName;
     @Nullable private final String mDeviceProfile;
     private int mFlags;
+    private AssociationInfo mAssociationInfoCache;
 
     RemoteDeviceImpl(AssociationInfo associationInfo) {
         mAssociationId = associationInfo.getId();
+        mUserId = associationInfo.getUserId();
         mDisplayName = associationInfo.getDisplayName();
         mDeviceProfile = associationInfo.getDeviceProfile();
+        mAssociationInfoCache = associationInfo;
     }
 
     @Override
@@ -45,10 +52,25 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
         return mAssociationId;
     }
 
+    @Override
+    public AssociationInfo getAssociationInfoCache() {
+        return mAssociationInfoCache;
+    }
+
+    /** Update the cached {@link AssociationInfo}. */
+    public void setAssociationInfoCache(@NonNull AssociationInfo associationInfo) {
+        mAssociationInfoCache = requireNonNull(associationInfo);
+    }
+
     @Nullable
     @Override
     public CharSequence getDisplayName() {
         return mDisplayName;
+    }
+
+    @Override
+    public int getUserId() {
+        return mUserId;
     }
 
     @Nullable
@@ -154,8 +176,10 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
         pw.println("RemoteDevice:");
         pw.increaseIndent();
         pw.println("associationId=" + mAssociationId);
+        pw.println("userId=" + mUserId);
         pw.println("displayName='" + mDisplayName + "'");
         pw.println("deviceProfile='" + mDeviceProfile + "'");
+        pw.println("associationInfoCache=" + mAssociationInfoCache);
         pw.println("hasTransport=" + hasTransport());
         pw.println("isBleAppeared=" + isBleAppeared());
         pw.println("isBtConnected=" + isBtConnected());
@@ -172,11 +196,11 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
                 + mAssociationId
                 + ", displayName='"
                 + mDisplayName
-                + "'"
-                + ", deviceProfile='"
+                + "', deviceProfile='"
                 + mDeviceProfile
-                + "'"
-                + ", hasTransport="
+                + ", userId="
+                + getUserId()
+                + "', hasTransport="
                 + hasTransport()
                 + ", isBleAppeared="
                 + isBleAppeared()

@@ -369,10 +369,6 @@ public class MessengerImpl implements Messenger {
         @GuardedBy("mLock")
         private ListenableFuture<?> mAttachTransportFuture;
 
-        @Nullable
-        @GuardedBy("mLock")
-        private ListenableFuture<?> mDetachTransportFuture;
-
         /**
          * The maximum message handle id we received from this association. This will be used to
          * de-dup incoming messages.
@@ -429,29 +425,26 @@ public class MessengerImpl implements Messenger {
             if (!changed) {
                 return;
             }
+            boolean shouldNoteTransportFailure = false;
             if (mState == STATE_ATTACHING_TRANSPORT) {
                 Log.d(TAG, "Requesting transport attachment for association " + associationId);
                 mAttachTransportFuture = mCompanionActionController.attachTransport(associationId);
                 mAttachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
-            } else if (mAttachTransportFuture != null) {
-                if (mAttachTransportFuture.isDone()) {
-                    if (isFutureFailed(mAttachTransportFuture)) {
-                        noteTransportFailureLocked(now, getException(mAttachTransportFuture));
-                    }
-                } else {
-                    mAttachTransportFuture.cancel(true);
-                }
+            } else if (mState != STATE_SENDING && mAttachTransportFuture != null) {
+                // We are neither attaching transport nor sending message. Should cancel any
+                // unfinished transport request.
+                shouldNoteTransportFailure = isFutureFailed(mAttachTransportFuture);
+                mAttachTransportFuture.cancel(true);
                 mAttachTransportFuture = null;
             }
             if (mState == STATE_DETACHING_TRANSPORT) {
                 Log.d(TAG, "Requesting transport detachment for association " + associationId);
-                mDetachTransportFuture = mCompanionActionController.detachTransport(associationId);
-                mDetachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
+                mCompanionActionController.detachTransport(associationId);
                 // For any pending messages, detaching is considered transport failure.
+                shouldNoteTransportFailure = true;
+            }
+            if (shouldNoteTransportFailure) {
                 noteTransportFailureLocked(now, new Exception(mChangeReason));
-            } else if (mDetachTransportFuture != null) {
-                mDetachTransportFuture.cancel(true);
-                mDetachTransportFuture = null;
             }
         }
 
@@ -495,9 +488,8 @@ public class MessengerImpl implements Messenger {
                         return Pair.create(STATE_DETACHING_TRANSPORT, "buffer is empty");
                     }
                     case STATE_DETACHING_TRANSPORT -> {
-                        if (!requireNonNull(mDetachTransportFuture).isDone()) {
-                            return Pair.create(mState, mChangeReason);
-                        }
+                        // Detaching is fire-and-forget. So advance to STATE_IDLE
+                        // immediately without waiting for the result.
                         return Pair.create(STATE_IDLE, "buffer is empty");
                     }
                     default -> {
@@ -505,8 +497,8 @@ public class MessengerImpl implements Messenger {
                     }
                 }
             }
-
             // Message buffer is non-empty
+            final boolean hasTransport = mAssociationsWithTransport.contains(associationId);
             switch (mState) {
                 case STATE_IDLE -> {
                     return Pair.create(STATE_ATTACHING_TRANSPORT, "Request attaching transport");
@@ -521,6 +513,10 @@ public class MessengerImpl implements Messenger {
                     }
                 }
                 case STATE_ATTACHING_TRANSPORT -> {
+                    if (hasTransport) {
+                        // Already have transport. No need to wait for transport attachment result.
+                        return Pair.create(STATE_SENDING, "sending message");
+                    }
                     if (!requireNonNull(mAttachTransportFuture).isDone()) {
                         // Continue waiting for attaching result.
                         return Pair.create(mState, mChangeReason);
@@ -532,18 +528,14 @@ public class MessengerImpl implements Messenger {
                                 getException(mAttachTransportFuture).getMessage());
                     } else {
                         // Success!
-                        if (mAssociationsWithTransport.contains(associationId)) {
-                            return Pair.create(STATE_SENDING, "sending message");
-                        } else {
-                            return Pair.create(
-                                    STATE_WAITING_FOR_TRANSPORT,
-                                    "successfully requested transport but waiting for it to "
-                                            + "appear");
-                        }
+                        return Pair.create(
+                                STATE_WAITING_FOR_TRANSPORT,
+                                "successfully requested transport but waiting for it to "
+                                        + "appear");
                     }
                 }
                 case STATE_WAITING_FOR_TRANSPORT -> {
-                    if (mAssociationsWithTransport.contains(associationId)) {
+                    if (hasTransport) {
                         // Transport appeared. Sending message now.
                         return Pair.create(STATE_SENDING, "sending message");
                     }
@@ -559,7 +551,7 @@ public class MessengerImpl implements Messenger {
                     }
                 }
                 case STATE_SENDING -> {
-                    if (!mAssociationsWithTransport.contains(associationId)) {
+                    if (!hasTransport) {
                         return Pair.create(
                                 STATE_DETACHING_TRANSPORT, "lost transport unexpectedly");
                     }
@@ -567,11 +559,8 @@ public class MessengerImpl implements Messenger {
                     return Pair.create(mState, mChangeReason);
                 }
                 case STATE_DETACHING_TRANSPORT -> {
-                    if (!requireNonNull(mDetachTransportFuture).isDone()) {
-                        // Continue waiting for detaching result.
-                        return Pair.create(mState, mChangeReason);
-                    }
-                    // Done detaching. Try re-attaching after timeout.
+                    // Detaching is fire-and-forget. So advance to STATE_WAITING_TO_ATTACH_TRANSPORT
+                    // immediately without waiting for the result.
                     return Pair.create(STATE_WAITING_TO_ATTACH_TRANSPORT, mChangeReason);
                 }
                 default -> {
@@ -585,6 +574,12 @@ public class MessengerImpl implements Messenger {
             switch (mState) {
                 case STATE_WAITING_TO_ATTACH_TRANSPORT -> {
                     return mLastChangeTimestamp + RETRY_DELAY_MS;
+                }
+                case STATE_ATTACHING_TRANSPORT -> {
+                    // Invalidate immediately when a transport is already attached.
+                    return mAssociationsWithTransport.contains(associationId)
+                            ? now
+                            : Long.MAX_VALUE;
                 }
                 case STATE_WAITING_FOR_TRANSPORT -> {
                     return mLastChangeTimestamp + WAITING_FOR_TRANSPORT_TIMEOUT;
@@ -608,6 +603,10 @@ public class MessengerImpl implements Messenger {
                         }
                     }
                     return nextInvalidation;
+                }
+                case STATE_DETACHING_TRANSPORT -> {
+                    // Detaching is fire-and-forget. So immediately invalidate for next state.
+                    return now;
                 }
                 default -> {
                     return Long.MAX_VALUE;
@@ -755,10 +754,6 @@ public class MessengerImpl implements Messenger {
             if (mAttachTransportFuture != null) {
                 mAttachTransportFuture.cancel(true);
                 mAttachTransportFuture = null;
-            }
-            if (mDetachTransportFuture != null) {
-                mDetachTransportFuture.cancel(true);
-                mDetachTransportFuture = null;
             }
         }
 

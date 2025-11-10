@@ -399,7 +399,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     }
 
     /** Adds an association for the given user and notifies listeners. */
-    public void addAssociationForUser(@UserIdInt int userId, AssociationInfo associationInfo) {
+    public void addAssociation(AssociationInfo associationInfo) {
         AssociationRecord r = findAssociationById(associationInfo.getId());
         if (r != null) {
             if (r.associationInfo.equals(associationInfo)) {
@@ -408,7 +408,8 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
             r.updateInfo(associationInfo);
         } else {
             List<AssociationRecord> records =
-                    mAssociations.computeIfAbsent(userId, k -> new ArrayList<>());
+                    mAssociations.computeIfAbsent(
+                            associationInfo.getUserId(), k -> new ArrayList<>());
             r = new AssociationRecord(associationInfo);
             records.add(r);
         }

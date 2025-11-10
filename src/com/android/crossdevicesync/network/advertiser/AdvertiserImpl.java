@@ -16,26 +16,168 @@
 package com.android.crossdevicesync.network.advertiser;
 
 import android.util.IndentingPrintWriter;
+import android.util.Log;
 
+import androidx.annotation.GuardedBy;
+
+import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.network.companion.CompanionActionController;
+import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
 /** Default implementation of {@link Advertiser}. */
 @SyncServiceSingleton
 public class AdvertiserImpl implements Advertiser {
+    private static final String TAG = "Advertiser";
+
+    private final Object mLock;
+    private final CompanionActionController mCompanionActionController;
+    private final Executor mExecutor;
+
+    @GuardedBy("mLock")
+    private final Set<AdvertisingSessionImpl> mSessions = new HashSet<>();
+
+    private final Set<Integer> mAssociationsRequestedAdvertising = new HashSet<>();
+
+    @GuardedBy("mLock")
+    private boolean mInvalidationPending;
 
     @Inject
-    AdvertiserImpl() {}
-
-    @Override
-    public AdvertisingSession startAdvertising(int associationId, String requestName) {
-        return null;
+    AdvertiserImpl(
+            @NetworkLock Object lock,
+            CompanionActionController companionActionController,
+            @Main Executor executor) {
+        mLock = lock;
+        mCompanionActionController = companionActionController;
+        mExecutor = executor;
     }
 
     @Override
-    public void closeAllAdvertisingSessions() {}
+    public AdvertisingSession startAdvertising(int associationId, String requestName) {
+        synchronized (mLock) {
+            AdvertisingSessionImpl session = new AdvertisingSessionImpl(associationId, requestName);
+            mSessions.add(session);
+            invalidateLocked();
+            Log.d(TAG, "Started advertising session " + session);
+            return session;
+        }
+    }
 
     @Override
-    public void dump(IndentingPrintWriter pw) {}
+    public void closeAllAdvertisingSessions() {
+        synchronized (mLock) {
+            List.copyOf(mSessions).forEach(AdvertisingSessionImpl::close);
+        }
+    }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        synchronized (mLock) {
+            pw.println("Advertiser:");
+            pw.increaseIndent();
+            pw.println("mInvalidationPending=" + mInvalidationPending);
+            pw.println("mAssociationsRequestedAdvertising=" + mAssociationsRequestedAdvertising);
+            if (mSessions.isEmpty()) {
+                pw.println("No advertising sessions.");
+            } else {
+                pw.println("Advertising sessions:");
+                pw.increaseIndent();
+                mSessions.forEach(pw::println);
+                pw.decreaseIndent();
+            }
+            pw.decreaseIndent();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void invalidateLocked() {
+        if (mInvalidationPending) {
+            return;
+        }
+        mInvalidationPending = true;
+        mExecutor.execute(this::doInvalidate);
+    }
+
+    private void doInvalidate() {
+        synchronized (mLock) {
+            if (!mInvalidationPending) {
+                return;
+            }
+            mInvalidationPending = false;
+            Set<Integer> associationsWithSession = new HashSet<>();
+            for (AdvertisingSessionImpl session : mSessions) {
+                associationsWithSession.add(session.getAssociationId());
+            }
+
+            // Start advertising for new sessions.
+            for (int associationId : associationsWithSession) {
+                if (mAssociationsRequestedAdvertising.add(associationId)) {
+                    // Fire and forgot the action request. We fully delegate the advertisement
+                    // management to companion apps.
+                    mCompanionActionController.startNearbyAdvertising(associationId);
+                }
+            }
+            // Stop advertising for sessions that are no longer active.
+            mAssociationsRequestedAdvertising.removeIf(
+                    associationId -> {
+                        if (associationsWithSession.contains(associationId)) {
+                            return false;
+                        }
+                        // Fire and forget the action request. Don't expect failure to happen
+                        // for deactivate request.
+                        mCompanionActionController.stopNearbyAdvertising(associationId);
+                        return true;
+                    });
+        }
+    }
+
+    private final class AdvertisingSessionImpl implements AdvertisingSession {
+        private final int mAssociationId;
+        private final String mRequestName;
+
+        AdvertisingSessionImpl(int associationId, String requestName) {
+            mAssociationId = associationId;
+            mRequestName = requestName;
+        }
+
+        @Override
+        public int getAssociationId() {
+            return mAssociationId;
+        }
+
+        @Override
+        public boolean isActive() {
+            synchronized (mLock) {
+                return mSessions.contains(this);
+            }
+        }
+
+        @Override
+        public void close() {
+            synchronized (mLock) {
+                if (mSessions.remove(this)) {
+                    invalidateLocked();
+                    Log.d(TAG, "Closed advertising session " + this);
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "AdvertisingSession(associationId="
+                    + mAssociationId
+                    + ",requestName="
+                    + mRequestName
+                    + ",isActive="
+                    + isActive()
+                    + ")";
+        }
+    }
 }

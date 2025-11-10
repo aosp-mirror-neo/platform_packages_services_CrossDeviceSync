@@ -166,6 +166,80 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
     }
 
     @Test
+    public void sendMessage_requestTransport_alreadyHasTransport_messageSent() {
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
+
+        ListenableFuture<Boolean> future =
+                mMessengerImpl.sendMessage(
+                        TEST_NETWORK,
+                        /* associationId= */ 1,
+                        new byte[] {1},
+                        /* maxDeliveryAttempts= */ 1);
+
+        assertThat(future.isDone()).isFalse();
+        // Verify we've requested transport attachment
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNotNull();
+        // Very we've sent the message.
+        assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
+    }
+
+    @Test
+    public void sendMessage_requestTransportFailedAfterAlreadyHasTransport_messageSent() {
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
+        ListenableFuture<Boolean> future =
+                mMessengerImpl.sendMessage(
+                        TEST_NETWORK,
+                        /* associationId= */ 1,
+                        new byte[] {1},
+                        /* maxDeliveryAttempts= */ 1);
+
+        // Fail the transport attachment future despite we already have a transport.
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .setException(new Exception());
+
+        // We are still sending the message.
+        assertThat(future.isDone()).isFalse();
+    }
+
+    @Test
+    public void
+            sendMessage_requestTransportFailedAfterAlreadyHasTransport_notAffectingRetryCount() {
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
+        ListenableFuture<Boolean> future =
+                mMessengerImpl.sendMessage(
+                        TEST_NETWORK,
+                        /* associationId= */ 1,
+                        new byte[] {1},
+                        /* maxDeliveryAttempts= */ 2);
+
+        // Fail the transport attachment future despite we already have a transport. This does not
+        // increment retry count.
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .setException(new Exception());
+        assertThat(future.isDone()).isFalse();
+
+        // Transport is gone.
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, false);
+        assertThat(future.isDone()).isFalse();
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
+
+        // Retry after timeout.
+        mFakeClock.advanceTime(RETRY_DELAY_MS);
+        assertThat(future.isDone()).isFalse();
+        SettableFuture<?> attachTransportFuture =
+                mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1);
+        assertThat(future).isNotNull();
+
+        // Transport attachment failed.
+        attachTransportFuture.setException(new Exception());
+        assertThat(isFutureFailed(future)).isTrue();
+    }
+
+    @Test
     public void sendMessage_waitForTransportTimeout_retryAfterDetach() {
         ListenableFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
@@ -785,9 +859,8 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         FakeCompanionDeviceManagerProxy remoteCDM = remoteContext.getCDM();
 
         // Setup associations on both devices.
-        remoteCDM.addAssociationForUser(/* userId= */ 0, createAssociationInfo(/* id= */ 1));
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), createAssociationInfo(associationId));
+        remoteCDM.addAssociation(/* userId= */ createAssociationInfo(/* id= */ 1));
+        mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(associationId));
 
         // Hook messages
         remoteCDM.addSentMessageListener(

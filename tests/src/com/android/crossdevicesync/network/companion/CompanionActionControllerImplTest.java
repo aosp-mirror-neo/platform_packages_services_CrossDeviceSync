@@ -42,10 +42,8 @@ public class CompanionActionControllerImplTest extends SyncServiceComponentTestB
     public void setUp() {
         super.setUp();
         mCompanionActionController.init();
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), createAssociationInfo(ASSOCIATION1_ID));
-        mFakeCompanionDeviceManagerProxy.addAssociationForUser(
-                mContext.getUserId(), createAssociationInfo(ASSOCIATION2_ID));
+        mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(ASSOCIATION1_ID));
+        mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(ASSOCIATION2_ID));
     }
 
     @Test
