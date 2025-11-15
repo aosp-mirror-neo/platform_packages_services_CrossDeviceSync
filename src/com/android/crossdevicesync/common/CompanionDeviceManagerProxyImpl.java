@@ -135,7 +135,6 @@ public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerPr
 
     @Override
     public PersistableBundle getLocalMetadata(int userId) {
-        // TODO(b/430675720): implement
-        return new PersistableBundle();
+        return mCompanionDeviceManager.getLocalMetadata(userId);
     }
 }
