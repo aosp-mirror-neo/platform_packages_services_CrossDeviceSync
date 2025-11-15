@@ -35,6 +35,7 @@ import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
@@ -55,6 +56,9 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
     private final Clock mClock;
     private final Executor mMainExecutor;
+
+    @GuardedBy("mLock")
+    private final Map<Integer, Map<String, Object>> mStagingMetadata = new HashMap<>();
 
     @GuardedBy("mLock")
     private final Map<Integer, Network> mUserNetworks = new HashMap<>();
@@ -250,31 +254,62 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
         putObject(userId, key, val);
     }
 
-    // TODO(b/430675720): support put multiple key-val pairs
     private void putObject(int userId, String key, Object val) {
         synchronized (mLock) {
             throwIfUninitializedLocked();
-            PersistableBundle bundle =
-                    mCompanionDeviceManager
-                            .getLocalMetadata(userId)
-                            .getPersistableBundle(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC);
-            if (bundle != null && Objects.equals(bundle.get(key), val)) {
-                // Unchanged.
+            boolean wasEmpty = mStagingMetadata.isEmpty();
+            Map<String, Object> userMetadata =
+                    mStagingMetadata.computeIfAbsent(userId, k -> new HashMap<>());
+            userMetadata.put(key, val);
+            if (wasEmpty) {
+                // flushStagingMetadata() will clear the staging data. So if the staging data was
+                // not empty, it means we already have a pending flush in the queue. In that case,
+                // we don't have to post another flush runnable.
+                mMainExecutor.execute(this::flushStagingMetadata);
+            }
+        }
+    }
+
+    private void flushStagingMetadata() {
+        synchronized (mLock) {
+            if (!mInitialized) {
                 return;
             }
-            if (bundle == null) {
-                bundle = new PersistableBundle();
+            for (Entry<Integer, Map<String, Object>> entry : mStagingMetadata.entrySet()) {
+                int userId = entry.getKey();
+                Map<String, Object> userMetadata = entry.getValue();
+                PersistableBundle bundle =
+                        mCompanionDeviceManager
+                                .getLocalMetadata(userId)
+                                .getPersistableBundle(
+                                        CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC);
+                if (bundle == null) {
+                    bundle = new PersistableBundle();
+                }
+                boolean changed = false;
+                for (Entry<String, Object> metadataEntry : userMetadata.entrySet()) {
+                    String key = metadataEntry.getKey();
+                    Object val = metadataEntry.getValue();
+                    if (!Objects.equals(bundle.get(key), val)) {
+                        changed = true;
+                        bundle.putObject(key, val);
+                    }
+                }
+                if (!changed) {
+                    // Unchanged.
+                    continue;
+                }
+                mCompanionDeviceManager.setLocalMetadata(
+                        userId, CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, bundle);
+                mSharedPreferences
+                        .edit()
+                        .putLong(
+                                LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId,
+                                mClock.currentTimeMillis())
+                        .apply();
+                broadcastPingLocked(userId);
             }
-            bundle.putObject(key, val);
-            mCompanionDeviceManager.setLocalMetadata(
-                    userId, CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, bundle);
-            mSharedPreferences
-                    .edit()
-                    .putLong(
-                            LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId,
-                            mClock.currentTimeMillis())
-                    .apply();
-            broadcastPingLocked(userId);
+            mStagingMetadata.clear();
         }
     }
 
@@ -286,6 +321,7 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
             pw.println("mInitialized=" + mInitialized);
             pw.println("mUserBroadcastMessages=" + mUserBroadcastMessages);
             pw.println("mUserUnicastMessages=" + mUserUnicastMessages);
+            pw.println("mStagingMetadata=" + mStagingMetadata);
             pw.decreaseIndent();
         }
     }
