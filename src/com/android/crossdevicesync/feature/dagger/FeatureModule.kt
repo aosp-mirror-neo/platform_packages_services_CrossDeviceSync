@@ -15,38 +15,10 @@
  */
 package com.android.crossdevicesync.feature.dagger
 
-import com.android.crossdevicesync.data.SchemaProvider
-import com.android.crossdevicesync.data.SharedDataStore
-import com.android.crossdevicesync.data.SharedDataStoreFactory
-import com.android.crossdevicesync.data.dagger.SharedDataStoreComponent
 import com.android.crossdevicesync.feature.airplanemode.dagger.AirplaneModeSyncModule
-import com.android.crossdevicesync.feature.mode.dagger.ModeSyncModule
-import com.android.crossdevicesync.network.NetworkManager
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
-import com.google.android.submerge.Converter
+import com.android.crossdevicesync.feature.mode.dagger.ContextualModeSyncModule
 import dagger.Module
-import dagger.Provides
 
 /** Dagger module for feature code. */
-@Module(includes = [ModeSyncModule::class, AirplaneModeSyncModule::class])
-object FeatureModule {
-    @Provides
-    @SyncServiceSingleton
-    fun providesSharedDataStoreFactory(componentBuilder: SharedDataStoreComponent.Builder) =
-        object : SharedDataStoreFactory {
-            @Suppress("UNCHECKED_CAST") // Component uses generics due to limitations.
-            override fun <T> create(
-                name: String,
-                converter: Converter<T>,
-                schemaProvider: SchemaProvider<T>,
-                network: NetworkManager.Network,
-            ): SharedDataStore<T> =
-                componentBuilder
-                    .name(name)
-                    .converter(converter)
-                    .schemaProvider(schemaProvider)
-                    .network(network)
-                    .build()
-                    .getSharedDataStore() as SharedDataStore<T>
-        }
-}
+@Module(includes = [ContextualModeSyncModule::class, AirplaneModeSyncModule::class])
+object FeatureModule

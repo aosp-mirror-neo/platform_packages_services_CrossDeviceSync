@@ -679,6 +679,21 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         return mName + "::" + docId;
     }
 
+    @Override
+    public String toString() {
+        synchronized (mLock) {
+            return "SharedDataStore{name="
+                    + mName
+                    + ", state="
+                    + stateToString(mState)
+                    + ", docs="
+                    + mSchemaProvider.getAllDocumentSchema().stream()
+                            .map(DocumentSchemaInfo::getDocId)
+                            .toList()
+                    + "}";
+        }
+    }
+
     private static String stateToString(@State int state) {
         return switch (state) {
             case STATE_UNINITIALIZED -> "UNINITIALIZED";

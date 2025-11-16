@@ -15,15 +15,23 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import androidx.annotation.NonNull;
+
 import com.android.crossdevicesync.data.DefaultTimestampProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProviderImpl;
+import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
+import com.google.android.submerge.Converter;
 import com.google.android.submerge.TimestampProvider;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
 /**
  * Dagger module for injecting data related bindings in the sync service scope. Production-only
@@ -44,4 +52,29 @@ public abstract class DataModule {
     @Binds
     @SyncServiceSingleton
     abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(DeviceNodeIdProviderImpl provider);
+
+    @Provides
+    @SyncServiceSingleton
+    static SharedDataStoreFactory providesSharedDataStoreFactory(
+            SharedDataStoreComponent.Builder componentBuilder) {
+        return new SharedDataStoreFactory() {
+            @NonNull
+            @SuppressWarnings("unchecked")
+            @Override
+            public <T> SharedDataStore<T> create(
+                    @NonNull String name,
+                    @NonNull Converter<T> converter,
+                    @NonNull SchemaProvider<T> schemaProvider,
+                    @NonNull Network network) {
+                return (SharedDataStore<T>)
+                        componentBuilder
+                                .name(name)
+                                .converter(converter)
+                                .schemaProvider(schemaProvider)
+                                .network(network)
+                                .build()
+                                .getSharedDataStore();
+            }
+        };
+    }
 }
