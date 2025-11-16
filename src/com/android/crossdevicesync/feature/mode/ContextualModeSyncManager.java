@@ -15,26 +15,144 @@
  */
 package com.android.crossdevicesync.feature.mode;
 
+import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
+import android.util.Log;
 
+import com.android.crossdevicesync.common.ContextualModeManagerProxy;
+import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+import com.android.crossdevicesync.user.UserHelper;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
 /** Contextual mode sync feature manager. */
 @SyncServiceSingleton
-public class ContextualModeSyncManager implements FeatureManager {
+public class ContextualModeSyncManager implements FeatureManager, UserHelper.UserListener {
+    private static final String TAG = "CtxModeSyncManager";
+    private final ContextualModeSyncController.Factory mModeSyncControllerFactory;
+    private final Map<UserHandle, ContextualModeSyncController> mSyncControllers = new HashMap<>();
+    private final UserHelper mUserHelper;
+    private final ContextualModeManagerProxy mContextualModeManager;
+    private final Executor mMainExecutor;
+    private final MetadataPublisher mMetadataPublisher;
+    private boolean mModeSyncSupported;
+    private boolean mInitialized;
 
     @Inject
-    ContextualModeSyncManager() {}
+    ContextualModeSyncManager(
+            ContextualModeSyncController.Factory modeSyncControllerFactory,
+            UserHelper userHelper,
+            ContextualModeManagerProxy contextualModeManager,
+            @Main Executor executor,
+            MetadataPublisher metadataPublisher) {
+        mModeSyncControllerFactory = modeSyncControllerFactory;
+        mUserHelper = userHelper;
+        mContextualModeManager = contextualModeManager;
+        mMainExecutor = executor;
+        mMetadataPublisher = metadataPublisher;
+    }
 
     @Override
-    public void init() {}
+    public void init() {
+        if (!android.service.notification.Flags.enableDndSync()) {
+            return;
+        }
+        if (mInitialized) {
+            return;
+        }
+        mInitialized = true;
+        mModeSyncSupported = mContextualModeManager.isModeSyncSupported();
+        mMetadataPublisher.putBooleanMetaData(
+                UserHandle.USER_ALL,
+                ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED,
+                mModeSyncSupported);
+        if (!mModeSyncSupported) {
+            return;
+        }
+        mMetadataPublisher.putIntMetaData(
+                UserHandle.USER_ALL,
+                ModeSyncMetadata.METADATA_CONTEXTUAL_MODES_DOC_SCHEMA_VERSION,
+                ModeSyncDocs.CURRENT_SCHEMA_VERSION);
+        maybeUpdateSyncControllers();
+        mUserHelper.registerUserListener(mMainExecutor, this);
+    }
 
     @Override
-    public void destroy() {}
+    public void onUserAdded(UserHandle user) {
+        Log.i(TAG, "User " + user + " is added.");
+        maybeUpdateSyncControllers();
+    }
 
     @Override
-    public void dump(IndentingPrintWriter pw) {}
+    public void onUserRemoved(UserHandle user) {
+        Log.i(TAG, "User " + user + " is removed.");
+        maybeUpdateSyncControllers();
+    }
+
+    private void maybeUpdateSyncControllers() {
+        Set<UserHandle> users = new HashSet<>();
+        mUserHelper.getAliveUsers().forEach(info -> users.add(info.getUserHandle()));
+
+        // Start mode sync controller for each user.
+        for (UserHandle user : users) {
+            if (mSyncControllers.containsKey(user)) {
+                continue;
+            }
+            Log.i(TAG, "Starting contextual mode sync controller for user " + user + ".");
+            ContextualModeSyncController controller = mModeSyncControllerFactory.create(user);
+            mSyncControllers.put(user, controller);
+            controller.start();
+        }
+
+        // Handle user removal case.
+        Iterator<Entry<UserHandle, ContextualModeSyncController>> modeSyncControllerIterator =
+                mSyncControllers.entrySet().iterator();
+        while (modeSyncControllerIterator.hasNext()) {
+            Entry<UserHandle, ContextualModeSyncController> entry =
+                    modeSyncControllerIterator.next();
+            UserHandle user = entry.getKey();
+            ContextualModeSyncController syncController = entry.getValue();
+            if (!users.contains(user)) {
+                Log.i(TAG, "Stopping contextual mode sync controller for user " + user + ".");
+                syncController.stop(/* deleteDataStore= */ true);
+                modeSyncControllerIterator.remove();
+            }
+        }
+    }
+
+    @Override
+    public void destroy() {
+        if (!mInitialized) {
+            return;
+        }
+        mInitialized = false;
+        mSyncControllers.values().forEach(ContextualModeSyncController::stop);
+        mSyncControllers.clear();
+        mUserHelper.unregisterUserListener(this);
+    }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        pw.println("ContextualModeSyncManager");
+        pw.increaseIndent();
+        pw.println("mInitialized=" + mInitialized);
+        pw.println("mModeSyncSupported=" + mModeSyncSupported);
+        if (mSyncControllers.isEmpty()) {
+            pw.println("No active mode sync controllers!");
+        } else {
+            mSyncControllers.values().forEach(c -> c.dump(pw));
+        }
+        pw.decreaseIndent();
+    }
 }
