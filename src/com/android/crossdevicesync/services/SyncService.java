@@ -26,14 +26,15 @@ import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -51,16 +52,19 @@ public class SyncService extends Service {
             "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
     private final NetworkManager mNetworkManager;
+    private final MetadataPublisher mMetadataPublisher;
     private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
-    private final Map<Class<?>, FeatureManager> mFeatureManagers = new HashMap<>();
+    private final Set<FeatureManager> mFeatureManagers = new HashSet<>();
 
     @Nullable private CountDownLatch mDestroyLatch;
 
     @Inject
     public SyncService(
             NetworkManager networkManager,
+            MetadataPublisher metadataPublisher,
             Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
         mNetworkManager = networkManager;
+        mMetadataPublisher = metadataPublisher;
         mFeatureManagerProviders = featureManagerProviders;
     }
 
@@ -69,15 +73,15 @@ public class SyncService extends Service {
         super.onCreate();
         Log.i(TAG, "onCreate()");
         mNetworkManager.init();
-        for (Entry<Class<?>, Provider<FeatureManager>> entry :
-                mFeatureManagerProviders.entrySet()) {
-            Log.i(TAG, "Initializing " + entry.getKey() + "...");
+        mMetadataPublisher.init();
+        for (var entry : mFeatureManagerProviders.entrySet()) {
             try {
+                Log.i(TAG, "Initializing " + entry.getKey().getSimpleName() + "...");
                 FeatureManager featureManager = entry.getValue().get();
                 featureManager.init();
-                mFeatureManagers.put(entry.getKey(), featureManager);
-            } catch (Throwable e) {
-                Log.e(TAG, "Failed to initialize " + entry.getKey(), e);
+                mFeatureManagers.add(featureManager);
+            } catch (Throwable t) {
+                Log.e(TAG, "Failed to initialize " + entry.getKey().getSimpleName(), t);
             }
         }
     }
@@ -86,8 +90,9 @@ public class SyncService extends Service {
     public void onDestroy() {
         super.onDestroy();
         Log.i(TAG, "onDestroy()");
-        mFeatureManagers.values().forEach(FeatureManager::destroy);
+        mFeatureManagers.forEach(FeatureManager::destroy);
         mFeatureManagers.clear();
+        mMetadataPublisher.destroy();
         mNetworkManager.destroy();
         if (mDestroyLatch != null) {
             mDestroyLatch.countDown();
@@ -110,12 +115,13 @@ public class SyncService extends Service {
         pw.println("SyncService state:");
         pw.increaseIndent();
         mNetworkManager.dump(pw);
-        mFeatureManagers.values().forEach(f -> f.dump(pw));
+        mMetadataPublisher.dump(pw);
+        mFeatureManagers.forEach(f -> f.dump(pw));
         pw.decreaseIndent();
     }
 
-    @VisibleForTesting
     /** Stop the service and wait for onDestroy() to be called. */
+    @VisibleForTesting
     public void stopAndWait(long timeout, TimeUnit unit) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         mDestroyLatch = latch;

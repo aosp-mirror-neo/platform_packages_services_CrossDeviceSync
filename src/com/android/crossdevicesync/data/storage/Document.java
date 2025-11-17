@@ -13,13 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.dagger;
+package com.android.crossdevicesync.data.storage;
 
-import com.android.crossdevicesync.feature.airplanemode.dagger.AirplaneModeSyncModule;
-import com.android.crossdevicesync.feature.mode.dagger.ModeSyncModule;
+import androidx.annotation.NonNull;
+import androidx.room.Entity;
+import androidx.room.PrimaryKey;
 
-import dagger.Module;
-
-/** Dagger module for feature code. */
-@Module(includes = {ModeSyncModule.class, AirplaneModeSyncModule.class})
-public abstract class FeatureModule {}
+/** Room DB schema of a document. */
+@Entity
+class Document {
+    @NonNull @PrimaryKey public String docId;
+    public byte[] content;
+    public byte[] schema;
+    public byte[] metadata;
+}

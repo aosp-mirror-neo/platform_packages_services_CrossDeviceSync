@@ -21,12 +21,11 @@ import static com.android.crossdevicesync.network.MessageRecord.MAX_DELIVERY_ATT
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.companion.AssociationInfo;
@@ -399,7 +398,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                 /* associationId= */ 1, /* hasTransport= */ true);
 
         assertThat(network.getRemoteDevices()).hasSize(1);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
@@ -416,13 +415,13 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         AssociationInfo info = createAssociationInfo(/* id= */ 1);
         mFakeCompanionDeviceManagerProxy.addAssociation(info);
         assertThat(network.getRemoteDevices()).isEmpty();
-        verify(mListener, never()).onDeviceChanged(1);
+        verifyNotReceivedDeviceChanged(mListener, /* associationId= */ 1);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
 
         assertThat(network.getRemoteDevices()).hasSize(1);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
     }
 
     @Test
@@ -434,7 +433,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).hasSize(1);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.removeAssociation(/* associationId= */ 1);
@@ -462,10 +461,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThat(network1.getRemoteDevices()).hasSize(2);
         assertThat(network2.getRemoteDevices()).hasSize(1);
-        verify(listener1).onDeviceChanged(1);
-        verify(listener1).onDeviceChanged(2);
-        verify(listener2).onDeviceChanged(1);
-        verify(listener2, never()).onDeviceChanged(2);
+        verifyReceivedDeviceChanged(listener1, /* associationId= */ 1);
+        verifyReceivedDeviceChanged(listener1, /* associationId= */ 2);
+        verifyReceivedDeviceChanged(listener2, /* associationId= */ 1);
+        verifyNotReceivedDeviceChanged(listener2, /* associationId= */ 2);
     }
 
     @Test
@@ -477,7 +476,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).hasSize(1);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
 
         network.destroy();
 
@@ -495,14 +494,14 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.simulateDevicePresenceEvent(
                 new DevicePresenceEvent(
                         /* associationId= */ 1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
 
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         reset(mListener);
 
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
@@ -533,7 +532,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
 
         network.unregisterListener(mListener);
         reset(mListener);
@@ -561,7 +560,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
         assertThat(network.getRemoteDevices()).isEmpty();
-        verify(mListener, never()).onDeviceChanged(1);
+        verifyNotReceivedDeviceChanged(mListener, /* associationId= */ 1);
 
         // Update the association to add the "is_wearable" flag to the metadata.
         PersistableBundle metadata = new PersistableBundle();
@@ -572,7 +571,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         // Verify the device now joins the network.
         assertThat(network.getRemoteDevices()).hasSize(1);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         reset(mListener);
 
         // Update the association to use empty metadata again.
@@ -593,7 +592,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.addAssociation(info);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         assertThat(network.getRemoteDevices().get(1).isBleAppeared()).isFalse();
         reset(mListener);
 
@@ -601,7 +600,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                 new DevicePresenceEvent(
                         /* associationId= */ 1, DevicePresenceEvent.EVENT_BLE_APPEARED, null));
 
-        verify(mListener).onDeviceChanged(1);
+        verifyReceivedDeviceChanged(mListener, /* associationId= */ 1);
         assertThat(network.getRemoteDevices().get(1).isBleAppeared()).isTrue();
     }
 
@@ -618,7 +617,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(
                 /* associationId= */ 1, /* hasTransport= */ true);
 
-        verify(mListener, never()).onDeviceChanged(1);
+        verifyNotReceivedDeviceChanged(mListener, /* associationId= */ 1);
     }
 
     @Test
@@ -804,17 +803,14 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                 mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
         network.registerListener(mMainExecutor, mListener);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
-        verify(mListener, atLeastOnce()).onDeviceChanged(captor.capture());
-        int countBeforeDestroy = captor.getAllValues().size();
-        assertThat(countBeforeDestroy).isGreaterThan(0);
+        reset(mListener);
 
         network.destroy();
 
         // This would have triggered onDeviceChanged if the listener was still registered.
         makeDevicePresent(/* associationId= */ 1, /* nearby= */ false);
 
-        verify(mListener, times(countBeforeDestroy)).onDeviceChanged(anyInt());
+        verify(mListener, never()).onDeviceChanged(any());
     }
 
     @Test
@@ -1017,12 +1013,11 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         network1.destroy();
 
-        Network network2 =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
 
         // Verify the listener from the old network was not notified.
-        verify(mListener, never()).onDeviceChanged(anyInt());
+        verify(mListener, never()).onDeviceChanged(any());
     }
 
     @Test
@@ -1617,5 +1612,30 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         return new AssociationInfo.Builder(id, userId, "com.android.crossdevicesync")
                 .setDisplayName("displayName" + id)
                 .build();
+    }
+
+    private void verifyReceivedDeviceChanged(NetworkListener listener, int associationId) {
+        ArgumentCaptor<RemoteDevice> captor = ArgumentCaptor.forClass(RemoteDevice.class);
+        verify(listener, atLeastOnce()).onDeviceChanged(captor.capture());
+        assertThat(
+                        captor.getAllValues().stream()
+                                .filter(device -> device.getAssociationId() == associationId)
+                                .count())
+                .isAtLeast(1);
+    }
+
+    private void verifyNotReceivedDeviceChanged(NetworkListener listener, int associationId) {
+        ArgumentCaptor<RemoteDevice> captor = ArgumentCaptor.forClass(RemoteDevice.class);
+        try {
+            verify(listener, atLeastOnce()).onDeviceChanged(captor.capture());
+        } catch (Throwable e) {
+            // Not invoked.
+            return;
+        }
+        assertThat(
+                        captor.getAllValues().stream()
+                                .filter(device -> device.getAssociationId() == associationId)
+                                .count())
+                .isEqualTo(0);
     }
 }

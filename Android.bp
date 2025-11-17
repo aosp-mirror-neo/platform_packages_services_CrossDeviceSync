@@ -34,11 +34,15 @@ android_app {
     defaults: ["platform_app_defaults"],
     certificate: "platform",
     privileged: true,
-    srcs: ["src/**/*.java"],
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
+    ],
     static_libs: [
         "androidx.annotation_annotation",
         "androidx.room_room-runtime",
         "com_android_crossdevicesync_flags_lib",
+        "connectivity_flags_lib",
         "dagger2",
         "data-protos-lite",
         "error_prone_annotations",
@@ -56,6 +60,7 @@ android_app {
     optimize: {
         optimize: true,
         optimized_shrink_resources: true,
+        proguard_flags_files: ["proguard.flags"],
     },
     plugins: [
         "androidx.room_room-compiler-plugin",
@@ -76,7 +81,9 @@ android_test {
     certificate: "platform",
     srcs: [
         "src/**/*.java",
+        "src/**/*.kt",
         "tests/src/**/*.java",
+        "tests/src/**/*.kt",
     ],
     static_libs: [
         "androidx.annotation_annotation",
@@ -85,6 +92,7 @@ android_test {
         "androidx.test.rules",
         "androidx.test.core",
         "com_android_crossdevicesync_flags_lib",
+        "connectivity_flags_lib",
         "data-protos-lite",
         "error_prone_annotations",
         "flag-junit",
@@ -106,6 +114,9 @@ android_test {
     plugins: [
         "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
+    ],
+    flags_packages: [
+        "connectivity_flags",
     ],
     javacflags: [
         "-Adagger.fastInit=enabled",

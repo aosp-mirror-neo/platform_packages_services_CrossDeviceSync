@@ -25,8 +25,6 @@ import androidx.annotation.Nullable;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
-import jakarta.inject.Inject;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,6 +37,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import javax.inject.Inject;
 
 @SyncServiceSingleton
 public class FakeNetworkManager implements NetworkManager {
@@ -78,6 +78,12 @@ public class FakeNetworkManager implements NetworkManager {
         return Collections.unmodifiableMap(mRemoteDevices);
     }
 
+    @Nullable
+    @Override
+    public FakeRemoteDevice getRemoteDevice(int associationId) {
+        return mRemoteDevices.get(associationId);
+    }
+
     @Override
     public List<Network> getNetworks() {
         throwIfUninitialized();
@@ -107,7 +113,8 @@ public class FakeNetworkManager implements NetworkManager {
         return network;
     }
 
-    private FakeNetwork getNetwork(String networkId, int userId) {
+    /** Returns the network with the given ID and user ID. */
+    public FakeNetwork getNetwork(String networkId, int userId) {
         Map<Integer, FakeNetwork> userNetworkMap = mNetworks.get(networkId);
         if (userNetworkMap == null || userNetworkMap.isEmpty()) {
             return null;
@@ -165,7 +172,15 @@ public class FakeNetworkManager implements NetworkManager {
         return device;
     }
 
-    private void addRemoteDevice(FakeRemoteDevice device) {
+    /** Adds a remote device to this manager for testing. */
+    public FakeRemoteDevice addRemoteDevice(AssociationInfo associationInfo) {
+        FakeRemoteDevice device = new FakeRemoteDevice(associationInfo);
+        addRemoteDevice(device);
+        return device;
+    }
+
+    /** Adds a remote device to this manager for testing. */
+    public void addRemoteDevice(FakeRemoteDevice device) {
         throwIfUninitialized();
         if (mRemoteDevices.containsKey(device.getAssociationId())) {
             throw new IllegalStateException(
@@ -206,9 +221,14 @@ public class FakeNetworkManager implements NetworkManager {
         forEachNetwork(n -> n.removeDevice(associationId));
     }
 
+    /**
+     * Flushes all messages to the remote devices to simulate message received by remote devices.
+     *
+     * @return whether there were any messages flushed.
+     */
     public boolean flushAllMessages() {
         return mRemoteDevices.values().stream()
-                .map(FakeRemoteDevice::flushMessages)
+                .map(device -> device.flushMessages(this))
                 .reduce((a, b) -> a || b)
                 .orElse(false);
     }
@@ -230,7 +250,7 @@ public class FakeNetworkManager implements NetworkManager {
     }
 
     /** A fake implementation of {@link RemoteDevice} for testing. */
-    public class FakeRemoteDevice implements RemoteDevice {
+    public static class FakeRemoteDevice implements RemoteDevice {
         private final int mAssociationId;
         private final int mUserId;
         private final Queue<SentMessage> mSentMessages = new LinkedList<>();
@@ -255,6 +275,8 @@ public class FakeNetworkManager implements NetworkManager {
         public FakeRemoteDevice(AssociationInfo associationInfo) {
             mAssociationId = associationInfo.getId();
             mUserId = associationInfo.getUserId();
+            mDeviceProfile = associationInfo.getDeviceProfile();
+            mDisplayName = associationInfo.getDisplayName();
             mAssociationInfoCache = associationInfo;
         }
 
@@ -268,8 +290,10 @@ public class FakeNetworkManager implements NetworkManager {
             return mAssociationInfoCache;
         }
 
-        public void setAssociationInfoCache(AssociationInfo associationInfo) {
+        /** Sets the association info cache for testing. */
+        public FakeRemoteDevice setAssociationInfoCache(AssociationInfo associationInfo) {
             mAssociationInfoCache = associationInfo;
+            return this;
         }
 
         @Override
@@ -283,8 +307,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets the display name for testing. */
-        public void setDisplayName(CharSequence displayName) {
+        public FakeRemoteDevice setDisplayName(CharSequence displayName) {
             mDisplayName = displayName;
+            return this;
         }
 
         @Override
@@ -293,8 +318,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets the device profile for testing. */
-        public void setDeviceProfile(String deviceProfile) {
+        public FakeRemoteDevice setDeviceProfile(String deviceProfile) {
             mDeviceProfile = deviceProfile;
+            return this;
         }
 
         @Override
@@ -303,8 +329,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the device has transport for testing. */
-        public void setHasTransport(boolean hasTransport) {
+        public FakeRemoteDevice setHasTransport(boolean hasTransport) {
             mHasTransport = hasTransport;
+            return this;
         }
 
         @Override
@@ -313,8 +340,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the device has BLE appeared for testing. */
-        public void setBleAppeared(boolean bleAppeared) {
+        public FakeRemoteDevice setBleAppeared(boolean bleAppeared) {
             mIsBleAppeared = bleAppeared;
+            return this;
         }
 
         @Override
@@ -323,8 +351,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the device has BT connected for testing. */
-        public void setBtConnected(boolean btConnected) {
+        public FakeRemoteDevice setBtConnected(boolean btConnected) {
             mIsBtConnected = btConnected;
+            return this;
         }
 
         @Override
@@ -333,8 +362,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the device has self-managed appeared for testing. */
-        public void setSelfManagedAppeared(boolean selfManagedAppeared) {
+        public FakeRemoteDevice setSelfManagedAppeared(boolean selfManagedAppeared) {
             mIsSelfManagedAppeared = selfManagedAppeared;
+            return this;
         }
 
         @Override
@@ -343,8 +373,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the device is self-managed nearby for testing. */
-        public void setSelfManagedNearby(boolean selfManagedNearby) {
+        public FakeRemoteDevice setSelfManagedNearby(boolean selfManagedNearby) {
             mIsSelfManagedNearby = selfManagedNearby;
+            return this;
         }
 
         @Override
@@ -353,8 +384,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         /** Sets whether the association is removed for testing. */
-        public void setAssociationRemoved(boolean associationRemoved) {
+        public FakeRemoteDevice setAssociationRemoved(boolean associationRemoved) {
             mIsAssociationRemoved = associationRemoved;
+            return this;
         }
 
         @Override
@@ -362,25 +394,33 @@ public class FakeNetworkManager implements NetworkManager {
             // No-op
         }
 
+        /** Sends a message to the remote network manager for testing. */
         public void sendMessage(String network, byte[] message) {
             mSentMessages.add(new SentMessage(network, message));
         }
 
-        public void setRemoteNetworkManager(@Nullable FakeNetworkManager remoteNetworkManager) {
+        /** Sets the remote network manager for testing. */
+        public FakeRemoteDevice setRemoteNetworkManager(
+                @Nullable FakeNetworkManager remoteNetworkManager) {
             mRemoteNetworkManager = remoteNetworkManager;
+            return this;
         }
 
-        public boolean flushMessages() {
+        private boolean flushMessages(FakeNetworkManager localNetworkManager) {
             boolean hasMessage = false;
             while (!mSentMessages.isEmpty()) {
                 SentMessage msg = mSentMessages.poll();
                 if (mRemoteNetworkManager != null) {
                     mRemoteNetworkManager.onMessageReceived(
-                            FakeNetworkManager.this, msg.network, msg.message);
+                            localNetworkManager, msg.network, msg.message);
                 }
                 hasMessage = true;
             }
             return hasMessage;
+        }
+
+        public List<SentMessage> getSentMessages() {
+            return new ArrayList<>(mSentMessages);
         }
     }
 
@@ -396,6 +436,7 @@ public class FakeNetworkManager implements NetworkManager {
         private long mNextMessageId = 0;
         private boolean mIsDestroyed = false;
 
+        /** Creates a new FakeNetwork. */
         FakeNetwork(int userId, String networkId, Predicate<RemoteDevice> devicePredicate) {
             mUserId = userId;
             mNetworkId = networkId;
@@ -471,6 +512,12 @@ public class FakeNetworkManager implements NetworkManager {
         public void registerListener(Executor executor, NetworkListener listener) {
             throwIfDestroyed();
             mListeners.add(Pair.create(executor, listener));
+            mAssociationIds.forEach(
+                    associationId ->
+                            executor.execute(
+                                    () ->
+                                            listener.onDeviceChanged(
+                                                    mRemoteDevices.get(associationId))));
         }
 
         @Override
@@ -526,7 +573,8 @@ public class FakeNetworkManager implements NetworkManager {
             int associationId = device.getAssociationId();
             if (mAssociationIds.add(associationId)) {
                 for (Pair<Executor, NetworkListener> pair : mListeners) {
-                    pair.first.execute(() -> pair.second.onDeviceChanged(associationId));
+                    pair.first.execute(
+                            () -> pair.second.onDeviceChanged(mRemoteDevices.get(associationId)));
                 }
                 for (Map.Entry<Long, Set<Integer>> entry : mStickyBroadcastRecipients.entrySet()) {
                     long stickyId = entry.getKey();
@@ -549,7 +597,13 @@ public class FakeNetworkManager implements NetworkManager {
                 }
             }
         }
+
+        /** Returns whether the given remote device is eligible for this network. */
+        public boolean isDeviceEligibleForNetwork(RemoteDevice remoteDevice) {
+            return mDevicePredicate.test(remoteDevice);
+        }
     }
 
+    /** A record to hold a sent message for testing. */
     public record SentMessage(String network, byte[] message) {}
 }

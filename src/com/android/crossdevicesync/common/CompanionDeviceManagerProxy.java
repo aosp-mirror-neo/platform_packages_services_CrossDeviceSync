@@ -22,6 +22,7 @@ import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
+import android.os.PersistableBundle;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -97,4 +98,13 @@ public interface CompanionDeviceManagerProxy {
 
     /** See {@link CompanionDeviceManager#removeOnActionResultListener(String)}. */
     void removeOnActionResultListener(String serviceName);
+
+    /**
+     * See {@link CompanionDeviceManager#setLocalMetadata(int, java.lang.String,
+     * android.os.PersistableBundle)}.
+     */
+    void setLocalMetadata(int userId, String feature, PersistableBundle value);
+
+    /** See {@link CompanionDeviceManager#getLocalMetadata(int)}. */
+    PersistableBundle getLocalMetadata(@UserIdInt int userId);
 }

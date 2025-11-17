@@ -30,4 +30,9 @@ public class ClockImpl implements Clock {
     public long elapsedRealtime() {
         return SystemClock.elapsedRealtime();
     }
+
+    @Override
+    public long currentTimeMillis() {
+        return System.currentTimeMillis();
+    }
 }

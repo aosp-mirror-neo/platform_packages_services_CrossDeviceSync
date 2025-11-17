@@ -16,6 +16,7 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
@@ -31,23 +32,25 @@ import dagger.Subcomponent;
  * <p>Note: sync service can have multiple data stores, each have their own {@link
  * SharedDataStoreComponent}.
  */
+@SharedDataStoreSingleton
 @Subcomponent(modules = {SharedDataStoreModule.class})
 public interface SharedDataStoreComponent {
+    /** The {@link SharedDataStore} that is in sync with remote devices. */
+    SharedDataStore<?> getSharedDataStore();
 
     /** Builder interface for SharedDataStoreComponent. */
     @Subcomponent.Builder
     interface Builder {
-
-        /** Binds a {@link Converter} that can be used to serialize/deserialize the data. */
-        @BindsInstance
-        Builder converter(Converter<?> converter);
-
         /**
          * Set the name of the data store. This will affect the database name so should not change
          * afterwards.
          */
         @BindsInstance
         Builder name(@DataStoreName String name);
+
+        /** Binds a {@link Converter} that can be used to serialize/deserialize the data. */
+        @BindsInstance
+        Builder converter(Converter<?> converter);
 
         /** Set the schema provider for the data store. */
         @BindsInstance

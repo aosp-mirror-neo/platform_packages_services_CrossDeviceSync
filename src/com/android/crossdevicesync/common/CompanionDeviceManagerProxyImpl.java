@@ -23,6 +23,7 @@ import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.content.Context;
+import android.os.PersistableBundle;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -125,5 +126,16 @@ public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerPr
     @Override
     public void removeOnActionResultListener(String serviceName) {
         mCompanionDeviceManager.removeOnActionResultListener(serviceName);
+    }
+
+    @Override
+    public void setLocalMetadata(int userId, String feature, PersistableBundle value) {
+        mCompanionDeviceManager.setLocalMetadata(userId, feature, value);
+    }
+
+    @Override
+    public PersistableBundle getLocalMetadata(int userId) {
+        // TODO(b/430675720): implement
+        return new PersistableBundle();
     }
 }

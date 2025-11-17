@@ -17,9 +17,8 @@ package com.android.crossdevicesync.data;
 
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.data.SchemaProvider.DocumentSchemaInfo;
-import com.android.crossdevicesync.data.SchemaProvider.PathSchemaInfo;
 import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.DataStore;
@@ -123,9 +122,9 @@ public class SubmergeSchemaUpgradeHelper<T> {
                         String path = pathSchema.path();
                         int type = pathSchema.type();
                         switch (type) {
-                            case SchemaProvider.TYPE_REGISTER -> schemaDoc.addRegisterSchema(path);
-                            case SchemaProvider.TYPE_UNMERGED -> schemaDoc.addUnmergedSchema(path);
-                            case SchemaProvider.TYPE_SET -> schemaDoc.addSetSchema(path);
+                            case RecordType.TYPE_REGISTER -> schemaDoc.addRegisterSchema(path);
+                            case RecordType.TYPE_UNMERGED -> schemaDoc.addUnmergedSchema(path);
+                            case RecordType.TYPE_SET -> schemaDoc.addSetSchema(path);
                             default ->
                                     throw new IllegalSchemaChangeException(
                                             "update: unknown data type " + type);

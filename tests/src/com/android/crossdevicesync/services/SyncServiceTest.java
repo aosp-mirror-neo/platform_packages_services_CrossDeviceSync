@@ -15,8 +15,8 @@
  */
 package com.android.crossdevicesync.services;
 
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import android.content.Intent;
 
@@ -25,55 +25,56 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
 
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-
-import javax.inject.Provider;
 
 @RunWith(AndroidJUnit4.class)
 public final class SyncServiceTest {
 
     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
 
-    private Intent mIntent;
-
-    @Before
-    public void setUp() {
-        mIntent =
-                new Intent(ApplicationProvider.getApplicationContext(), SyncService.class)
-                        .setAction(SyncService.ACTION_BIND_FOR_TESTING);
-    }
-
     @Test
     public void testStartService_serviceStarted() throws TimeoutException {
-        mServiceRule.startService(mIntent);
+        mServiceRule.startService(
+                new Intent(ApplicationProvider.getApplicationContext(), SyncService.class)
+                        .setAction(SyncService.ACTION_BIND_FOR_TESTING));
     }
 
     @Test
     public void testFeatureManagerLifeCycle() {
         // Create a new service with mock feature manager.
         NetworkManager networkManager = mock(NetworkManager.class);
+        MetadataPublisher metadataPublisher = mock(MetadataPublisher.class);
         FeatureManager featureManager = mock(FeatureManager.class);
-        Map<Class<?>, Provider<FeatureManager>> providerMap = new HashMap<>();
-        providerMap.put(FeatureManager.class, () -> featureManager);
-        SyncService service = new SyncService(networkManager, providerMap);
+        SyncService service =
+                new SyncService(
+                        networkManager,
+                        metadataPublisher,
+                        Map.of(FeatureManager.class, () -> featureManager));
+        InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager);
 
         // Service created.
         service.onCreate();
 
-        verify(featureManager).init();
+        inOrder.verify(networkManager).init();
+        inOrder.verify(metadataPublisher).init();
+        inOrder.verify(featureManager).init();
 
         // Service destroyed.
         service.onDestroy();
 
-        verify(featureManager).destroy();
+        // Verify destroying each feature before destroying the metadata publisher and the
+        // networkManager.
+        inOrder.verify(featureManager).destroy();
+        inOrder.verify(metadataPublisher).destroy();
+        inOrder.verify(networkManager).destroy();
     }
 }

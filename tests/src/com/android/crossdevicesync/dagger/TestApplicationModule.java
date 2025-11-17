@@ -15,13 +15,18 @@
  */
 package com.android.crossdevicesync.dagger;
 
+import android.content.Context;
+import android.content.SharedPreferences;
+
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
+import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 
 import dagger.Binds;
@@ -35,6 +40,7 @@ import javax.inject.Singleton;
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
 @Module(includes = {ApplicationBaseModule.class})
 public abstract class TestApplicationModule {
+    private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
 
     @Binds
     @Singleton
@@ -58,4 +64,17 @@ public abstract class TestApplicationModule {
     @Binds
     @Singleton
     abstract Clock bindClock(FakeClock fake);
+
+    @Provides
+    @IsWatch
+    @Singleton
+    static boolean providesIsWatch(IsWatchProvider isWatchProvider) {
+        return isWatchProvider.isWatch;
+    }
+
+    @Singleton
+    @Provides
+    static SharedPreferences provideSharedPreferences(Context context) {
+        return context.getSharedPreferences(SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
+    }
 }

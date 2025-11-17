@@ -13,27 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.airplanemode;
+package com.android.crossdevicesync.metadata.fake;
 
 import android.util.IndentingPrintWriter;
 
-import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import javax.inject.Inject;
 
-/** Airplane mode sync feature manager. */
+/** Fake implementation of {@link MetadataPublisher}. */
 @SyncServiceSingleton
-public class AirplaneModeSyncManager implements FeatureManager {
-
+public class FakeMetadataPublisher implements MetadataPublisher {
     @Inject
-    AirplaneModeSyncManager() {}
+    FakeMetadataPublisher() {}
 
     @Override
     public void init() {}
 
     @Override
     public void destroy() {}
+
+    @Override
+    public void putBooleanMetaData(int userId, String key, boolean val) {}
+
+    @Override
+    public void putIntMetaData(int userId, String key, int val) {}
+
+    @Override
+    public void putStringMetaData(int userId, String key, String val) {}
 
     @Override
     public void dump(IndentingPrintWriter pw) {}

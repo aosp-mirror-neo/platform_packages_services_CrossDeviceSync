@@ -36,6 +36,11 @@ public class FakeClock implements Clock {
         return sCurrentTime;
     }
 
+    @Override
+    public long currentTimeMillis() {
+        return sCurrentTime;
+    }
+
     public void advanceTime(long millis) {
         setCurrentTime(elapsedRealtime() + millis);
     }

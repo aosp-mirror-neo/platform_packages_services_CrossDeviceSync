@@ -13,19 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.dagger;
+package com.android.crossdevicesync.feature.airplanemode.dagger;
 
 import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager;
 
+import dagger.Binds;
 import dagger.Module;
-import dagger.multibindings.Multibinds;
+import dagger.multibindings.ClassKey;
+import dagger.multibindings.IntoMap;
 
-import java.util.Map;
-
-/** Test feature module. */
+/** Dagger module for airplane mode sync feature code. */
 @Module
-public abstract class TestFeatureModule {
+public abstract class AirplaneModeSyncBaseModule {
 
-    @Multibinds
-    abstract Map<Class<?>, FeatureManager> bindEmptyFeatureManagerMap();
+    /** Binds {@link AirplaneModeSyncManager}. */
+    @Binds
+    @IntoMap
+    @ClassKey(AirplaneModeSyncManager.class)
+    abstract FeatureManager bindsAirplaneModeSyncManager(AirplaneModeSyncManager manager);
 }

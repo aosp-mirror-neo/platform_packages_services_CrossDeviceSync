@@ -21,6 +21,7 @@ import android.companion.ActionResult;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
+import android.os.PersistableBundle;
 import android.os.UserHandle;
 import android.util.Log;
 
@@ -77,6 +78,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     private final List<SentMessage> mSentMessages = new ArrayList<>();
     private final List<SentMessageListener> mSentMessageListeners = new ArrayList<>();
     private final List<ActionResultListener> mActionResultListeners = new ArrayList<>();
+    private final Map<Integer, PersistableBundle> mMetadata = new HashMap<>();
 
     @Inject
     FakeCompanionDeviceManagerProxy() {}
@@ -288,6 +290,19 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     @Override
     public void removeOnActionResultListener(String serviceName) {
         mActionResultListeners.removeIf(l -> l.serviceName().equals(serviceName));
+    }
+
+    @Override
+    public void setLocalMetadata(int userId, String feature, PersistableBundle value) {
+        mMetadata
+                .computeIfAbsent(userId, k -> new PersistableBundle())
+                .putPersistableBundle(feature, value);
+    }
+
+    @Override
+    public PersistableBundle getLocalMetadata(int userId) {
+        PersistableBundle data = mMetadata.get(userId);
+        return data == null ? new PersistableBundle() : data;
     }
 
     public boolean hasActionRequest(String serviceName, int associationId, int actionId) {

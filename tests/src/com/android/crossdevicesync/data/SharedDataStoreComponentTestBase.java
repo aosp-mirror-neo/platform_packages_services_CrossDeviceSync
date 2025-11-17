@@ -20,7 +20,7 @@ import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 import com.android.crossdevicesync.data.fake.FakeStorage;
-import com.android.crossdevicesync.network.fake.FakeNetworkManager;
+import com.android.crossdevicesync.data.storage.RoomStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import java.util.List;
@@ -37,6 +37,7 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     @Inject protected RoomStorage mRoomStorage;
     @Inject protected FakeStorage mFakeStorage;
     @Inject @DataStoreName protected String mDataStoreName;
+    @Inject protected SharedDataStore<?> mSharedDataStore;
     @Inject protected SubmergeSharedDataStore<?> mSubmergeSharedDataStore;
     @Inject @IOThread protected ExecutorService mExecutorService;
 
@@ -49,12 +50,16 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         mSharedDataStoreComponent.inject(this);
     }
 
+    protected String getNetworkId() {
+        return NETWORK_ID;
+    }
+
     protected TestSharedDataStoreComponent newSharedDataStoreComponent(
             String dataStoreName, SchemaProvider<String> schemaProvider) {
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
-                        .network(getNetworkManager().createNetwork(NETWORK_ID, device -> true))
+                        .network(getNetworkManager().createNetwork(getNetworkId(), device -> true))
                         .name(dataStoreName)
                         .converter(mStringConverter)
                         .schemaProvider(schemaProvider)
@@ -62,7 +67,7 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
     }
 
     protected SchemaProvider<String> getSchemaProvider() {
-        return new SchemaProvider<String>() {
+        return new SchemaProvider<>() {
             @Override
             public List<DocumentSchemaInfo> getAllDocumentSchema() {
                 return List.of();
@@ -73,8 +78,7 @@ public abstract class SharedDataStoreComponentTestBase extends SyncServiceCompon
         };
     }
 
-    protected FakeNetworkManager getNetworkManager() {
-        // This will create a new network or get the existing one if available.
-        return mFakeNetworkManager;
+    public SharedDataStore<?> getSharedDataStore() {
+        return mSharedDataStore;
     }
 }

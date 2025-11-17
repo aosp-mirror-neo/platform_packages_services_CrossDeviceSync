@@ -16,12 +16,14 @@
 package com.android.crossdevicesync;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import androidx.test.core.app.ApplicationProvider;
 
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 
@@ -40,6 +42,8 @@ public abstract class ApplicationComponentTestBase {
     @Inject @Main protected Executor mMainExecutor;
     @Inject protected FakeClock mFakeClock;
     @Inject @Main protected DelayedExecutor mDelayedExecutor;
+    @Inject protected IsWatchProvider mIsWatchProvider;
+    @Inject protected SharedPreferences mSharedPreferences;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();

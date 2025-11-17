@@ -15,8 +15,16 @@
  */
 package com.android.crossdevicesync.services.dagger;
 
+import com.android.crossdevicesync.metadata.MetadataPublisher;
+import com.android.crossdevicesync.metadata.fake.FakeMetadataPublisher;
+
+import dagger.Binds;
 import dagger.Module;
 
 /** Test-only dagger module for objects in sync service scope. */
 @Module
-public abstract class TestSyncServiceModule {}
+public abstract class TestSyncServiceModule {
+    @Binds
+    @SyncServiceSingleton
+    abstract MetadataPublisher bindsMetadataPublisher(FakeMetadataPublisher impl);
+}

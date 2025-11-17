@@ -16,12 +16,13 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
-import com.android.crossdevicesync.data.IStorage;
 import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
 import com.google.android.submerge.Converter;
@@ -41,17 +42,17 @@ import java.util.concurrent.ExecutorService;
  * cases.
  */
 @Module
-public abstract class SharedDataStoreBaseModule {
+interface SharedDataStoreBaseModule {
 
-    @SharedDataStoreSingleton
     @Provides
+    @SharedDataStoreSingleton
     static SubmergeSchemaUpgradeHelper<?> provideSubmergeSchemaUpgradeHelper(
             IStorage storage, Converter<?> converter, @DataStoreName String dataStoreName) {
-        return new SubmergeSchemaUpgradeHelper(storage, converter, dataStoreName);
+        return new SubmergeSchemaUpgradeHelper<>(storage, converter, dataStoreName);
     }
 
-    @SharedDataStoreSingleton
     @Provides
+    @SharedDataStoreSingleton
     static SubmergeSharedDataStore<?> provideSubmergeSharedDataStore(
             @DataStoreName String name,
             DeviceNodeIdProvider deviceNodeIdProvider,
@@ -74,14 +75,17 @@ public abstract class SharedDataStoreBaseModule {
                 schemaUpgradeHelper);
     }
 
-    @SharedDataStoreSingleton
-    @IOThread
     @Binds
-    abstract ExecutorService bindsIOThreadExecutorService(
-            @IOThread ListeningExecutorService service);
+    @SharedDataStoreSingleton
+    SharedDataStore<?> bindsSharedDataStore(SubmergeSharedDataStore<?> submergeSharedDataStore);
 
-    @SharedDataStoreSingleton
-    @IOThread
     @Binds
-    abstract Executor bindsIOThreadExecutor(@IOThread ExecutorService service);
+    @IOThread
+    @SharedDataStoreSingleton
+    ExecutorService bindsIOThreadExecutorService(@IOThread ListeningExecutorService service);
+
+    @Binds
+    @IOThread
+    @SharedDataStoreSingleton
+    Executor bindsIOThreadExecutor(@IOThread ExecutorService service);
 }

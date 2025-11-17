@@ -155,22 +155,6 @@ class RemoteDeviceImpl implements NetworkManager.RemoteDevice {
         return true;
     }
 
-    /** Returns {@code true} if the device is considered present. */
-    public boolean isPresent() {
-        if (isAssociationRemoved()) {
-            return false;
-        }
-        return hasTransport() || isBleAppeared() || isBtConnected() || isSelfManagedAppeared();
-    }
-
-    /** Returns {@code true} if the device is considered to be nearby. */
-    public boolean isNearby() {
-        if (!isPresent()) {
-            return false;
-        }
-        return isBleAppeared() || isBtConnected() || isSelfManagedNearby();
-    }
-
     /** Dumps the state of this object to the given writer. */
     public void dump(IndentingPrintWriter pw) {
         pw.println("RemoteDevice:");
