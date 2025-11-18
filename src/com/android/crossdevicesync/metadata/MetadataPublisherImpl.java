@@ -18,6 +18,7 @@ package com.android.crossdevicesync.metadata;
 import android.companion.CompanionDeviceManager;
 import android.content.SharedPreferences;
 import android.os.PersistableBundle;
+import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
@@ -45,7 +46,12 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener {
     private static final String TAG = "MetadataPublisher";
-    private static final String NETWORK_ID = "metadata_publisher";
+
+    /** Id of the network for pushing metadata to devices owned by individual users. */
+    @VisibleForTesting static final String NETWORK_ID = "metadata_publisher";
+
+    /** Id of the network for pushing metadata to any devices. */
+    @VisibleForTesting static final String NETWORK_ID_USER_ALL = NETWORK_ID + "_all";
 
     @VisibleForTesting
     static final String LAST_METADATA_UPDATE_TIMESTAMP_PREFIX = "last_metadata_update_timestamp_";
@@ -129,7 +135,10 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
             return network;
         }
         Log.i(TAG, "Creating network for user " + userId);
-        network = mNetworkManager.createNetworkForUser(userId, NETWORK_ID, device -> true);
+        // Need a different network id for USER_ALL since it cannot share the same id with per-user
+        // network.
+        String networkId = userId == UserHandle.USER_ALL ? NETWORK_ID_USER_ALL : NETWORK_ID;
+        network = mNetworkManager.createNetworkForUser(userId, networkId, device -> true);
         mUserNetworks.put(userId, network);
         network.registerListener(mMainExecutor, this);
         return network;
