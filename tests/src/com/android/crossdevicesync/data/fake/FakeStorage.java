@@ -37,18 +37,21 @@ public class FakeStorage implements IStorage {
     private final Map<String, byte[]> mMetadata = new HashMap<>();
     private final Map<String, byte[]> mSchema = new HashMap<>();
     private boolean mInitialized;
+    private RuntimeException mException;
 
     @Inject
     FakeStorage() {}
 
     @Override
     public void init() {
+        maybeThrowException();
         mInitialized = true;
     }
 
     @Nullable
     @Override
     public byte[] getDocument(String docId) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -57,6 +60,7 @@ public class FakeStorage implements IStorage {
 
     @Override
     public void persistDocument(String docId, byte[] document) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -65,6 +69,7 @@ public class FakeStorage implements IStorage {
 
     @Override
     public byte[] getDocumentSchema(String docId) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -73,6 +78,7 @@ public class FakeStorage implements IStorage {
 
     @Override
     public void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -82,6 +88,7 @@ public class FakeStorage implements IStorage {
     @Override
     @Nullable
     public byte[] getMetadata(String docId) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -90,6 +97,7 @@ public class FakeStorage implements IStorage {
 
     @Override
     public void persistMetadata(String docId, byte[] metadata) throws StorageException {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -98,6 +106,7 @@ public class FakeStorage implements IStorage {
 
     @Override
     public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
+        maybeThrowException();
         if (!mInitialized) {
             throw new StorageException();
         }
@@ -106,16 +115,30 @@ public class FakeStorage implements IStorage {
 
     @Override
     public void close() {
+        maybeThrowException();
         mInitialized = false;
     }
 
     @Override
     public boolean deleteDatabase() {
+        maybeThrowException();
         close();
         mDocuments.clear();
         mMetadata.clear();
         mSchema.clear();
         return true;
+    }
+
+    public void setRuntimeException(@Nullable RuntimeException e) {
+        mException = e;
+    }
+
+    private void maybeThrowException() {
+        if (mException != null) {
+            RuntimeException e = mException;
+            mException = null;
+            throw e;
+        }
     }
 
     public boolean isOpen() {

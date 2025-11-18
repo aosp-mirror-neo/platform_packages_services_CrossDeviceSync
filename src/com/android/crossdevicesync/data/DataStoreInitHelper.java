@@ -19,7 +19,7 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import android.util.Log;
 
-import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
@@ -57,54 +57,34 @@ public final class DataStoreInitHelper {
             Supplier<SharedDataStore<T>> dataStoreSupplier,
             Executor executor,
             boolean shouldRetry) {
-        return Futures.catchingAsync(
-                doInitDataStore(dataStoreToInit),
-                Exception.class,
-                e -> {
-                    if (shouldRetry
-                            && (e instanceof IllegalSchemaChangeException
-                                    || e instanceof SchemaValidationException)) {
-                        Log.w(
-                                TAG,
-                                "Schema error occurred, deleting the data store " + dataStoreToInit,
-                                e);
-                        return deleteAndReInitDataStore(
-                                dataStoreToInit, dataStoreSupplier, executor);
-                    } else {
-                        dataStoreToInit.close();
-                        return Futures.immediateFailedFuture(e);
-                    }
-                },
-                directExecutor());
-    }
-
-    private static <T> ListenableFuture<SharedDataStore<T>> doInitDataStore(
-            SharedDataStore<T> dataStore) {
-        return Futures.transform(dataStore.init(), unused -> dataStore, directExecutor());
+        return FluentFuture.from(dataStoreToInit.init())
+                .transform(unused -> dataStoreToInit, directExecutor())
+                .catchingAsync(
+                        Exception.class,
+                        e -> {
+                            if (shouldRetry
+                                    && (e instanceof IllegalSchemaChangeException
+                                            || e instanceof SchemaValidationException)) {
+                                Log.w(
+                                        TAG,
+                                        "Schema error occurred, deleting the data store "
+                                                + dataStoreToInit,
+                                        e);
+                                return deleteAndReInitDataStore(
+                                        dataStoreToInit, dataStoreSupplier, executor);
+                            } else {
+                                return closeDataStoreAndThrow(dataStoreToInit, e);
+                            }
+                        },
+                        directExecutor());
     }
 
     private static <T> ListenableFuture<SharedDataStore<T>> deleteAndReInitDataStore(
             SharedDataStore<T> dataStoreToDelete,
             Supplier<SharedDataStore<T>> dataStoreSupplier,
             Executor executor) {
-        ListenableFuture<?> deleteFuture = dataStoreToDelete.delete();
-        Futures.addCallback(
-                deleteFuture,
-                new FutureCallback<Object>() {
-                    @Override
-                    public void onSuccess(Object result) {
-                        Log.i(TAG, "Successfully deleted data store " + dataStoreToDelete);
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        Log.e(TAG, "Unable to delete data store.", t);
-                        dataStoreToDelete.close();
-                    }
-                },
-                directExecutor());
         return Futures.transformAsync(
-                deleteFuture,
+                dataStoreToDelete.delete(),
                 unused ->
                         initializeDataStore(
                                 dataStoreSupplier.get(),
@@ -123,5 +103,17 @@ public final class DataStoreInitHelper {
                 ListenableFutureTask.create(dataStoreSupplier::get);
         executor.execute(task);
         return task;
+    }
+
+    private static <T> ListenableFuture<T> closeDataStoreAndThrow(
+            SharedDataStore<?> dataStoreToClose, Throwable t) {
+        // Catch any new exception and replace it with the supplied one so that we don't override
+        // the exception type.
+        return FluentFuture.from(dataStoreToClose.closeWithCallback())
+                .catchingAsync(
+                        Exception.class,
+                        unused -> Futures.immediateFailedFuture(t),
+                        directExecutor())
+                .transformAsync(unused -> Futures.immediateFailedFuture(t), directExecutor());
     }
 }

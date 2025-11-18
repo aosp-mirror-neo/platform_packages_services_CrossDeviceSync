@@ -1046,6 +1046,17 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         assertThat(mExecutorService.isShutdown()).isTrue();
     }
 
+    @Test
+    public void testDelete_failedToDelete_dataStoreClosed() throws Exception {
+        mFakeStorage.setRuntimeException(new NullPointerException());
+
+        ListenableFuture<?> future = mDataStore.delete();
+
+        assertThat(getException(future)).isInstanceOf(NullPointerException.class);
+        assertThat(mDataStore.isOpen()).isFalse();
+        assertThat(mExecutorService.isShutdown()).isTrue();
+    }
+
     private static void connectNetworks(SharedDataStoreComponentTestBase... testContexts) {
         for (SharedDataStoreComponentTestBase a : testContexts) {
             for (SharedDataStoreComponentTestBase b : testContexts) {
