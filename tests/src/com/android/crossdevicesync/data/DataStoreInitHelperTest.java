@@ -24,9 +24,9 @@ import static com.google.common.truth.Truth.assertThat;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.ApplicationComponentTestBase;
+import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -34,7 +34,6 @@ import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 @RunWith(AndroidJUnit4.class)
@@ -56,8 +55,8 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore = mSupplier.firstDataStore();
-        dataStore.mInitFuture.set(null);
+        FakeSharedDataStore<String> dataStore = mSupplier.firstDataStore();
+        dataStore.getInitFuture().set(null);
 
         assertThat(isFutureSucceeded(future)).isTrue();
         assertThat(future.get()).isEqualTo(dataStore);
@@ -72,20 +71,20 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore1 = mSupplier.firstDataStore();
-        dataStore1.mInitFuture.setException(new SchemaValidationException("error"));
+        FakeSharedDataStore<String> dataStore1 = mSupplier.firstDataStore();
+        dataStore1.getInitFuture().setException(new SchemaValidationException("error"));
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore1.isOpen()).isFalse();
 
-        dataStore1.mDeleteFuture.set(null);
+        dataStore1.getDeleteFuture().set(null);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(2);
 
-        TestDataStore dataStore2 = mSupplier.secondDataStore();
-        dataStore2.mInitFuture.set(null);
+        FakeSharedDataStore<String> dataStore2 = mSupplier.secondDataStore();
+        dataStore2.getInitFuture().set(null);
 
         assertThat(isFutureSucceeded(future)).isTrue();
         assertThat(future.get()).isEqualTo(dataStore2);
@@ -100,14 +99,14 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore = mSupplier.firstDataStore();
-        dataStore.mInitFuture.setException(new IllegalArgumentException());
+        FakeSharedDataStore<String> dataStore = mSupplier.firstDataStore();
+        dataStore.getInitFuture().setException(new IllegalArgumentException());
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore.isOpen()).isFalse();
 
-        dataStore.mCloseFuture.set(null);
+        dataStore.getCloseFuture().set(null);
 
         assertThat(isFutureFailed(future)).isTrue();
         assertThat(getException(future)).isInstanceOf(IllegalArgumentException.class);
@@ -121,15 +120,15 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore = mSupplier.firstDataStore();
-        dataStore.mInitFuture.setException(new IllegalArgumentException());
+        FakeSharedDataStore<String> dataStore = mSupplier.firstDataStore();
+        dataStore.getInitFuture().setException(new IllegalArgumentException());
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore.isOpen()).isFalse();
 
         // Close throws a different error type.
-        dataStore.mCloseFuture.setException(new NullPointerException());
+        dataStore.getCloseFuture().setException(new NullPointerException());
 
         assertThat(isFutureFailed(future)).isTrue();
         assertThat(getException(future)).isInstanceOf(IllegalArgumentException.class);
@@ -143,14 +142,14 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore = mSupplier.firstDataStore();
-        dataStore.mInitFuture.setException(new SchemaValidationException("error"));
+        FakeSharedDataStore<String> dataStore = mSupplier.firstDataStore();
+        dataStore.getInitFuture().setException(new SchemaValidationException("error"));
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore.isOpen()).isFalse();
 
-        dataStore.mDeleteFuture.setException(new NullPointerException());
+        dataStore.getDeleteFuture().setException(new NullPointerException());
 
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(isFutureFailed(future)).isTrue();
@@ -165,26 +164,26 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore1 = mSupplier.firstDataStore();
-        dataStore1.mInitFuture.setException(new SchemaValidationException("error"));
+        FakeSharedDataStore<String> dataStore1 = mSupplier.firstDataStore();
+        dataStore1.getInitFuture().setException(new SchemaValidationException("error"));
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore1.isOpen()).isFalse();
 
-        dataStore1.mDeleteFuture.set(null);
+        dataStore1.getDeleteFuture().set(null);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(2);
 
-        TestDataStore dataStore2 = mSupplier.secondDataStore();
-        dataStore2.mInitFuture.setException(new SchemaValidationException("error"));
+        FakeSharedDataStore<String> dataStore2 = mSupplier.secondDataStore();
+        dataStore2.getInitFuture().setException(new SchemaValidationException("error"));
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(2);
         assertThat(dataStore2.isOpen()).isFalse();
 
-        dataStore2.mCloseFuture.set(null);
+        dataStore2.getCloseFuture().set(null);
 
         assertThat(isFutureFailed(future)).isTrue();
         assertThat(getException(future)).isInstanceOf(SchemaValidationException.class);
@@ -198,94 +197,49 @@ public class DataStoreInitHelperTest extends ApplicationComponentTestBase {
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
 
-        TestDataStore dataStore1 = mSupplier.firstDataStore();
-        dataStore1.mInitFuture.setException(new SchemaValidationException("error"));
+        FakeSharedDataStore<String> dataStore1 = mSupplier.firstDataStore();
+        dataStore1.getInitFuture().setException(new SchemaValidationException("error"));
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(1);
         assertThat(dataStore1.isOpen()).isFalse();
 
-        dataStore1.mDeleteFuture.set(null);
+        dataStore1.getDeleteFuture().set(null);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(2);
 
-        TestDataStore dataStore2 = mSupplier.secondDataStore();
-        dataStore2.mInitFuture.setException(new NullPointerException());
+        FakeSharedDataStore<String> dataStore2 = mSupplier.secondDataStore();
+        dataStore2.getInitFuture().setException(new NullPointerException());
 
         assertThat(future.isDone()).isFalse();
         assertThat(mSupplier.mSuppliedDataStores).hasSize(2);
         assertThat(dataStore2.isOpen()).isFalse();
 
-        dataStore2.mCloseFuture.set(null);
+        dataStore2.getCloseFuture().set(null);
 
         assertThat(isFutureFailed(future)).isTrue();
         assertThat(getException(future)).isInstanceOf(NullPointerException.class);
     }
 
+    @SuppressWarnings("EffectivelyPrivate")
     private static class TestSharedDataStoreSupplier implements Supplier<SharedDataStore<String>> {
-        final List<TestDataStore> mSuppliedDataStores = new ArrayList<>();
+        final List<FakeSharedDataStore<String>> mSuppliedDataStores = new ArrayList<>();
 
         @Override
-        public TestDataStore get() {
-            TestDataStore dataStore = new TestDataStore();
+        public FakeSharedDataStore<String> get() {
+            FakeSharedDataStore<String> dataStore = new FakeSharedDataStore<>();
+            dataStore.setAsync(true);
             mSuppliedDataStores.add(dataStore);
             return dataStore;
         }
 
-        public TestDataStore firstDataStore() {
+        public FakeSharedDataStore<String> firstDataStore() {
             return mSuppliedDataStores.get(0);
         }
 
-        public TestDataStore secondDataStore() {
+        public FakeSharedDataStore<String> secondDataStore() {
             return mSuppliedDataStores.get(1);
-        }
-    }
-
-    private static class TestDataStore implements SharedDataStore<String> {
-        final SettableFuture<?> mInitFuture = SettableFuture.create();
-        final SettableFuture<?> mDeleteFuture = SettableFuture.create();
-        final SettableFuture<?> mCloseFuture = SettableFuture.create();
-        private boolean mClosed;
-
-        @Override
-        public ListenableFuture<?> init() {
-            return mInitFuture;
-        }
-
-        @Override
-        public String getLocalDeviceNodeId() {
-            return "";
-        }
-
-        @Override
-        public <R> ListenableFuture<R> transact(
-                String docId, TransactionApplier<String, R> applier) {
-            return null;
-        }
-
-        @Override
-        public void registerOnRemoteChangeListener(
-                Executor executor, OnRemoteChangeListener listener) {}
-
-        @Override
-        public void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener) {}
-
-        @Override
-        public ListenableFuture<?> closeWithCallback() {
-            mClosed = true;
-            return mCloseFuture;
-        }
-
-        @Override
-        public boolean isOpen() {
-            return !mClosed;
-        }
-
-        @Override
-        public ListenableFuture<?> delete() {
-            mClosed = true;
-            return mDeleteFuture;
         }
     }
 }

@@ -21,7 +21,9 @@ import com.android.crossdevicesync.feature.dagger.TestFeatureModule;
 import com.android.crossdevicesync.network.dagger.TestNetworkModule;
 import com.android.crossdevicesync.services.SyncService;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.dagger.qualifier.UseRealSharedDataStoreImpl;
 
+import dagger.BindsInstance;
 import dagger.Subcomponent;
 
 /**
@@ -41,6 +43,11 @@ public interface TestSyncServiceComponent extends SyncServiceComponent {
     /** Builder interface for TestSyncServiceComponent. */
     @Subcomponent.Builder
     interface Builder extends SyncServiceComponent.Builder {
+
+        /** Specify whether to user real shared data store impl. */
+        @BindsInstance
+        Builder useRealSharedDataStoreImpl(@UseRealSharedDataStoreImpl boolean useRealImpl);
+
         /** Build an instance of this component. */
         TestSyncServiceComponent build();
     }

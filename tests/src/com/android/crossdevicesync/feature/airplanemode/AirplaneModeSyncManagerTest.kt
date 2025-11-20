@@ -45,6 +45,9 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     private lateinit var mRemoteDeviceContext: RemoteDeviceContext
 
+    // Use real shared data store in this test.
+    override fun useRealSharedDataStoreImpl() = true
+
     @Before
     override fun setUp() {
         super.setUp()
