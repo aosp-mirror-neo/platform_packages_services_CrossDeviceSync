@@ -15,34 +15,78 @@
  */
 package com.android.crossdevicesync.metadata.fake;
 
+import android.os.PersistableBundle;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.inject.Inject;
 
 /** Fake implementation of {@link MetadataPublisher}. */
 @SyncServiceSingleton
 public class FakeMetadataPublisher implements MetadataPublisher {
+    private final Map<Integer, PersistableBundle> mUserMetadata = new HashMap<>();
+    private boolean mIsInitialized = false;
+
     @Inject
     FakeMetadataPublisher() {}
 
     @Override
-    public void init() {}
+    public void init() {
+        if (mIsInitialized) {
+            throw new IllegalStateException("Already initialized!");
+        }
+        mIsInitialized = true;
+    }
 
     @Override
-    public void destroy() {}
+    public void destroy() {
+        throwIfUninitialized();
+        mIsInitialized = false;
+        mUserMetadata.clear();
+    }
 
     @Override
-    public void putBooleanMetaData(int userId, String key, boolean val) {}
+    public void putBooleanMetaData(int userId, String key, boolean val) {
+        throwIfUninitialized();
+        getOrCreateBundleForUser(userId).putBoolean(key, val);
+    }
 
     @Override
-    public void putIntMetaData(int userId, String key, int val) {}
+    public void putIntMetaData(int userId, String key, int val) {
+        throwIfUninitialized();
+        getOrCreateBundleForUser(userId).putInt(key, val);
+    }
 
     @Override
-    public void putStringMetaData(int userId, String key, String val) {}
+    public void putStringMetaData(int userId, String key, String val) {
+        throwIfUninitialized();
+        getOrCreateBundleForUser(userId).putString(key, val);
+    }
+
+    /** Returns the metadata for the given user for testing. */
+    public PersistableBundle getMetadata(int userId) {
+        throwIfUninitialized();
+        return getOrCreateBundleForUser(userId);
+    }
+
+    private PersistableBundle getOrCreateBundleForUser(int userId) {
+        return mUserMetadata.computeIfAbsent(userId, k -> new PersistableBundle());
+    }
 
     @Override
-    public void dump(IndentingPrintWriter pw) {}
+    public void dump(IndentingPrintWriter pw) {
+        throwIfUninitialized();
+        // No-op for fake.
+    }
+
+    private void throwIfUninitialized() {
+        if (!mIsInitialized) {
+            throw new IllegalStateException("Not initialized!");
+        }
+    }
 }

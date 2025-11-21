@@ -533,7 +533,10 @@ public class FakeNetworkManager implements NetworkManager {
             mMessageContents.clear();
             mStickyBroadcastRecipients.clear();
             mIsDestroyed = true;
-            FakeNetworkManager.this.mNetworks.remove(mNetworkId);
+            FakeNetworkManager.this.mNetworks.get(mNetworkId).values().remove(this);
+            if (FakeNetworkManager.this.mNetworks.get(mNetworkId).isEmpty()) {
+                FakeNetworkManager.this.mNetworks.remove(mNetworkId);
+            }
         }
 
         @Override

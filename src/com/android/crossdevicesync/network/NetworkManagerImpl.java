@@ -1013,5 +1013,10 @@ public class NetworkManagerImpl implements NetworkManager {
             }
             pw.decreaseIndent();
         }
+
+        @Override
+        public String toString() {
+            return "Network{id=" + mId + ", userId=" + mUserId + "}";
+        }
     }
 }
