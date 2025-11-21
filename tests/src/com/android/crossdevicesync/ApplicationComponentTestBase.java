@@ -23,6 +23,7 @@ import androidx.test.core.app.ApplicationProvider;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
@@ -46,6 +47,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject protected IsWatchProvider mIsWatchProvider;
     @Inject protected SharedPreferences mSharedPreferences;
     @Inject protected FakeUserHelper mFakeUserHelper;
+    @Inject protected FakeContextualModeManager mFakeContextualModeManager;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();

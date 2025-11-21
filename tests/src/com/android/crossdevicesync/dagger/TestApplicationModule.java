@@ -20,13 +20,16 @@ import android.content.SharedPreferences;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
+import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
@@ -58,6 +61,11 @@ public abstract class TestApplicationModule {
         return new SynchronousExecutorService();
     }
 
+    @Binds
+    @Singleton
+    @Background
+    abstract Executor bindsBackgroundExecutor(@Main Executor executor);
+
     @Provides
     @Singleton
     @Main
@@ -88,6 +96,11 @@ public abstract class TestApplicationModule {
     static SharedPreferences provideSharedPreferences(Context context) {
         return context.getSharedPreferences(SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
     }
+
+    @Singleton
+    @Binds
+    abstract ContextualModeManagerProxy bindsContextualModeManagerProxy(
+            FakeContextualModeManager fake);
 
     @Singleton
     @Binds

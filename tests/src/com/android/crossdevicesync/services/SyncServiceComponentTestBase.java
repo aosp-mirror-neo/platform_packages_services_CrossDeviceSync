@@ -19,8 +19,11 @@ import com.android.crossdevicesync.ApplicationComponentTestBase;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
 import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager;
 import com.android.crossdevicesync.feature.airplanemode.fake.FakeAirplaneModeController;
+import com.android.crossdevicesync.feature.mode.ContextualModeSyncController;
+import com.android.crossdevicesync.feature.mode.ContextualModeSyncManager;
 import com.android.crossdevicesync.metadata.MetadataPublisherImpl;
 import com.android.crossdevicesync.metadata.fake.FakeMetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
@@ -58,6 +61,9 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     @Inject protected FakeAirplaneModeController mFakeAirplaneModeController;
     @Inject protected MetadataPublisherImpl mMetadataPublisher;
     @Inject protected FakeMetadataPublisher mFakeMetadataPublisher;
+    @Inject protected TestSharedDataStoreFactory mSharedDataStoreFactory;
+    @Inject protected ContextualModeSyncController.Factory mContextualModeSyncControllerFactory;
+    @Inject protected ContextualModeSyncManager mContextualModeSyncManager;
 
     @Override
     public void setUp() {

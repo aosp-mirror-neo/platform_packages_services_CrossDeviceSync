@@ -31,10 +31,13 @@ import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.ClockImpl;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxyImpl;
+import com.android.crossdevicesync.common.ContextualModeManagerProxy;
+import com.android.crossdevicesync.common.ContextualModeManagerProxyImpl;
 import com.android.crossdevicesync.common.DefaultThreadChecker;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.common.ThreadChecker;
+import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
@@ -46,6 +49,7 @@ import dagger.Module;
 import dagger.Provides;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 import javax.inject.Singleton;
 
@@ -73,6 +77,12 @@ public abstract class ApplicationModule {
     abstract CompanionDeviceManagerProxy bindsCompanionDeviceManagerProxy(
             CompanionDeviceManagerProxyImpl proxy);
 
+    /** Binds the {@link ContextualModeManagerProxy} implementation. */
+    @Singleton
+    @Binds
+    abstract ContextualModeManagerProxy bindsContextualModeManagerProxy(
+            ContextualModeManagerProxyImpl proxy);
+
     @Provides
     @Singleton
     @Main
@@ -99,6 +109,13 @@ public abstract class ApplicationModule {
     @Main
     static DelayedExecutor provideMainDelayedExecutor(@Main Handler handler) {
         return new HandlerDelayedExecutorImpl(handler);
+    }
+
+    @Provides
+    @Singleton
+    @Background
+    static Executor provideBackgroundExecutor() {
+        return Executors.newSingleThreadExecutor();
     }
 
     @Singleton
