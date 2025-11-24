@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import com.google.android.submerge.StorageInterface.StorageException;
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -250,11 +251,11 @@ public interface SharedDataStore<T> extends AutoCloseable {
     interface OnRemoteChangeListener {
 
         /**
-         * Called when a data path has been updated by a remote device.
+         * Called when data paths have been updated by a remote device.
          *
-         * @param path the data path.
+         * @param paths the paths that have been updated
          */
-        void onRemoteChange(String path);
+        void onRemoteChange(List<String> paths);
     }
 
     /**

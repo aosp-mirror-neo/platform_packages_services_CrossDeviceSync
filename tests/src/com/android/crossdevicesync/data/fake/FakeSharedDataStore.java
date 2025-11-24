@@ -148,11 +148,15 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                     Map<String, Object> before = ((FakeDocument<T>) doc).getAll();
                     R result = applier.transact(doc);
                     Map<String, Object> after = ((FakeDocument<T>) doc).getAll();
+                    List<String> paths = new ArrayList<>();
                     for (String path : after.keySet()) {
                         if (!Objects.equals(before.get(path), after.get(path))) {
-                            mListeners.forEach(
-                                    l -> l.first.execute(() -> l.second.onRemoteChange(path)));
+                            paths.add(path);
                         }
+                    }
+                    if (!paths.isEmpty()) {
+                        mListeners.forEach(
+                                l -> l.first.execute(() -> l.second.onRemoteChange(paths)));
                     }
                     return result;
                 },
