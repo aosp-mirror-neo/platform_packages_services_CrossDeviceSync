@@ -78,13 +78,26 @@ public interface SharedDataStore<T> extends AutoCloseable {
     void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener);
 
     /** Close the data store. Any further interactions with this data store will fail. */
-    void close();
+    default void close() {
+        var unused = closeWithCallback();
+    }
+
+    /**
+     * Same as {@link #close()}, but also returns a {@link ListenableFuture} to notify callers when
+     * all resources are released. Note that the close state is immediately effective. The actual
+     * resource cleanup (e.g. close the database, shutdown IO thread, etc) may happen asynchronously
+     * and will be notified via the {@link ListenableFuture}.
+     *
+     * @return a {@link ListenableFuture} to get notified when all resources are closed
+     */
+    ListenableFuture<?> closeWithCallback();
 
     /** Check if the data store is open. */
     boolean isOpen();
 
     /**
-     * Permanently delete the data store and its content. This operation is non-recoverable.
+     * Permanently delete the data store and its content. This operation is non-recoverable. If the
+     * data store is open, it will be closed afterwards regardless of if the deletion succeeds.
      *
      * @return a listenable future to get notified when deletion is done or failed.
      */

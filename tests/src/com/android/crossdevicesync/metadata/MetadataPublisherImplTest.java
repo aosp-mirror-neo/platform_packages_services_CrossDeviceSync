@@ -18,11 +18,14 @@ package com.android.crossdevicesync.metadata;
 import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC;
 
 import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.LAST_METADATA_UPDATE_TIMESTAMP_PREFIX;
+import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.NETWORK_ID;
+import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.NETWORK_ID_USER_ALL;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import android.companion.AssociationInfo;
 import android.os.PersistableBundle;
+import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -95,6 +98,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
 
         // Verify that we pinged the new device.
         assertThat(device.getSentMessages()).hasSize(1);
+        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId()).isEqualTo(NETWORK_ID);
     }
 
     @Test
@@ -125,6 +129,27 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
         mMetadataPublisher.putBooleanMetaData(userId, "key", true);
 
         assertThat(device.getSentMessages()).hasSize(1);
+        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId()).isEqualTo(NETWORK_ID);
+    }
+
+    @Test
+    public void setMetadata_userAll_pingRemoteDevices() {
+        mMetadataPublisher.init();
+        FakeRemoteDevice device1 =
+                mFakeNetworkManager.addRemoteDevice(
+                        createAssociationInfo(
+                                /* id= */ 1, /* userId= */ 1, /* timeMetadataSent= */ 10));
+        FakeRemoteDevice device2 =
+                mFakeNetworkManager.addRemoteDevice(
+                        createAssociationInfo(
+                                /* id= */ 2, /* userId= */ 2, /* timeMetadataSent= */ 10));
+
+        mMetadataPublisher.putBooleanMetaData(UserHandle.USER_ALL, "key", true);
+
+        assertThat(device1.getSentMessages()).hasSize(1);
+        assertThat(device2.getSentMessages()).hasSize(1);
+        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId())
+                .isEqualTo(NETWORK_ID_USER_ALL);
     }
 
     @Test
@@ -140,6 +165,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
 
         // Verify that we pinged the new device.
         assertThat(device.getSentMessages()).hasSize(1);
+        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId()).isEqualTo(NETWORK_ID);
     }
 
     @Test

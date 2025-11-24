@@ -42,7 +42,7 @@ public class RoomStorage implements IStorage {
 
     @Inject
     RoomStorage(Context context, @DataStoreName String name) {
-        mContext = context;
+        mContext = context.createDeviceProtectedStorageContext();
         mName = name;
     }
 

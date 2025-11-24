@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.data;
 
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.IntDef;
@@ -38,6 +40,7 @@ import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.StorageInterface.StorageException;
 import com.google.android.submerge.TimestampProvider;
 import com.google.android.submerge.VersionVector;
+import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -589,17 +592,16 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     }
 
     @Override
-    public void close() {
+    public ListenableFuture<Boolean> closeWithCallback() {
         synchronized (mLock) {
             if (mState == STATE_UNINITIALIZED || mState == STATE_CLOSED) {
-                Log.w(
-                        TAG,
-                        "close: ignored - illegal state "
-                                + stateToString(mState)
-                                + " in data store \""
-                                + mName
-                                + "\".");
-                return;
+                return Futures.immediateFailedFuture(
+                        new IllegalStateException(
+                                "close: ignored - illegal state "
+                                        + stateToString(mState)
+                                        + " in data store \""
+                                        + mName
+                                        + "\"."));
             }
             Log.i(TAG, "closing data store \"" + mName + "\".");
             mState = STATE_CLOSED;
@@ -614,14 +616,17 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                     .forEach(docMessages -> docMessages.values().forEach(mNetwork::cancelMessage));
             mDocUnicastMessageIds.clear();
             mNodeId = null;
-            mIOThreadExecutor
-                    .get()
-                    .execute(
-                            () -> {
-                                submergeDataStore.close();
-                                mStorage.close();
-                            });
+            ListenableFuture<Boolean> future =
+                    mIOThreadExecutor
+                            .get()
+                            .submit(
+                                    () -> {
+                                        submergeDataStore.close();
+                                        mStorage.close();
+                                        return true;
+                                    });
             mIOThreadExecutor.get().shutdown();
+            return future;
         }
     }
 
@@ -637,7 +642,24 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         synchronized (mLock) {
             try {
                 requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-                return mIOThreadExecutor.get().submit(this::doDelete);
+                ListenableFuture<Boolean> future = mIOThreadExecutor.get().submit(this::doDelete);
+                // Close the data store after deletion. Chain the future so that the caller will
+                // get notified after the data store is fully closed.
+                return FluentFuture.from(future)
+                        .catchingAsync(
+                                Exception.class,
+                                t ->
+                                        // Close self first, then re-throw.
+                                        FluentFuture.from(closeWithCallback())
+                                                .catchingAsync(
+                                                        Exception.class,
+                                                        unused -> Futures.immediateFailedFuture(t),
+                                                        directExecutor())
+                                                .transformAsync(
+                                                        unused -> Futures.immediateFailedFuture(t),
+                                                        directExecutor()),
+                                directExecutor())
+                        .transformAsync(unused -> closeWithCallback(), directExecutor());
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
             }
@@ -653,7 +675,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             mDeviceNodeIdProvider.noteDataStoreDeletion(mName);
             Log.w(TAG, "Deleted data store \"" + mName + "\".");
         }
-        close();
         return true;
     }
 
@@ -677,6 +698,21 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     private String getDebugDocIdentityString(String docId) {
         return mName + "::" + docId;
+    }
+
+    @Override
+    public String toString() {
+        synchronized (mLock) {
+            return "SharedDataStore{name="
+                    + mName
+                    + ", state="
+                    + stateToString(mState)
+                    + ", docs="
+                    + mSchemaProvider.getAllDocumentSchema().stream()
+                            .map(DocumentSchemaInfo::getDocId)
+                            .toList()
+                    + "}";
+        }
     }
 
     private static String stateToString(@State int state) {

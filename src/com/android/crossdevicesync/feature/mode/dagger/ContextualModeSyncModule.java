@@ -13,28 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.mode;
-
-import android.util.IndentingPrintWriter;
+package com.android.crossdevicesync.feature.mode.dagger;
 
 import com.android.crossdevicesync.feature.FeatureManager;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+import com.android.crossdevicesync.feature.mode.ContextualModeSyncManager;
 
-import javax.inject.Inject;
+import dagger.Binds;
+import dagger.Module;
+import dagger.multibindings.ClassKey;
+import dagger.multibindings.IntoMap;
 
-/** Mode sync feature manager. */
-@SyncServiceSingleton
-public class ModeSyncManager implements FeatureManager {
-
-    @Inject
-    ModeSyncManager() {}
-
-    @Override
-    public void init() {}
-
-    @Override
-    public void destroy() {}
-
-    @Override
-    public void dump(IndentingPrintWriter pw) {}
+/** Dagger module for mode sync feature code. */
+@Module
+public abstract class ContextualModeSyncModule {
+    /** Binds {@link ContextualModeSyncManager}. */
+    @Binds
+    @IntoMap
+    @ClassKey(ContextualModeSyncManager.class)
+    abstract FeatureManager bindsContextualModeSyncManager(ContextualModeSyncManager manager);
 }
