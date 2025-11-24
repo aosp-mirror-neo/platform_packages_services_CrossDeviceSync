@@ -33,18 +33,22 @@ import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+import com.android.crossdevicesync.user.UserHelper;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 import javax.inject.Inject;
 
 /** Default implementation of {@link MetadataPublisher}. */
 @SyncServiceSingleton
-public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener {
+public class MetadataPublisherImpl
+        implements MetadataPublisher, NetworkListener, UserHelper.UserListener {
     private static final String TAG = "MetadataPublisher";
 
     /** Id of the network for pushing metadata to devices owned by individual users. */
@@ -62,6 +66,7 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
     private final CompanionDeviceManagerProxy mCompanionDeviceManager;
     private final Clock mClock;
     private final Executor mMainExecutor;
+    private final UserHelper mUserHelper;
 
     @GuardedBy("mLock")
     private final Map<Integer, Map<String, Object>> mStagingMetadata = new HashMap<>();
@@ -84,12 +89,14 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
             NetworkManager networkManager,
             CompanionDeviceManagerProxy companionDeviceManagerProxy,
             Clock clock,
-            @Main Executor mainExecutor) {
+            @Main Executor mainExecutor,
+            UserHelper userHelper) {
         mSharedPreferences = sharedPreferences;
         mNetworkManager = networkManager;
         mCompanionDeviceManager = companionDeviceManagerProxy;
         mClock = clock;
         mMainExecutor = mainExecutor;
+        mUserHelper = userHelper;
     }
 
     @Override
@@ -99,6 +106,7 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
                 throw new IllegalStateException("init: already initialized");
             }
             mInitialized = true;
+            mUserHelper.registerUserListener(mMainExecutor, this);
             for (Map.Entry<Integer, Long> entry :
                     getLastModifiedTimestampForAllUsers().entrySet()) {
                 int userId = entry.getKey();
@@ -230,6 +238,34 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
     }
 
     @Override
+    public void onUserAdded(UserHandle user) {
+        // Ignore.
+    }
+
+    @Override
+    public void onUserRemoved(UserHandle user) {
+        synchronized (mLock) {
+            if (!mInitialized) {
+                return;
+            }
+            Log.i(TAG, "Cleaning up metadata for removed user " + user.getIdentifier());
+            Network network = mUserNetworks.remove(user.getIdentifier());
+            if (network != null) {
+                network.destroy();
+            }
+            mUserUnicastMessages.remove(user.getIdentifier());
+            mUserBroadcastMessages.remove(user.getIdentifier());
+            mStagingMetadata.remove(user.getIdentifier());
+            mSharedPreferences
+                    .edit()
+                    .remove(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + user.getIdentifier())
+                    .apply();
+            mCompanionDeviceManager.setLocalMetadata(
+                    user.getIdentifier(), CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, null);
+        }
+    }
+
+    @Override
     public void destroy() {
         synchronized (mLock) {
             throwIfUninitializedLocked();
@@ -238,6 +274,7 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
             mUserNetworks.clear();
             mUserUnicastMessages.clear();
             mUserBroadcastMessages.clear();
+            mUserHelper.unregisterUserListener(this);
         }
     }
 
@@ -284,8 +321,15 @@ public class MetadataPublisherImpl implements MetadataPublisher, NetworkListener
             if (!mInitialized) {
                 return;
             }
+            Set<Integer> aliveUsers = new HashSet<>();
+            aliveUsers.add(UserHandle.USER_ALL);
+            mUserHelper.getAliveUsers().forEach(userInfo -> aliveUsers.add(userInfo.id));
             for (Entry<Integer, Map<String, Object>> entry : mStagingMetadata.entrySet()) {
                 int userId = entry.getKey();
+                if (!aliveUsers.contains(userId)) {
+                    Log.w(TAG, "Ignoring metadata for unknown user " + userId + ".");
+                    continue;
+                }
                 Map<String, Object> userMetadata = entry.getValue();
                 PersistableBundle bundle =
                         mCompanionDeviceManager

@@ -53,6 +53,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void init_hasNewMetadata_pingRemoteDevices() {
         int userId = 2;
+        addUser(userId);
         mSharedPreferences
                 .edit()
                 .putLong(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId, 10)
@@ -70,6 +71,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void init_noNewMetadata_notPingRemoteDevices() {
         int userId = 2;
+        addUser(userId);
         mSharedPreferences
                 .edit()
                 .putLong(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId, 10)
@@ -87,6 +89,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void init_newDeviceIsPinged() {
         int userId = 2;
+        addUser(userId);
         mSharedPreferences
                 .edit()
                 .putLong(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId, 10)
@@ -104,6 +107,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void setMetadata_metadataSentToCdm() {
         int userId = 2;
+        addUser(userId);
         mMetadataPublisher.init();
 
         mMetadataPublisher.putBooleanMetaData(userId, "key", true);
@@ -121,6 +125,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void setMetadata_pingRemoteDevices() {
         int userId = 2;
+        addUser(userId);
         mMetadataPublisher.init();
         FakeRemoteDevice device =
                 mFakeNetworkManager.addRemoteDevice(
@@ -155,6 +160,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void setMetadata_newDeviceIsPinged() {
         int userId = 2;
+        addUser(userId);
         mMetadataPublisher.init();
         mMetadataPublisher.putBooleanMetaData(userId, "key", true);
 
@@ -171,6 +177,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     @Test
     public void setMetadata_noChange_doNothing() {
         int userId = 2;
+        addUser(userId);
         PersistableBundle metadata = new PersistableBundle();
         metadata.putBoolean("key", true);
         mFakeCompanionDeviceManagerProxy.setLocalMetadata(
@@ -196,6 +203,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
         // With a synchronous executor, this results in multiple flushes, but the end result
         // should be a merged set of metadata.
         int userId = 2;
+        addUser(userId);
         mMetadataPublisher.init();
         FakeRemoteDevice device =
                 mFakeNetworkManager.addRemoteDevice(
@@ -227,6 +235,8 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
         // Verifies that metadata updates for different users are handled correctly.
         int userId1 = 1;
         int userId2 = 2;
+        addUser(userId1);
+        addUser(userId2);
         mMetadataPublisher.init();
         FakeRemoteDevice device1 =
                 mFakeNetworkManager.addRemoteDevice(
@@ -264,6 +274,7 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
     public void setMetadata_overwritesExistingValue() {
         // Verifies that setting metadata with an existing key overwrites the previous value.
         int userId = 2;
+        addUser(userId);
         mMetadataPublisher.init();
 
         // Set an initial value.
@@ -279,6 +290,29 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
                         .getPersistableBundle(FEATURE_CROSS_DEVICE_SYNC);
         assertThat(metadata.getString("key")).isEqualTo("value2");
         assertThat(metadata.size()).isEqualTo(1);
+    }
+
+    @Test
+    public void userRemoved_metadataCleanedUp() {
+        int userId = 2;
+        addUser(userId);
+        mMetadataPublisher.init();
+        mMetadataPublisher.putBooleanMetaData(userId, "key", true);
+
+        mFakeUserHelper.removeUser(UserHandle.of(userId));
+
+        assertThat(mSharedPreferences.contains(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId))
+                .isFalse();
+        assertThat(
+                        mFakeCompanionDeviceManagerProxy
+                                .getLocalMetadata(userId)
+                                .getPersistableBundle(FEATURE_CROSS_DEVICE_SYNC))
+                .isNull();
+        assertThat(mFakeNetworkManager.getNetworks()).isEmpty();
+    }
+
+    private void addUser(int userId) {
+        mFakeUserHelper.addUser(UserHandle.of(userId));
     }
 
     private AssociationInfo createAssociationInfo(int id, int userId, long timeMetadataSent) {
