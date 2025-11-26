@@ -18,10 +18,7 @@ package com.android.crossdevicesync.feature.airplanemode
 /** Manages and provides airplane mode state. */
 interface AirplaneModeController {
     /** Returns the current airplane mode state. */
-    fun isAirplaneModeEnabled(): Boolean
-
-    /** Returns the current airplane mode sync enabled state. */
-    fun isAirplaneModeSyncEnabled(): Boolean
+    fun getAirplaneModeState(): Boolean
 
     /** Updates the current airplane mode state. */
     fun updateAirplaneModeState(enabled: Boolean)
@@ -36,8 +33,5 @@ interface AirplaneModeController {
     interface Listener {
         /** Called when the airplane mode state changes. */
         fun onAirplaneModeChanged(enabled: Boolean)
-
-        /** Called when the airplane mode sync enabled state changes. */
-        fun onAirplaneModeSyncEnabledStateChanged(enabled: Boolean)
     }
 }

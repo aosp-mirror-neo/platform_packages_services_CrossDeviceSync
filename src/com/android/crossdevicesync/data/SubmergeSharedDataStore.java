@@ -686,7 +686,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             }
         }
         throw new IllegalStateException(
-                "Data store "
+                "Data store"
                         + mName
                         + "'s current state "
                         + stateToString(mState)

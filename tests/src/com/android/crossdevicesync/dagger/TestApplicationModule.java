@@ -27,7 +27,6 @@ import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
-import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.user.UserHelper;
@@ -74,13 +73,6 @@ public abstract class TestApplicationModule {
     @Singleton
     static boolean providesIsWatch(IsWatchProvider isWatchProvider) {
         return isWatchProvider.isWatch;
-    }
-
-    @Provides
-    @IsKidsWatch
-    @Singleton
-    static boolean providesIsKidsWatch(IsWatchProvider isWatchProvider) {
-        return isWatchProvider.isKidsWatch;
     }
 
     @Singleton

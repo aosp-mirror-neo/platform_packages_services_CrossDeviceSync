@@ -492,8 +492,17 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     }
 
     /** A container for a message sent via {@link #sendMessage}. */
-    @SuppressWarnings("ArrayRecordComponent")
-    public record SentMessage(int messageType, byte[] data, int[] associationIds) {}
+    public static class SentMessage {
+        public final int messageType;
+        public final byte[] data;
+        public final int[] associationIds;
+
+        SentMessage(int messageType, byte[] data, int[] associationIds) {
+            this.messageType = messageType;
+            this.data = data;
+            this.associationIds = associationIds;
+        }
+    }
 
     private static class AssociationRecord {
         public final int associationId;

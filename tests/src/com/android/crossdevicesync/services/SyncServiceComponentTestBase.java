@@ -22,7 +22,6 @@ import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager;
 import com.android.crossdevicesync.feature.airplanemode.fake.FakeAirplaneModeController;
 import com.android.crossdevicesync.metadata.MetadataPublisherImpl;
-import com.android.crossdevicesync.metadata.fake.FakeMetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.network.advertiser.AdvertiserImpl;
 import com.android.crossdevicesync.network.advertiser.fake.FakeAdvertiser;
@@ -57,7 +56,6 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     @Inject protected AirplaneModeSyncManager mAirplaneModeSyncManager;
     @Inject protected FakeAirplaneModeController mFakeAirplaneModeController;
     @Inject protected MetadataPublisherImpl mMetadataPublisher;
-    @Inject protected FakeMetadataPublisher mFakeMetadataPublisher;
 
     @Override
     public void setUp() {
