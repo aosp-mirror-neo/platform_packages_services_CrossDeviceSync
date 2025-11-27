@@ -23,4 +23,6 @@ import javax.inject.Singleton
 class IsWatchProvider @Inject constructor() {
     /** Whether the device is a watch or not. */
     @JvmField var isWatch: Boolean = false
+
+    @JvmField var isKidsWatch: Boolean = false
 }

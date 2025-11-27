@@ -870,7 +870,7 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
                         mFakeCompanionDeviceManagerProxy.simulateMessageReceived(
                                 CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
                                 associationId,
-                                sentMessage.data);
+                                sentMessage.data());
                     }
                 },
                 remoteContext.getMainExecutor());
@@ -878,11 +878,11 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
                 CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
                 sentMessage -> {
                     if (mAllowOutboundMessages
-                            && ArrayUtils.contains(sentMessage.associationIds, associationId)) {
+                            && ArrayUtils.contains(sentMessage.associationIds(), associationId)) {
                         remoteCDM.simulateMessageReceived(
                                 CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
                                 /* associationId= */ 1,
-                                sentMessage.data);
+                                sentMessage.data());
                     }
                 },
                 mMainExecutor);
