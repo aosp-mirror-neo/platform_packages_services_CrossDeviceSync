@@ -38,6 +38,8 @@ import com.android.crossdevicesync.data.StringConverter
 import com.android.crossdevicesync.feature.FeatureManager
 import com.android.crossdevicesync.metadata.MetadataPublisher
 import com.android.crossdevicesync.network.NetworkManager
+import com.android.crossdevicesync.notification.NotificationHelper
+import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
 import com.android.server.connectivity.Flags
 import com.google.common.util.concurrent.FutureCallback
@@ -56,6 +58,7 @@ internal constructor(
     private val mStringConverter: StringConverter,
     private val mAirplaneModeController: AirplaneModeController,
     private val mMetadataPublisher: MetadataPublisher,
+    private val mNotificationHelper: NotificationHelper,
     @param:IsKidsWatch private val mIsKidsWatch: Provider<Boolean>,
     @param:IsWatch private val mIsWatch: Provider<Boolean>,
     @param:Main private val mExecutor: Executor,
@@ -101,6 +104,9 @@ internal constructor(
                             Log.d(TAG, "Remote APM state = $apmEnabled. Updating local setting")
                             mAirplaneModeState = apmEnabled
                             mAirplaneModeController.updateAirplaneModeState(apmEnabled)
+                            if (apmEnabled) {
+                                mNotificationHelper.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+                            }
                         }
                     }
                 }
