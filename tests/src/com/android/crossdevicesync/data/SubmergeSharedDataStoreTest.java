@@ -20,12 +20,15 @@ import static com.android.crossdevicesync.common.Utils.getException;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.data.SharedDataStore.Document;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
+import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
@@ -38,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1047,7 +1051,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     }
 
     @Test
-    public void testDelete_failedToDelete_dataStoreClosed() throws Exception {
+    public void testDelete_failedToDelete_dataStoreClosed() {
         mFakeStorage.setRuntimeException(new NullPointerException());
 
         ListenableFuture<?> future = mDataStore.delete();
@@ -1055,6 +1059,27 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         assertThat(getException(future)).isInstanceOf(NullPointerException.class);
         assertThat(mDataStore.isOpen()).isFalse();
         assertThat(mExecutorService.isShutdown()).isTrue();
+    }
+
+    @Test
+    public void testRemoteChangeListener_batchCallback() throws Exception {
+        OnRemoteChangeListener listener = mock(OnRemoteChangeListener.class);
+        mSubmergeSharedDataStore.registerOnRemoteChangeListener(mMainExecutor, listener);
+        // Update initiated from remote device.
+        connectNetworks(this, mRemoteDevice1);
+        transactDataStore(
+                mRemoteDevice1,
+                doc -> {
+                    doc.putData("/root/register", "abc");
+                    doc.addDataToSet("/root/set", "def");
+                });
+        flushNetworks(this, mRemoteDevice1);
+
+        // Verify we received batch update callback.
+        ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+        verify(listener).onRemoteChange(captor.capture());
+        List<String> paths = captor.getValue();
+        assertThat(paths).containsExactly("/root/register", "/root/set");
     }
 
     private static void connectNetworks(SharedDataStoreComponentTestBase... testContexts) {

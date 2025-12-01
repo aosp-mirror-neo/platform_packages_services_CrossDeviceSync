@@ -23,4 +23,4 @@ package com.android.crossdevicesync.data;
  * @param version the schema version of the document when this path is firstly introduced. Must not
  *     change once introduced.
  */
-record PathSchemaInfo(String path, @RecordType int type, int version) {}
+public record PathSchemaInfo(String path, @RecordType int type, int version) {}

@@ -463,8 +463,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                                         networkMessage
                                                                 .getDocUpdate()
                                                                 .toByteArray()));
-                for (String path : changedPaths) {
-                    mRemoteChangeListeners.forEach(record -> record.onRemoteChange(path));
+                if (!changedPaths.isEmpty()) {
+                    mRemoteChangeListeners.forEach(record -> record.onRemoteChange(changedPaths));
                 }
             } catch (OlderBaseNeededException e) {
                 Log.i(
@@ -729,8 +729,8 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private record OnRemoteChangeListenerRecord(
             Executor mExecutor, OnRemoteChangeListener mListener) {
 
-        void onRemoteChange(String path) {
-            mExecutor.execute(() -> mListener.onRemoteChange(path));
+        void onRemoteChange(List<String> paths) {
+            mExecutor.execute(() -> mListener.onRemoteChange(paths));
         }
     }
 }

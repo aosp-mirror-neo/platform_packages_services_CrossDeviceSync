@@ -21,6 +21,7 @@ import android.content.SharedPreferences;
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
@@ -28,6 +29,8 @@ import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.user.UserHelper;
+import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
 import dagger.Binds;
 import dagger.Module;
@@ -76,5 +79,16 @@ public abstract class TestApplicationModule {
     @Provides
     static SharedPreferences provideSharedPreferences(Context context) {
         return context.getSharedPreferences(SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
+    }
+
+    @Singleton
+    @Binds
+    abstract UserHelper bindsUserHelper(FakeUserHelper fake);
+
+    @Singleton
+    @Provides
+    static ThreadChecker providesThreadChecker() {
+        // Ignore.
+        return () -> {};
     }
 }

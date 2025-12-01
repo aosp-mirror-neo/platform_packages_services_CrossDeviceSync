@@ -65,7 +65,16 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     }
 
     protected TestSyncServiceComponent newSyncServiceComponent() {
-        return mApplicationComponent.getTestSyncServiceComponentBuilder().build();
+        return mApplicationComponent
+                .getTestSyncServiceComponentBuilder()
+                .useRealSharedDataStoreImpl(useRealSharedDataStoreImpl())
+                .build();
+    }
+
+    protected boolean useRealSharedDataStoreImpl() {
+        // Use fake shared data store in sync service scope by default. Test can override this
+        // method to ues the real shared data store implementation instead.
+        return false;
     }
 
     public FakeNetworkManager getNetworkManager() {

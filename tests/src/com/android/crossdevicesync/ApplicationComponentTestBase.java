@@ -26,6 +26,7 @@ import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
 import java.util.concurrent.Executor;
 
@@ -44,6 +45,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject @Main protected DelayedExecutor mDelayedExecutor;
     @Inject protected IsWatchProvider mIsWatchProvider;
     @Inject protected SharedPreferences mSharedPreferences;
+    @Inject protected FakeUserHelper mFakeUserHelper;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();

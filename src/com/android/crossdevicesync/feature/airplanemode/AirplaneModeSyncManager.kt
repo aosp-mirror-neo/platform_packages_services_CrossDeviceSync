@@ -58,9 +58,9 @@ internal constructor(
     @Volatile private lateinit var mDataStore: SharedDataStore<String>
     private val mAirplaneModeState = AtomicBoolean(false)
 
-    private val mRemoteAirplaneModeChangeListener = OnRemoteChangeListener { path: String ->
+    private val mRemoteAirplaneModeChangeListener = OnRemoteChangeListener { paths: List<String> ->
         // TODO(b/427295302): Also check the Sync Toggle Setting of current device.
-        if (path == APM_ENABLED_PATH) {
+        if (paths.contains(APM_ENABLED_PATH)) {
             Log.d(TAG, "Remote APM changed")
             mDataStore.transact(DOC_ID) { doc ->
                 doc.getRecord(APM_ENABLED_PATH)?.let { record ->

@@ -40,15 +40,18 @@ public class DocumentSchemaInfo {
         mPathSchema = pathSchema;
     }
 
-    String getDocId() {
+    /** Get the doc id. */
+    public String getDocId() {
         return mDocId;
     }
 
-    int getVersion() {
+    /** Get the schema version. */
+    public int getVersion() {
         return mVersion;
     }
 
-    List<PathSchemaInfo> getPathSchema() {
+    /** Get schema of all paths. */
+    public List<PathSchemaInfo> getPathSchema() {
         return mPathSchema;
     }
 
