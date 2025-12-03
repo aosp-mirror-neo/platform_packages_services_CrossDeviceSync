@@ -29,6 +29,13 @@ license {
     ],
 }
 
+android_library {
+    name: "CrossDeviceSync-res",
+    use_resource_processor: true,
+    resource_dirs: ["res"],
+    manifest: "AndroidManifest-res.xml",
+}
+
 android_app {
     name: "CrossDeviceSync",
     defaults: ["platform_app_defaults"],
@@ -39,6 +46,7 @@ android_app {
         "src/**/*.kt",
     ],
     static_libs: [
+        "CrossDeviceSync-res",
         "androidx.annotation_annotation",
         "androidx.room_room-runtime",
         "com_android_crossdevicesync_flags_lib",
@@ -53,6 +61,7 @@ android_app {
         "android.service.notification.flags-aconfig-java",
     ],
     required: ["submerge_java_shared"],
+    manifest: "AndroidManifest.xml",
     platform_apis: true,
     generate_product_characteristics_rro: true,
     dex_preopt: {
@@ -87,6 +96,7 @@ android_test {
         "tests/src/**/*.kt",
     ],
     static_libs: [
+        "CrossDeviceSync-res",
         "androidx.annotation_annotation",
         "androidx.room_room-runtime",
         "androidx.test.ext.junit",
@@ -105,9 +115,8 @@ android_test {
         "dagger2",
         "jsr330",
     ],
-    jni_libs: [
-        "submerge_java_shared",
-    ],
+    jni_libs: ["submerge_java_shared"],
+    aaptflags: ["--extra-packages com.android.crossdevicesync"],
     platform_apis: true,
     test_suites: ["device-tests"],
     test_config: "tests/AndroidTest.xml",
@@ -116,9 +125,6 @@ android_test {
     plugins: [
         "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
-    ],
-    flags_packages: [
-        "connectivity_flags",
     ],
     javacflags: [
         "-Adagger.fastInit=enabled",

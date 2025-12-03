@@ -35,6 +35,7 @@ import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.APM_SYNC_SUPPORTED
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.toAirplaneModeState
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice
+import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase
 import com.android.server.connectivity.Flags
 import com.google.common.truth.Truth.assertThat
@@ -288,6 +289,21 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
         // Verify local airplane mode is not enabled.
         assertThat(isAirplaneModeOn()).isFalse()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testRemoteChange_syncEnabled_showsNotification() {
+        // Initialize the manager.
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        // Enable airplane mode on remote device.
+        setRemoteAirplaneModeEnabled(true)
+        flushNetworks()
+
+        // Verify notification is shown.
+        assertThat(mFakeNotificationHelper.mShownNotifications).contains(AIRPLANE_MODE_SYNCED)
     }
 
     @Test

@@ -27,6 +27,9 @@ import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.notification.NotificationHelperImpl;
+import com.android.crossdevicesync.notification.fake.FakeNotificationHelper;
+import com.android.crossdevicesync.notification.fake.FakeNotificationManagerProxy;
 import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
 import java.util.concurrent.Executor;
@@ -41,6 +44,9 @@ public abstract class ApplicationComponentTestBase {
     protected TestApplicationComponent mApplicationComponent;
     @Inject protected BootReceiver mBootReceiver;
     @Inject protected FakeCompanionDeviceManagerProxy mFakeCompanionDeviceManagerProxy;
+    @Inject protected FakeNotificationManagerProxy mFakeNotificationManagerProxy;
+    @Inject protected FakeNotificationHelper mFakeNotificationHelper;
+    @Inject protected NotificationHelperImpl mNotificationHelperImpl;
     @Inject @Main protected Executor mMainExecutor;
     @Inject protected FakeClock mFakeClock;
     @Inject @Main protected DelayedExecutor mDelayedExecutor;
@@ -55,5 +61,7 @@ public abstract class ApplicationComponentTestBase {
         mApplication.reCreateDaggerComponent();
         mApplicationComponent = mApplication.getApplicationComponent();
         mApplicationComponent.inject(this);
+        // Clear shared preferences
+        mSharedPreferences.edit().clear().commit();
     }
 }

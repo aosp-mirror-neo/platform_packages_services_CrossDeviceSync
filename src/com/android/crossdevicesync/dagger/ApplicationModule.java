@@ -41,6 +41,7 @@ import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.notification.dagger.NotificationModule;
 import com.android.crossdevicesync.user.UserHelper;
 import com.android.crossdevicesync.user.UserHelperImpl;
 
@@ -59,7 +60,7 @@ import javax.inject.Singleton;
  * <p>Note: if a binding is needed in both production and test code, please put it in {@link
  * ApplicationBaseModule} instead.
  */
-@Module(includes = {ApplicationBaseModule.class})
+@Module(includes = {ApplicationBaseModule.class, NotificationModule.class})
 public abstract class ApplicationModule {
     private static final String DEFAULT_SHARED_PREFS_FILE_NAME = "cross_device_sync_prefs";
 

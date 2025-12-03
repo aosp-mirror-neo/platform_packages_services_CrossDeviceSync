@@ -33,6 +33,7 @@ import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.notification.dagger.TestNotificationModule;
 import com.android.crossdevicesync.user.UserHelper;
 import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
@@ -45,7 +46,7 @@ import java.util.concurrent.Executor;
 import javax.inject.Singleton;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
-@Module(includes = {ApplicationBaseModule.class})
+@Module(includes = {ApplicationBaseModule.class, TestNotificationModule.class})
 public abstract class TestApplicationModule {
     private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
 
