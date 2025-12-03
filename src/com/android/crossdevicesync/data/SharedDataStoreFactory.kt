@@ -15,23 +15,9 @@
  */
 package com.android.crossdevicesync.data
 
-import com.android.crossdevicesync.network.NetworkManager.Network
-import com.google.android.submerge.Converter
+/** A testable interface for creating new [SharedDataStore] instances. */
+interface SharedDataStoreFactory<T> {
 
-/** A factory to create a [SharedDataStore]. */
-interface SharedDataStoreFactory {
-    /**
-     * Creates a [SharedDataStore]
-     *
-     * @param name The name of the data store
-     * @param converter used to serialize/deserialize the data
-     * @param schemaProvider The [SchemaProvider] for the data store
-     * @param network The [Network] to sync the data store with.
-     */
-    fun <T> create(
-        name: String,
-        converter: Converter<T>,
-        schemaProvider: SchemaProvider<T>,
-        network: Network,
-    ): SharedDataStore<T>
+    /** Create a new instance of [SharedDataStore] */
+    fun create(): SharedDataStore<T>
 }

@@ -37,7 +37,10 @@ public abstract class TestAppComponentsModule {
     @IntoMap
     @ClassKey(SyncService.class)
     static Service provideSyncService(TestSyncServiceComponent.Builder builder) {
-        return builder.useRealSharedDataStoreImpl(true).build().getSyncService();
+        return builder.useRealSharedDataStoreImpl(true)
+                .useRealSharedDataStoreHandleImpl(true)
+                .build()
+                .getSyncService();
     }
 
     /** Binds a BootReceiver instance. */

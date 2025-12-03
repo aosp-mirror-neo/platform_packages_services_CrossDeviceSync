@@ -24,8 +24,6 @@ import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.junit.Assert.assertThrows;
-
 import android.app.modes.ContextualMode;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
@@ -34,7 +32,9 @@ import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.crossdevicesync.data.SharedDataStore.Document;
 import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
@@ -50,9 +50,10 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     private UserHandle mUser;
     private ContextualModeSyncController mController;
     private ContextualMode mDoNotDisturbMode;
+    private TestSharedDataStoreFactory<String> mDataStoreFactory;
     private FakeSharedDataStore<String> mSharedDataStore;
-    private String mDataStoreName;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUp() {
         super.setUp();
@@ -68,12 +69,16 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         mFakeNetworkManager.init();
         mFakeMetadataPublisher.init();
         mController.start();
-        mDataStoreName = DATASTORE_NAME_PREFIX + mUser.getIdentifier();
-        mSharedDataStore = mSharedDataStoreFactory.getDataStore(mDataStoreName);
+        mDataStoreFactory =
+                (TestSharedDataStoreFactory<String>)
+                        mSharedDataStoreComponentBuilderWrapper
+                                .getComponent(DATASTORE_NAME_PREFIX + mUser.getIdentifier())
+                                .getTestSharedDataStoreFactory();
+        mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
     }
 
     @Test
-    public void start_dataStoreAndNetworkInitialized() throws Exception {
+    public void start_dataStoreAndNetworkInitialized() {
         assertThat(mSharedDataStore).isNotNull();
         assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(isDndActiveInSharedDataStore()).isFalse();
@@ -86,7 +91,7 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     }
 
     @Test
-    public void testDndChange_writeToSharedDataStore() throws Exception {
+    public void testDndChange_writeToSharedDataStore() {
         // Turn on DND.
         mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
 
@@ -132,10 +137,21 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
+        assertThat(mSharedDataStore.getDocumentUnchecked(CONTEXTUAL_MODES_DOC_ID)).isNotNull();
     }
 
     @Test
-    public void modeSyncDisabledAndEnabled_dataStoreOpenAfterClose() throws Exception {
+    public void stop_deleteDataStore() {
+        mController.stop(true);
+
+        assertThat(mSharedDataStore.isOpen()).isFalse();
+        assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
+        assertThat(mSharedDataStore.getDocumentUnchecked(CONTEXTUAL_MODES_DOC_ID)).isNull();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void modeSyncDisabledAndEnabled_dataStoreOpenAfterClose() {
         // Make close async.
         mSharedDataStore.setAsync(true);
 
@@ -147,22 +163,19 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
         // Verify that data store is being closed.
         assertThat(mSharedDataStore.isOpen()).isFalse();
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isSameInstanceAs(mSharedDataStore);
+        assertThat(mDataStoreFactory.lastDataStore()).isSameInstanceAs(mSharedDataStore);
 
         // Verify that mode change during this time will be ignored.
         mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
         assertThat(mSharedDataStore.isOpen()).isFalse();
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isSameInstanceAs(mSharedDataStore);
+        assertThat(mDataStoreFactory.lastDataStore()).isSameInstanceAs(mSharedDataStore);
 
         // Finish close.
         mSharedDataStore.setAsync(false);
 
         // Verify that data store is re-created.
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isNotSameInstanceAs(mSharedDataStore);
-        mSharedDataStore = mSharedDataStoreFactory.getDataStore(mDataStoreName);
+        assertThat(mDataStoreFactory.lastDataStore()).isNotSameInstanceAs(mSharedDataStore);
+        mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
         assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNotNull();
 
@@ -179,12 +192,13 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .isTrue();
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    public void modeSyncEnabledAndDisabled_dataStoreCloseAfterOpen() throws Exception {
+    public void modeSyncEnabledAndDisabled_dataStoreCloseAfterOpen() {
         // Turn off mode sync.
         mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
         // Make init async.
-        mSharedDataStoreFactory.setDataStoresAsync(true);
+        mDataStoreFactory.setDataStoresAsync(true);
 
         // Quickly toggle mode sync to on and off multiple times.
         mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
@@ -193,33 +207,28 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
 
         // Verify that data store is being initialized.
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isNotSameInstanceAs(mSharedDataStore);
-        mSharedDataStore = mSharedDataStoreFactory.getDataStore(mDataStoreName);
+        assertThat(mDataStoreFactory.lastDataStore()).isNotSameInstanceAs(mSharedDataStore);
+        mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
         assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNotNull();
 
         // Verify that mode change during this time will be ignored.
         mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
         assertThat(mSharedDataStore.isOpen()).isTrue();
-        // Accessing DND right now should throw since the shared data store is not initialized
-        // with default value yet.
-        assertThrows(Exception.class, () -> isDndActiveInSharedDataStore());
+        assertThat(isDndActiveInSharedDataStore()).isFalse();
 
         // Finish init.
         mSharedDataStore.setAsync(false);
 
         // Verify that data store is closed afterwards.
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isSameInstanceAs(mSharedDataStore);
+        assertThat(mDataStoreFactory.lastDataStore()).isSameInstanceAs(mSharedDataStore);
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
 
         // Verify that mode change is ignored.
         mFakeContextualModeManager.addOrUpdateMode(mUser, deactivated(mDoNotDisturbMode));
         mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
-        assertThat(mSharedDataStoreFactory.getDataStore(mDataStoreName))
-                .isSameInstanceAs(mSharedDataStore);
+        assertThat(mDataStoreFactory.lastDataStore()).isSameInstanceAs(mSharedDataStore);
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
 
@@ -245,12 +254,13 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .isTrue();
     }
 
+    @SuppressWarnings("unchecked")
     @Test
-    public void dndAdded_dataStoreOpen() throws Exception {
+    public void dndAdded_dataStoreOpen() {
         mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
 
         mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
-        mSharedDataStore = mSharedDataStoreFactory.getDataStore(mDataStoreName);
+        mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
 
         assertThat(mSharedDataStore).isNotNull();
         assertThat(mSharedDataStore.isOpen()).isTrue();
@@ -287,16 +297,9 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         assertThat(network.getRemoteDevices().containsKey(2)).isFalse();
     }
 
-    private boolean isDndActiveInSharedDataStore() throws Exception {
-        // Transact as remote to ensure the transaction is always synchronous.
-        return mSharedDataStore
-                .transactAsRemote(
-                        CONTEXTUAL_MODES_DOC_ID,
-                        doc ->
-                                ModeSyncDocs.isModeStateActive(
-                                        doc, getManualDoNotDisturbStatePath()),
-                        REMOTE_NODE_ID)
-                .get();
+    private boolean isDndActiveInSharedDataStore() {
+        Document<String> doc = mSharedDataStore.getDocumentUnchecked(CONTEXTUAL_MODES_DOC_ID);
+        return ModeSyncDocs.isModeStateActive(doc, getManualDoNotDisturbStatePath());
     }
 
     private void remotePutDndActiveToSharedDataStore(boolean active) throws Exception {

@@ -17,6 +17,8 @@ package com.android.crossdevicesync.data;
 
 import android.annotation.Nullable;
 
+import com.android.crossdevicesync.network.NetworkManager.Network;
+
 import com.google.android.submerge.StorageInterface.StorageException;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -32,11 +34,12 @@ import java.util.concurrent.Executor;
  *
  * @param <T> the data type that this data store manages.
  */
-public interface SharedDataStore<T> extends AutoCloseable {
+public interface SharedDataStore<T> {
 
     /**
      * Initialize the data store. A data store is usable only after this method is called.
      *
+     * @param network the network to be used for syncing.
      * @return a listenable future to get notified when initialization is done or failed. {@link
      *     IllegalSchemaChangeException} will be passed to the future if the schema upgrade fails
      *     due to illegal schema. {@link SchemaValidationException} will be passed to the future if
@@ -45,7 +48,7 @@ public interface SharedDataStore<T> extends AutoCloseable {
      *     usually non-recoverable, so you may want to delete the entire data store and rebuild it
      *     from empty state.
      */
-    ListenableFuture<?> init();
+    ListenableFuture<?> init(Network network);
 
     /**
      * Gets the local device node id. This is a unique string representing a device that
@@ -78,31 +81,19 @@ public interface SharedDataStore<T> extends AutoCloseable {
     /** Unregister a {@link OnRemoteChangeListener}. */
     void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener);
 
-    /** Close the data store. Any further interactions with this data store will fail. */
-    default void close() {
-        var unused = closeWithCallback();
-    }
-
     /**
-     * Same as {@link #close()}, but also returns a {@link ListenableFuture} to notify callers when
-     * all resources are released. Note that the close state is immediately effective. The actual
-     * resource cleanup (e.g. close the database, shutdown IO thread, etc) may happen asynchronously
-     * and will be notified via the {@link ListenableFuture}.
+     * Close the data store. Any further interactions with this data store will fail. Also returns a
+     * {@link ListenableFuture} to notify callers when all resources are released. Note that the
+     * close state is immediately effective. The actual resource cleanup (e.g. close the database,
+     * shutdown IO thread, etc) may happen asynchronously and will be notified via the {@link
+     * ListenableFuture}.
      *
      * @return a {@link ListenableFuture} to get notified when all resources are closed
      */
-    ListenableFuture<?> closeWithCallback();
+    ListenableFuture<?> close();
 
     /** Check if the data store is open. */
     boolean isOpen();
-
-    /**
-     * Permanently delete the data store and its content. This operation is non-recoverable. If the
-     * data store is open, it will be closed afterwards regardless of if the deletion succeeds.
-     *
-     * @return a listenable future to get notified when deletion is done or failed.
-     */
-    ListenableFuture<?> delete();
 
     /**
      * A document that can be used to access data.

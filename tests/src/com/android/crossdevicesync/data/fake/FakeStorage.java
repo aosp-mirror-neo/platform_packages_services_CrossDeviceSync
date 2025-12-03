@@ -36,6 +36,8 @@ public class FakeStorage implements IStorage {
     private final Map<String, byte[]> mDocuments = new HashMap<>();
     private final Map<String, byte[]> mMetadata = new HashMap<>();
     private final Map<String, byte[]> mSchema = new HashMap<>();
+    // Generic data for test usage.
+    private final Map<String, Object> mObjects = new HashMap<>();
     private boolean mInitialized;
     private RuntimeException mException;
 
@@ -113,6 +115,31 @@ public class FakeStorage implements IStorage {
         transactionApplier.acceptOrThrow(this);
     }
 
+    /** Persist a generic object. */
+    public <T> void persistObject(String key, T val) {
+        maybeThrowException();
+        mObjects.put(key, val);
+    }
+
+    /** Get a generic object. */
+    @SuppressWarnings("TypeParameterUnusedInFormals")
+    @Nullable
+    public <T> T getObject(String val) {
+        maybeThrowException();
+        return getObjectUnchecked(val);
+    }
+
+    /** Get all persistent generic objects without any precondition check. */
+    @Nullable
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
+    public <T> T getObjectUnchecked(String val) {
+        return (T) mObjects.get(val);
+    }
+
+    public Map<String, Object> getAllObjectsUnchecked() {
+        return mObjects;
+    }
+
     @Override
     public void close() {
         maybeThrowException();
@@ -123,10 +150,16 @@ public class FakeStorage implements IStorage {
     public boolean deleteDatabase() {
         maybeThrowException();
         close();
+        boolean hasData =
+                !mDocuments.isEmpty()
+                        || !mMetadata.isEmpty()
+                        || !mSchema.isEmpty()
+                        || !mObjects.isEmpty();
         mDocuments.clear();
         mMetadata.clear();
         mSchema.clear();
-        return true;
+        mObjects.clear();
+        return hasData;
     }
 
     public void setRuntimeException(@Nullable RuntimeException e) {

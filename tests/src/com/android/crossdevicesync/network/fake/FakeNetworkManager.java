@@ -445,19 +445,16 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public String getNetworkId() {
-            throwIfDestroyed();
             return mNetworkId;
         }
 
         @Override
         public int getUserId() {
-            throwIfDestroyed();
             return mUserId;
         }
 
         @Override
         public Map<Integer, RemoteDevice> getRemoteDevices() {
-            throwIfDestroyed();
             Map<Integer, RemoteDevice> devices = new HashMap<>();
             for (int id : mAssociationIds) {
                 RemoteDevice device = FakeNetworkManager.this.mRemoteDevices.get(id);
@@ -470,7 +467,9 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public long broadcastMessage(byte[] message, int flags) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return -1;
+            }
             long id = mNextMessageId++;
             mMessageContents.put(id, message);
             if ((flags & MESSAGE_FLAG_STICKY) != 0) {
@@ -484,7 +483,9 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public long multicastMessage(List<Integer> associationIds, byte[] message, int flags) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return -1;
+            }
             long id = mNextMessageId++;
             mMessageContents.put(id, message);
             for (int associationId : associationIds) {
@@ -497,20 +498,23 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public boolean isMessagePending(long id) {
-            throwIfDestroyed();
             return mStickyBroadcastRecipients.containsKey(id);
         }
 
         @Override
         public void cancelMessage(long id) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             mMessageContents.remove(id);
             mStickyBroadcastRecipients.remove(id);
         }
 
         @Override
         public void registerListener(Executor executor, NetworkListener listener) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             mListeners.add(Pair.create(executor, listener));
             mAssociationIds.forEach(
                     associationId ->
@@ -522,12 +526,17 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public void unregisterListener(NetworkListener listener) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             mListeners.removeIf(pair -> pair.second == listener);
         }
 
         @Override
         public void destroy() {
+            if (mIsDestroyed) {
+                return;
+            }
             mListeners.clear();
             mAssociationIds.clear();
             mMessageContents.clear();
@@ -541,13 +550,14 @@ public class FakeNetworkManager implements NetworkManager {
 
         @Override
         public void dump(IndentingPrintWriter pw) {
-            throwIfDestroyed();
             // No-op
         }
 
         /** Simulates receiving a message from a remote device for testing. */
         public void receiveMessage(int fromAssociationId, byte[] message) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             for (Pair<Executor, NetworkListener> pair : mListeners) {
                 pair.first.execute(() -> pair.second.onNetworkMessage(fromAssociationId, message));
             }
@@ -558,13 +568,10 @@ public class FakeNetworkManager implements NetworkManager {
             return mIsDestroyed;
         }
 
-        private void throwIfDestroyed() {
-            if (mIsDestroyed) {
-                throw new IllegalStateException("Network is destroyed!");
-            }
-        }
-
         private void maybeAddDevice(RemoteDevice device) {
+            if (mIsDestroyed) {
+                return;
+            }
             if (mDevicePredicate.test(device)
                     && (device.getUserId() == mUserId || mUserId == UserHandle.USER_ALL)) {
                 addDeviceInternal(device);
@@ -572,7 +579,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         private void addDeviceInternal(RemoteDevice device) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             int associationId = device.getAssociationId();
             if (mAssociationIds.add(associationId)) {
                 for (Pair<Executor, NetworkListener> pair : mListeners) {
@@ -593,7 +602,9 @@ public class FakeNetworkManager implements NetworkManager {
         }
 
         void removeDevice(int associationId) {
-            throwIfDestroyed();
+            if (mIsDestroyed) {
+                return;
+            }
             if (mAssociationIds.remove(associationId)) {
                 for (Pair<Executor, NetworkListener> pair : mListeners) {
                     pair.first.execute(() -> pair.second.onDeviceRemoved(associationId));
@@ -603,7 +614,7 @@ public class FakeNetworkManager implements NetworkManager {
 
         /** Returns whether the given remote device is eligible for this network. */
         public boolean isDeviceEligibleForNetwork(RemoteDevice remoteDevice) {
-            return mDevicePredicate.test(remoteDevice);
+            return !mIsDestroyed && mDevicePredicate.test(remoteDevice);
         }
     }
 

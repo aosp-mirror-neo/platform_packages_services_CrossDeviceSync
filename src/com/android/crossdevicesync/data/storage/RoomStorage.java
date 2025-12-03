@@ -142,7 +142,6 @@ public class RoomStorage implements IStorage {
     @Override
     public void close() {
         if (mDatabase == null) {
-            Log.e(TAG, "close: database is null!");
             return;
         }
         mDatabase.close();

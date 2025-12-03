@@ -16,10 +16,9 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
-import com.android.crossdevicesync.data.SharedDataStoreFactory;
 import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
 import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
-import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreComponentBuilderWrapper;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.TimestampProvider;
@@ -42,7 +41,7 @@ public abstract class TestDataModule {
     abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(
             FakeDeviceNodeIdProvider fakeDeviceNodeIdProvider);
 
-    @SyncServiceSingleton
     @Binds
-    abstract SharedDataStoreFactory bindsSharedDataStoreFactory(TestSharedDataStoreFactory factory);
+    abstract SharedDataStoreComponent.Builder bindsSharedDataStoreComponentBuilder(
+            TestSharedDataStoreComponentBuilderWrapper wrapper);
 }

@@ -17,6 +17,8 @@ package com.android.crossdevicesync.data.fake;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
+import static java.util.Objects.requireNonNull;
+
 import android.util.Pair;
 
 import androidx.annotation.Nullable;
@@ -27,7 +29,10 @@ import com.android.crossdevicesync.data.PathSchemaInfo;
 import com.android.crossdevicesync.data.RecordType;
 import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
+import com.android.crossdevicesync.network.NetworkManager.Network;
 
+import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -44,18 +49,20 @@ import java.util.concurrent.Executor;
 /** Fake implementation of {@link SharedDataStore} for testing. */
 @SuppressWarnings("EffectivelyPrivate")
 public class FakeSharedDataStore<T> implements SharedDataStore<T> {
-    private final Map<String, FakeDocument<T>> mDocs = new HashMap<>();
+    private final FakeStorage mStorage;
     private final List<Pair<Executor, OnRemoteChangeListener>> mListeners = new ArrayList<>();
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     @Nullable private final SchemaProvider<T> mSchemaProvider;
+    private final SharedDataStoreHandle<T> mHandle;
     private boolean mOpen;
     private boolean mAsync;
     @Nullable private String mSelfNodeId;
     @Nullable private SettableFuture<?> mInitFuture;
-    @Nullable private SettableFuture<?> mDeleteFuture;
     @Nullable private SettableFuture<?> mCloseFuture;
     @Nullable private SettableFuture<?> mTransactFuture;
+    @Nullable private ListenableFuture<?> mExternalInitFuture;
+    @Nullable private ListenableFuture<?> mExternalCloseFuture;
 
     /** Create an empty shared data store. */
     public FakeSharedDataStore() {
@@ -72,7 +79,10 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                         // Do nothing
                     }
                 },
-                /* schemaProvider= */ null);
+                /* schemaProvider= */ null,
+                new FakeStorage(),
+                /* handle= */ null);
+        mStorage.init();
     }
 
     /**
@@ -81,14 +91,24 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     public FakeSharedDataStore(
             String name,
             DeviceNodeIdProvider deviceNodeIdProvider,
-            @Nullable SchemaProvider<T> schemaProvider) {
+            @Nullable SchemaProvider<T> schemaProvider,
+            FakeStorage storage,
+            @Nullable SharedDataStoreHandle<T> handle) {
         mName = name;
         mDeviceNodeIdProvider = deviceNodeIdProvider;
         mSchemaProvider = schemaProvider;
+        mStorage = storage;
+        mHandle = handle;
     }
 
     @Override
-    public ListenableFuture<?> init() {
+    public ListenableFuture<?> init(Network network) {
+        if (mOpen) {
+            return requireNonNull(mExternalInitFuture);
+        }
+        if (mHandle != null && !mHandle.lock(this)) {
+            return Futures.immediateFailedFuture(new IllegalStateException("Already locked"));
+        }
         mOpen = true;
         mSelfNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
         List<ListenableFuture<?>> futures = new ArrayList<>();
@@ -109,7 +129,22 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
             futures.add(mInitFuture);
         }
         // Returned future should be successful only if all the pending tasks are done.
-        return Futures.allAsList(futures);
+        mExternalInitFuture =
+                FluentFuture.from(Futures.allAsList(futures))
+                        .catchingAsync(
+                                Exception.class,
+                                e ->
+                                        // Close data store and re-throw if error occurs.
+                                        FluentFuture.from(close())
+                                                .catchingAsync(
+                                                        Exception.class,
+                                                        unused -> Futures.immediateFailedFuture(e),
+                                                        directExecutor())
+                                                .transformAsync(
+                                                        unused -> Futures.immediateFailedFuture(e),
+                                                        directExecutor()),
+                                directExecutor());
+        return mExternalInitFuture;
     }
 
     @Nullable
@@ -180,11 +215,12 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
             schemaVersion = schemaInfo.getVersion();
         }
         try {
-            FakeDocument<T> doc =
-                    mDocs.computeIfAbsent(
-                                    docId, k -> new FakeDocument<>(docId, schemaVersion, nodeId))
-                            .withIdentity(isLocal, nodeId);
-            R result = applier.transact(doc);
+            FakeDocument<T> doc = mStorage.getObject(docId);
+            if (doc == null) {
+                doc = new FakeDocument<>(docId, schemaVersion, nodeId);
+                mStorage.persistObject(docId, doc);
+            }
+            R result = applier.transact(doc.withIdentity(isLocal, nodeId));
             if (mSchemaProvider != null) {
                 try {
                     mSchemaProvider.validateDocument(doc);
@@ -198,6 +234,12 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         }
     }
 
+    /** Get document without any precondition check. */
+    @Nullable
+    public MutableDocument<T> getDocumentUnchecked(String docId) {
+        return mStorage.getObjectUnchecked(docId);
+    }
+
     @Override
     public void registerOnRemoteChangeListener(Executor executor, OnRemoteChangeListener listener) {
         mListeners.add(Pair.create(executor, listener));
@@ -209,13 +251,20 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     }
 
     @Override
-    public ListenableFuture<?> closeWithCallback() {
+    public ListenableFuture<?> close() {
+        if (!mOpen && mExternalCloseFuture != null) {
+            return mExternalCloseFuture;
+        }
         mOpen = false;
         if (mAsync) {
-            mCloseFuture = SettableFuture.create();
-            return mCloseFuture;
+            mExternalCloseFuture = mCloseFuture = SettableFuture.create();
+        } else {
+            mExternalCloseFuture = Futures.immediateVoidFuture();
         }
-        return Futures.immediateVoidFuture();
+        if (mHandle != null) {
+            mExternalCloseFuture.addListener(() -> mHandle.unlock(this), directExecutor());
+        }
+        return mExternalCloseFuture;
     }
 
     @Nullable
@@ -226,23 +275,6 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     @Override
     public boolean isOpen() {
         return mOpen;
-    }
-
-    @Override
-    public ListenableFuture<?> delete() {
-        mDocs.clear();
-        mOpen = false;
-        mDeviceNodeIdProvider.noteDataStoreDeletion(mName);
-        if (mAsync) {
-            mDeleteFuture = SettableFuture.create();
-            return mDeleteFuture;
-        }
-        return Futures.immediateVoidFuture();
-    }
-
-    @Nullable
-    public SettableFuture<?> getDeleteFuture() {
-        return mDeleteFuture;
     }
 
     /** Make init/close/delete/transact operations async. */
@@ -261,17 +293,19 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                 mCloseFuture.set(null);
                 mCloseFuture = null;
             }
-            if (mDeleteFuture != null) {
-                mDeleteFuture.set(null);
-                mDeleteFuture = null;
-            }
         }
         return this;
     }
 
     @Override
     public String toString() {
-        return "{name=" + mName + ", open=" + mOpen + ", docs=" + mDocs + "}";
+        return "{name="
+                + mName
+                + ", open="
+                + mOpen
+                + ", docs="
+                + mStorage.getAllObjectsUnchecked()
+                + "}";
     }
 
     private static class FakeRecord<T> implements Record<T> {
@@ -355,7 +389,7 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         }
     }
 
-    private static class FakeDocument<T> implements MutableDocument<T> {
+    public static class FakeDocument<T> implements MutableDocument<T> {
         private final Map<String, Record<T>> mRecords = new HashMap<>();
         private final String mId;
         private final int mSchemaVersion;

@@ -15,15 +15,17 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.data.DefaultSharedDataStoreHandle;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.SchemaProvider;
-import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
+import com.android.crossdevicesync.data.dagger.qualifier.DataStoreLock;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 import com.android.crossdevicesync.data.storage.IStorage;
-import com.android.crossdevicesync.network.NetworkManager.Network;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.TimestampProvider;
@@ -36,6 +38,8 @@ import dagger.Provides;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+
+import javax.inject.Provider;
 
 /**
  * Base module for shared data store component that is included in both production app and test
@@ -52,32 +56,42 @@ interface SharedDataStoreBaseModule {
     }
 
     @Provides
-    @SharedDataStoreSingleton
     static SubmergeSharedDataStore<?> provideSubmergeSharedDataStore(
             @DataStoreName String name,
+            @DataStoreLock Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
             @IOThread Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
-            Network network,
             TimestampProvider timestampProvider,
             Converter<?> converter,
             SchemaProvider<?> schemaProvider,
-            SubmergeSchemaUpgradeHelper<?> schemaUpgradeHelper) {
+            SubmergeSchemaUpgradeHelper<?> schemaUpgradeHelper,
+            SharedDataStoreHandle<?> handle) {
         return new SubmergeSharedDataStore(
                 name,
+                lock,
                 deviceNodeIdProvider,
                 ioThreadExecutor,
                 storage,
-                network,
                 timestampProvider,
                 converter,
                 schemaProvider,
-                schemaUpgradeHelper);
+                schemaUpgradeHelper,
+                handle);
     }
 
-    @Binds
+    @Provides
     @SharedDataStoreSingleton
-    SharedDataStore<?> bindsSharedDataStore(SubmergeSharedDataStore<?> submergeSharedDataStore);
+    static DefaultSharedDataStoreHandle<?> provideDefaultSharedDataStoreHandle(
+            @DataStoreName String name,
+            @DataStoreLock Object lock,
+            DeviceNodeIdProvider nodeIdProvider,
+            IStorage storage,
+            @IOThread Provider<ListeningExecutorService> ioExecutor,
+            SharedDataStoreFactory<?> dataStoreFactory) {
+        return new DefaultSharedDataStoreHandle(
+                name, lock, nodeIdProvider, storage, ioExecutor, dataStoreFactory);
+    }
 
     @Binds
     @IOThread
@@ -88,4 +102,11 @@ interface SharedDataStoreBaseModule {
     @IOThread
     @SharedDataStoreSingleton
     Executor bindsIOThreadExecutor(@IOThread ExecutorService service);
+
+    @Provides
+    @DataStoreLock
+    @SharedDataStoreSingleton
+    static Object providesDataStoreLock() {
+        return new Object();
+    }
 }

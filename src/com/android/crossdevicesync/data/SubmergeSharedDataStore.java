@@ -73,33 +73,25 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private static final int STATE_UNINITIALIZED = 0;
     // The data store is performing an upgrade.
     private static final int STATE_UPGRADING = 1;
-    // The data store failed to upgrade.
-    private static final int STATE_FAILED_TO_UPGRADE = 2;
     // The data store is open and ready for use.
-    private static final int STATE_OPEN = 3;
+    private static final int STATE_OPEN = 2;
     // The data store is closed.
-    private static final int STATE_CLOSED = 4;
+    private static final int STATE_CLOSED = 3;
 
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
-        STATE_UNINITIALIZED,
-        STATE_UPGRADING,
-        STATE_FAILED_TO_UPGRADE,
-        STATE_OPEN,
-        STATE_CLOSED
-    })
+    @IntDef({STATE_UNINITIALIZED, STATE_UPGRADING, STATE_OPEN, STATE_CLOSED})
     public @interface State {}
 
-    private final Object mLock = new Object();
+    private final Object mLock;
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     private final Lazy<ListeningExecutorService> mIOThreadExecutor;
     private final IStorage mStorage;
-    private final Network mNetwork;
     private final TimestampProvider mTimestampProvider;
     private final Converter<T> mConverter;
     private final SchemaProvider<T> mSchemaProvider;
     private final SubmergeSchemaUpgradeHelper<T> mSchemaUpgradeHelper;
+    private final SharedDataStoreHandle<T> mHandle;
     private final NetworkInterface mNetworkInterface = this::broadcastUpdateMessage;
     private final StorageInterface mDocumentStorageInterface =
             new StorageInterface() {
@@ -128,6 +120,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     @GuardedBy("mLock")
     @Nullable
+    private Network mNetwork;
+
+    @GuardedBy("mLock")
+    @Nullable
     private String mNodeId;
 
     @GuardedBy("mLock")
@@ -137,25 +133,35 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @State
     private int mState = STATE_UNINITIALIZED;
 
+    @GuardedBy("mLock")
+    @Nullable
+    private ListenableFuture<Boolean> mInitFuture;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ListenableFuture<Boolean> mCloseFuture;
+
     public SubmergeSharedDataStore(
             String name,
+            Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
             Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
-            Network network,
             TimestampProvider timestampProvider,
             Converter<T> converter,
             SchemaProvider<T> schemaProvider,
-            SubmergeSchemaUpgradeHelper<T> schemaUpgradeHelper) {
+            SubmergeSchemaUpgradeHelper<T> schemaUpgradeHelper,
+            SharedDataStoreHandle<T> handle) {
         this.mName = name;
+        this.mLock = lock;
         this.mDeviceNodeIdProvider = deviceNodeIdProvider;
         this.mIOThreadExecutor = ioThreadExecutor;
         this.mStorage = storage;
-        this.mNetwork = network;
         this.mTimestampProvider = timestampProvider;
         this.mConverter = converter;
         this.mSchemaProvider = schemaProvider;
         this.mSchemaUpgradeHelper = schemaUpgradeHelper;
+        this.mHandle = handle;
     }
 
     private void broadcastUpdateMessage(String docId, byte[] updateMessage) {
@@ -168,15 +174,45 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     @SuppressWarnings("MustBeClosedChecker")
     @Override
-    public ListenableFuture<Boolean> init() {
+    public ListenableFuture<Boolean> init(Network network) {
         synchronized (mLock) {
             try {
+                if (isOpen()) {
+                    // Duplicate call.
+                    return requireNonNull(mInitFuture);
+                }
                 requireStateLocked(STATE_UNINITIALIZED);
+                if (!mHandle.lock(this)) {
+                    throw new IllegalStateException("Data store \"" + mName + "\" is locked");
+                }
                 mState = STATE_UPGRADING;
+                mNetwork = network;
                 mNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
                 mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
                 // Init the storage and upgrade the data store asynchronously.
-                return mIOThreadExecutor.get().submit(this::doInit);
+                mInitFuture =
+                        FluentFuture.from(mIOThreadExecutor.get().submit(this::doInit))
+                                .catchingAsync(
+                                        Exception.class,
+                                        e -> {
+                                            // If init fails, close the data store and rethrow the
+                                            // error.
+                                            Log.e(TAG, "Failed to init data store", e);
+                                            return FluentFuture.from(close())
+                                                    .catchingAsync(
+                                                            Exception.class,
+                                                            unused ->
+                                                                    Futures.immediateFailedFuture(
+                                                                            e),
+                                                            directExecutor())
+                                                    .transformAsync(
+                                                            unused ->
+                                                                    Futures.immediateFailedFuture(
+                                                                            e),
+                                                            directExecutor());
+                                        },
+                                        directExecutor());
+                return mInitFuture;
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
             }
@@ -281,18 +317,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                 + schema.getVersion()
                                 + " for "
                                 + getDebugDocIdentityString(docId));
-            } catch (Exception e) {
-                Log.e(
-                        TAG,
-                        "upgrade: failed to upgrade schema for " + getDebugDocIdentityString(docId),
-                        e);
-                // Advance state and re-throw.
-                synchronized (mLock) {
-                    if (mState == STATE_UPGRADING) {
-                        mState = STATE_FAILED_TO_UPGRADE;
-                    }
-                }
-                throw e;
             }
         }
         DataStore<T> submergeDataStore;
@@ -361,7 +385,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     public String getLocalDeviceNodeId() {
         String nodeId;
         synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
+            requireStateLocked(STATE_UPGRADING, STATE_OPEN);
             nodeId = requireNonNull(mNodeId);
         }
         return nodeId;
@@ -578,7 +602,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @Override
     public void registerOnRemoteChangeListener(Executor executor, OnRemoteChangeListener listener) {
         synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
+            requireStateLocked(STATE_UPGRADING, STATE_OPEN);
             mRemoteChangeListeners.add(new OnRemoteChangeListenerRecord(executor, listener));
         }
     }
@@ -586,96 +610,60 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @Override
     public void unregisterOnRemoteChangeListener(OnRemoteChangeListener listener) {
         synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
+            requireStateLocked(STATE_UPGRADING, STATE_OPEN);
             mRemoteChangeListeners.removeIf(record -> record.mListener == listener);
         }
     }
 
     @Override
-    public ListenableFuture<Boolean> closeWithCallback() {
+    public ListenableFuture<Boolean> close() {
         synchronized (mLock) {
-            if (mState == STATE_UNINITIALIZED || mState == STATE_CLOSED) {
-                return Futures.immediateFailedFuture(
-                        new IllegalStateException(
-                                "close: ignored - illegal state "
-                                        + stateToString(mState)
-                                        + " in data store \""
-                                        + mName
-                                        + "\"."));
+            if (mState == STATE_CLOSED) {
+                // Duplicate call.
+                return requireNonNull(mCloseFuture);
             }
             Log.i(TAG, "closing data store \"" + mName + "\".");
             mState = STATE_CLOSED;
             mRemoteChangeListeners.clear();
-            DataStore<T> submergeDataStore = requireNonNull(mSubmergeDataStore);
-            mSubmergeDataStore = null;
-            mNetwork.unregisterListener(this);
-            mDocBroadcastMessageIds.values().forEach(mNetwork::cancelMessage);
+            if (mNetwork != null) {
+                mNetwork.unregisterListener(this);
+                mDocBroadcastMessageIds.values().forEach(mNetwork::cancelMessage);
+                mDocUnicastMessageIds
+                        .values()
+                        .forEach(
+                                docMessages ->
+                                        docMessages.values().forEach(mNetwork::cancelMessage));
+                mNetwork = null;
+            }
             mDocBroadcastMessageIds.clear();
-            mDocUnicastMessageIds
-                    .values()
-                    .forEach(docMessages -> docMessages.values().forEach(mNetwork::cancelMessage));
             mDocUnicastMessageIds.clear();
             mNodeId = null;
-            ListenableFuture<Boolean> future =
-                    mIOThreadExecutor
-                            .get()
-                            .submit(
-                                    () -> {
-                                        submergeDataStore.close();
-                                        mStorage.close();
-                                        return true;
-                                    });
-            mIOThreadExecutor.get().shutdown();
-            return future;
+            if (mSubmergeDataStore != null) {
+                final DataStore<T> submergeDataStore = mSubmergeDataStore;
+                mSubmergeDataStore = null;
+                mCloseFuture =
+                        mIOThreadExecutor
+                                .get()
+                                .submit(
+                                        () -> {
+                                            submergeDataStore.close();
+                                            mStorage.close();
+                                            mHandle.unlock(this);
+                                            return true;
+                                        });
+            } else {
+                mHandle.unlock(this);
+                mCloseFuture = Futures.immediateFuture(true);
+            }
+            return mCloseFuture;
         }
     }
 
     @Override
     public boolean isOpen() {
         synchronized (mLock) {
-            return mState == STATE_OPEN;
+            return mState == STATE_UPGRADING || mState == STATE_OPEN;
         }
-    }
-
-    @Override
-    public ListenableFuture<Boolean> delete() {
-        synchronized (mLock) {
-            try {
-                requireStateLocked(STATE_UPGRADING, STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-                ListenableFuture<Boolean> future = mIOThreadExecutor.get().submit(this::doDelete);
-                // Close the data store after deletion. Chain the future so that the caller will
-                // get notified after the data store is fully closed.
-                return FluentFuture.from(future)
-                        .catchingAsync(
-                                Exception.class,
-                                t ->
-                                        // Close self first, then re-throw.
-                                        FluentFuture.from(closeWithCallback())
-                                                .catchingAsync(
-                                                        Exception.class,
-                                                        unused -> Futures.immediateFailedFuture(t),
-                                                        directExecutor())
-                                                .transformAsync(
-                                                        unused -> Futures.immediateFailedFuture(t),
-                                                        directExecutor()),
-                                directExecutor())
-                        .transformAsync(unused -> closeWithCallback(), directExecutor());
-            } catch (IllegalStateException e) {
-                return Futures.immediateFailedFuture(e);
-            }
-        }
-    }
-
-    private boolean doDelete() {
-        synchronized (mLock) {
-            requireStateLocked(STATE_FAILED_TO_UPGRADE, STATE_OPEN);
-        }
-        Log.w(TAG, "Deleting data store \"" + mName + "\".");
-        if (mStorage.deleteDatabase()) {
-            mDeviceNodeIdProvider.noteDataStoreDeletion(mName);
-            Log.w(TAG, "Deleted data store \"" + mName + "\".");
-        }
-        return true;
     }
 
     @GuardedBy("mLock")
@@ -719,7 +707,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         return switch (state) {
             case STATE_UNINITIALIZED -> "UNINITIALIZED";
             case STATE_UPGRADING -> "UPGRADING";
-            case STATE_FAILED_TO_UPGRADE -> "FAILED_TO_UPGRADE";
             case STATE_OPEN -> "OPEN";
             case STATE_CLOSED -> "CLOSED";
             default -> "UNKNOWN(" + state + ")";
