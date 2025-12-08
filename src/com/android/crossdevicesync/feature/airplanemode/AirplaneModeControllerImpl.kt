@@ -33,17 +33,29 @@ internal constructor(private val context: Context, @param:Main private val execu
     AirplaneModeController {
 
     private val listeners = mutableListOf<AirplaneModeController.Listener>()
-    private val contentObserver =
+    private val airplaneModeContentObserver =
         object : ContentObserver(executor, /* unused= */ 0) {
             override fun onChange(selfChange: Boolean) {
-                val apmEnabled = getAirplaneModeState()
+                val apmEnabled = isAirplaneModeEnabled()
                 Log.d(TAG, "Local APM state changed to $apmEnabled")
                 listeners.forEach { it.onAirplaneModeChanged(apmEnabled) }
             }
         }
 
-    override fun getAirplaneModeState(): Boolean =
-        Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON) == 1
+    private val airplaneModeSyncContentObserver =
+        object : ContentObserver(executor, /* unused= */ 0) {
+            override fun onChange(selfChange: Boolean) {
+                val apmSyncEnabled = isAirplaneModeSyncEnabled()
+                Log.d(TAG, "Local APM sync enabled state changed to $apmSyncEnabled")
+                listeners.forEach { it.onAirplaneModeSyncEnabledStateChanged(apmSyncEnabled) }
+            }
+        }
+
+    override fun isAirplaneModeEnabled(): Boolean =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) == 1
+
+    override fun isAirplaneModeSyncEnabled(): Boolean =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_SYNC, 1) == 1
 
     override fun updateAirplaneModeState(enabled: Boolean) {
         context.getSystemService(ConnectivityManager::class.java).setAirplaneMode(enabled)
@@ -54,7 +66,12 @@ internal constructor(private val context: Context, @param:Main private val execu
             context.contentResolver.registerContentObserver(
                 Settings.Global.getUriFor(Settings.Global.AIRPLANE_MODE_ON),
                 /* notifyForDescendants= */ false,
-                contentObserver,
+                airplaneModeContentObserver,
+            )
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(Settings.Global.AIRPLANE_MODE_SYNC),
+                /* notifyForDescendants= */ false,
+                airplaneModeSyncContentObserver,
             )
         }
         listeners.add(listener)
@@ -63,7 +80,8 @@ internal constructor(private val context: Context, @param:Main private val execu
     override fun unregisterAirplaneModeChangedListener(listener: AirplaneModeController.Listener) {
         listeners.remove(listener)
         if (listeners.isEmpty()) {
-            context.contentResolver.unregisterContentObserver(contentObserver)
+            context.contentResolver.unregisterContentObserver(airplaneModeContentObserver)
+            context.contentResolver.unregisterContentObserver(airplaneModeSyncContentObserver)
         }
     }
 

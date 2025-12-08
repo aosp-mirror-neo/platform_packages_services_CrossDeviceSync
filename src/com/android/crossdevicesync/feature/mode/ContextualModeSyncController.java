@@ -1,0 +1,554 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.android.crossdevicesync.feature.mode;
+
+import static android.app.modes.ContextualMode.TYPE_MANUAL_DO_NOT_DISTURB;
+
+import static com.android.crossdevicesync.data.DataStoreInitHelper.getInitializedDataStore;
+import static com.android.crossdevicesync.feature.mode.ModeSyncDocs.CONTEXTUAL_MODES_DOC_ID;
+import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED;
+import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED;
+
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+
+import static java.util.Objects.requireNonNull;
+
+import android.app.modes.ContextualMode;
+import android.app.modes.ContextualModeManager.ContextualModeListener;
+import android.app.modes.ContextualModesMutation;
+import android.companion.AssociationInfo;
+import android.companion.CompanionDeviceManager;
+import android.os.PersistableBundle;
+import android.os.UserHandle;
+import android.util.ArrayMap;
+import android.util.IndentingPrintWriter;
+import android.util.Log;
+
+import androidx.annotation.GuardedBy;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
+import com.android.crossdevicesync.common.ContextualModeManagerProxy;
+import com.android.crossdevicesync.common.Dumpable;
+import com.android.crossdevicesync.dagger.qualifier.Background;
+import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.data.Docs;
+import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
+import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
+import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.data.StringConverter;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
+import com.android.crossdevicesync.network.NetworkManager;
+import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
+
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+
+import dagger.assisted.Assisted;
+import dagger.assisted.AssistedFactory;
+import dagger.assisted.AssistedInject;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+
+/** Helper class for managing per-user contextual mode sync. */
+public class ContextualModeSyncController
+        implements Dumpable, OnRemoteChangeListener, ContextualModeListener {
+    private static final String TAG = "CtxModeSyncController";
+
+    /**
+     * Network ID.
+     *
+     * <p>Note: DO NOT CHANGE.
+     */
+    @VisibleForTesting static final String NETWORK_ID = "contextual_mode_sync";
+
+    /**
+     * Data store name prefix.
+     *
+     * <p>Note: DO NOT CHANGE.
+     */
+    @VisibleForTesting
+    static final String DATASTORE_NAME_PREFIX = "contextual_mode_sync_datastore_";
+
+    private static final int STATE_INACTIVE = 0;
+    private static final int STATE_OPENING_DATA_STORE = 1;
+    private static final int STATE_ACTIVE = 2;
+    private static final int STATE_CLOSING_DATA_STORE = 3;
+
+    private final Object mLock = new Object();
+    private final NetworkManager mNetworkManager;
+    private final SharedDataStoreFactory mSharedDataStoreFactory;
+    private final Executor mMainExecutor;
+    private final Executor mBgExecutor;
+    private final StringConverter mConverter;
+    private final ContextualModeManagerProxy mContextualModeManager;
+    private final UserHandle mUser;
+    private final MetadataPublisher mMetadataPublisher;
+    private final Consumer<Boolean> mModeSyncEnabledListener = this::onModeSyncEnabledChanged;
+
+    @Nullable
+    @GuardedBy("mLock")
+    private Network mNetwork;
+
+    @Nullable
+    @GuardedBy("mLock")
+    private SharedDataStore<String> mSharedDataStore;
+
+    /** In-memory cache for modes that we care. */
+    @GuardedBy("mLock")
+    private final Map<String, ContextualMode> mModesCache = new HashMap<>();
+
+    @GuardedBy("mLock")
+    private int mState = STATE_INACTIVE;
+
+    @GuardedBy("mLock")
+    private boolean mModeSyncEnabled;
+
+    @GuardedBy("mLock")
+    private boolean mStarted;
+
+    @GuardedBy("mLock")
+    private boolean mShouldDeleteDataStore;
+
+    @AssistedInject
+    ContextualModeSyncController(
+            NetworkManager networkManager,
+            SharedDataStoreFactory sharedDataStoreFactory,
+            @Main Executor mainExecutor,
+            @Background Executor backgroundExecutor,
+            StringConverter converter,
+            ContextualModeManagerProxy contextualModeManager,
+            MetadataPublisher metadataPublisher,
+            @Assisted UserHandle user) {
+        mNetworkManager = networkManager;
+        mSharedDataStoreFactory = sharedDataStoreFactory;
+        mMainExecutor = mainExecutor;
+        mBgExecutor = backgroundExecutor;
+        mConverter = converter;
+        mContextualModeManager = contextualModeManager;
+        mMetadataPublisher = metadataPublisher;
+        mUser = user;
+    }
+
+    /** Start this controller. */
+    public void start() {
+        synchronized (mLock) {
+            if (mStarted) {
+                // Duplicate start();
+                return;
+            }
+            mStarted = true;
+            updateModesCacheLocked();
+            mContextualModeManager.registerModeListener(mUser, mMainExecutor, this);
+            mContextualModeManager.registerModeSyncEnabledListener(
+                    mUser, mMainExecutor, mModeSyncEnabledListener);
+            onModeSyncEnabledChanged(mContextualModeManager.isModeSyncEnabled(mUser));
+        }
+    }
+
+    private void onModeSyncEnabledChanged(boolean enabled) {
+        synchronized (mLock) {
+            if (!mStarted) {
+                // Already closed.
+                return;
+            }
+            mMetadataPublisher.putBooleanMetaData(
+                    mUser.getIdentifier(),
+                    ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED,
+                    enabled);
+            if (mModeSyncEnabled == enabled) {
+                // Unchanged.
+                return;
+            }
+            Log.i(TAG, "User " + mUser + " changed mode sync setting to " + enabled + ".");
+            mModeSyncEnabled = enabled;
+            invalidateLocked();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void invalidateLocked() {
+        if (!mModeSyncEnabled || !mStarted || mModesCache.isEmpty()) {
+            maybeDisableSyncLocked();
+        } else {
+            // Start sync only if sync enabled, controller started, and user has modes to sync.
+            maybeEnableSyncLocked();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void maybeEnableSyncLocked() {
+        if (mState != STATE_INACTIVE) {
+            Log.v(TAG, "maybeEnableSync: ignored. Current state is " + stateToString(mState));
+            return;
+        }
+        Log.i(TAG, "Opening shared data store for user " + mUser + ".");
+        mState = STATE_OPENING_DATA_STORE;
+        mNetwork =
+                mNetworkManager.createNetworkForUser(
+                        mUser.getIdentifier(),
+                        NETWORK_ID,
+                        ContextualModeSyncController::shouldSyncWithDevice);
+        Futures.addCallback(
+                getInitializedDataStore(this::createSharedDataStore, mMainExecutor),
+                new FutureCallback<>() {
+                    @Override
+                    public void onSuccess(SharedDataStore<String> dataStore) {
+                        onDataStoreInitialized(dataStore);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        onDataStoreFailedToInitialize(t);
+                    }
+                },
+                mMainExecutor);
+    }
+
+    @GuardedBy("mLock")
+    private void maybeDisableSyncLocked() {
+        if (mState != STATE_ACTIVE) {
+            Log.v(TAG, "maybeDisableSync: ignored. Current state is " + stateToString(mState));
+            return;
+        }
+        Log.i(TAG, "Closing shared data store for user " + mUser + ".");
+        mState = STATE_CLOSING_DATA_STORE;
+        SharedDataStore<String> dataStore = requireNonNull(mSharedDataStore);
+        dataStore.unregisterOnRemoteChangeListener(this);
+        dataStore.closeWithCallback().addListener(this::onDataStoreClosed, mMainExecutor);
+    }
+
+    private SharedDataStore<String> createSharedDataStore() {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                throw new IllegalArgumentException(
+                        "createSharedDataStore: illegal state " + stateToString(mState));
+            }
+            return mSharedDataStoreFactory.create(
+                    getDataStoreName(),
+                    mConverter,
+                    ModeSyncDocs.getSchemaProvider(this::onDataMigration),
+                    requireNonNull(mNetwork));
+        }
+    }
+
+    private String getDataStoreName() {
+        return DATASTORE_NAME_PREFIX + mUser.getIdentifier();
+    }
+
+    // Called in IO thread.
+    private void onDataMigration(MutableDocument<String> doc) {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                throw new IllegalArgumentException(
+                        "createSharedDataStore: illegal state " + stateToString(mState));
+            }
+            // Put initial state to data store.
+            syncToDocument(doc, /* overrideExisting= */ false);
+        }
+    }
+
+    private void onDataStoreInitialized(SharedDataStore<String> dataStore) {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                return;
+            }
+            Log.i(TAG, "Successfully initialized data store for user " + mUser + "!");
+            mState = STATE_ACTIVE;
+            mSharedDataStore = dataStore;
+            mSharedDataStore.registerOnRemoteChangeListener(mMainExecutor, this);
+            // Invalidate in case we need to close data store again due to user disabling mode sync
+            // or controller being closed.
+            invalidateLocked();
+        }
+    }
+
+    private void onDataStoreFailedToInitialize(Throwable t) {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                return;
+            }
+            Log.e(TAG, "Failed to initialize data store for user " + mUser + "!", t);
+            mState = STATE_INACTIVE;
+            requireNonNull(mNetwork).destroy();
+            mNetwork = null;
+        }
+    }
+
+    private void onDataStoreClosed() {
+        synchronized (mLock) {
+            if (mState != STATE_CLOSING_DATA_STORE) {
+                return;
+            }
+            Log.i(TAG, "Closed data store for user " + mUser + "!");
+            mState = STATE_INACTIVE;
+            mSharedDataStore = null;
+            requireNonNull(mNetwork).destroy();
+            mNetwork = null;
+            // Invalidate in case we need to open data store again due to user enabling mode sync,
+            // or we need to delete the datastore after it is closed.
+            invalidateLocked();
+        }
+    }
+
+    @Override
+    public void onRemoteChange(List<String> paths) {
+        synchronized (mLock) {
+            if (mState != STATE_ACTIVE) {
+                return;
+            }
+            Map<String, ContextualMode> modes = new ArrayMap<>();
+            for (String path : paths) {
+                for (ContextualMode m : mModesCache.values()) {
+                    if (path.equals(getModeStatePath(m))) {
+                        modes.put(path, m);
+                        break;
+                    }
+                }
+            }
+            if (modes.isEmpty()) {
+                // No mode matches the paths.
+                return;
+            }
+            transactDataStoreLocked(doc -> syncFromDocument(doc, modes));
+        }
+    }
+
+    @Override
+    public void onModesChanged(@NonNull List<ContextualMode> modes) {
+        synchronized (mLock) {
+            if (!updateModesCacheLocked(modes)) {
+                // Cache unchanged.
+                return;
+            }
+            if (mState == STATE_ACTIVE) {
+                transactDataStoreLocked(doc -> syncToDocument(doc, /* overrideExisting= */ true));
+            } else {
+                // Adding a mode may lead to sync starting.
+                invalidateLocked();
+            }
+        }
+    }
+
+    @Override
+    public void onModeRemoved(@NonNull String modeId) {
+        synchronized (mLock) {
+            if (mModesCache.remove(modeId) == null) {
+                // Unchanged.
+                return;
+            }
+            if (mState == STATE_ACTIVE) {
+                // Removal of a mode in sync may lead to sync stopping.
+                invalidateLocked();
+            }
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void updateModesCacheLocked() {
+        updateModesCacheLocked(mContextualModeManager.getModes(mUser));
+    }
+
+    @GuardedBy("mLock")
+    private boolean updateModesCacheLocked(List<ContextualMode> modes) {
+        boolean changed = false;
+        for (ContextualMode mode : modes) {
+            if (isSyncSupportedForMode(mode) && !mode.equals(mModesCache.get(mode.getId()))) {
+                mModesCache.put(mode.getId(), mode);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private static boolean isSyncSupportedForMode(ContextualMode mode) {
+        return getModeStatePath(mode) != null;
+    }
+
+    @Nullable
+    private static String getModeStatePath(ContextualMode mode) {
+        // Only support DND sync for now.
+        if (mode.getType() == TYPE_MANUAL_DO_NOT_DISTURB) {
+            return ModeSyncDocs.getManualDoNotDisturbStatePath();
+        }
+        return null;
+    }
+
+    // Called from IO thread.
+    private void syncToDocument(MutableDocument<String> doc, boolean overrideExisting) {
+        synchronized (mLock) {
+            if (mState != STATE_ACTIVE && mState != STATE_OPENING_DATA_STORE) {
+                return;
+            }
+            for (ContextualMode mode : mModesCache.values()) {
+                boolean active = mode.getState() == ContextualMode.STATE_ACTIVE;
+                String path = getModeStatePath(mode);
+                boolean hasExistingValue = Docs.getString(doc, path) != null;
+                if (!hasExistingValue
+                        || (overrideExisting
+                                && ModeSyncDocs.isModeStateActive(doc, path) != active)) {
+                    Log.i(TAG, "Syncing mode state " + mode + " to shared data store.");
+                    ModeSyncDocs.putModeStateActive(doc, path, active);
+                }
+            }
+        }
+    }
+
+    // Called from IO thread.
+    private void syncFromDocument(
+            MutableDocument<String> doc, Map<String, ContextualMode> cachedModes) {
+        synchronized (mLock) {
+            if (mState != STATE_ACTIVE) {
+                return;
+            }
+            ContextualModesMutation.Builder mutationBuilder = new ContextualModesMutation.Builder();
+            boolean changed = false;
+            for (Map.Entry<String, ContextualMode> entry : cachedModes.entrySet()) {
+                String path = entry.getKey();
+                ContextualMode mode = entry.getValue();
+                boolean active = ModeSyncDocs.isModeStateActive(doc, path);
+                int state = active ? ContextualMode.STATE_ACTIVE : ContextualMode.STATE_INACTIVE;
+                if (mode.getState() == state) {
+                    // Unchanged.
+                    return;
+                }
+                changed = true;
+                ContextualMode updatedMode =
+                        new ContextualMode.Builder(mode).setState(state).build();
+                mutationBuilder.addUpdatedMode(updatedMode);
+                mModesCache.put(updatedMode.getId(), updatedMode);
+                Log.i(
+                        TAG,
+                        "Updating mode "
+                                + mode
+                                + " state to "
+                                + ContextualMode.modeStateToString(state)
+                                + " due to shared data store change.");
+            }
+            if (changed) {
+                mContextualModeManager.mutateModes(mUser, mutationBuilder.build());
+            }
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void transactDataStoreLocked(Consumer<MutableDocument<String>> consumer) {
+        ListenableFuture<Boolean> future =
+                requireNonNull(mSharedDataStore)
+                        .transact(
+                                CONTEXTUAL_MODES_DOC_ID,
+                                doc -> {
+                                    consumer.accept(doc);
+                                    return true;
+                                });
+        Futures.addCallback(
+                future,
+                new FutureCallback<>() {
+                    @Override
+                    public void onSuccess(Boolean result) {
+                        // Ignore.
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        Log.e(
+                                TAG,
+                                " Failed to commit data store transaction for user " + mUser + ".",
+                                t);
+                    }
+                },
+                directExecutor());
+    }
+
+    private static boolean shouldSyncWithDevice(RemoteDevice device) {
+        AssociationInfo associationInfo = device.getAssociationInfoCache();
+        PersistableBundle metadata =
+                associationInfo.getMetadata(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC);
+        boolean syncSupported =
+                metadata.getBoolean(
+                        METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED, /* defaultValue= */ false);
+        boolean syncEnabled =
+                metadata.getBoolean(
+                        METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, /* defaultValue= */ false);
+        return syncSupported && syncEnabled;
+    }
+
+    private static String stateToString(int state) {
+        return switch (state) {
+            case STATE_INACTIVE -> "INACTIVE";
+            case STATE_OPENING_DATA_STORE -> "OPENING_DATA_STORE";
+            case STATE_ACTIVE -> "ACTIVE";
+            case STATE_CLOSING_DATA_STORE -> "CLOSING_DATA_STORE";
+            default -> "UNKNOWN(" + state + ")";
+        };
+    }
+
+    /** Stop this controller. */
+    public void stop() {
+        stop(/* deleteDataStore= */ false);
+    }
+
+    /**
+     * Stop this controller.
+     *
+     * @param deleteDataStore whether to delete the data store after closing
+     */
+    public void stop(boolean deleteDataStore) {
+        synchronized (mLock) {
+            if (!mStarted) {
+                // Already closed or not started.
+                return;
+            }
+            mStarted = false;
+            mContextualModeManager.unregisterModeListener(this);
+            mContextualModeManager.unregisterModeSyncEnabledListener(mModeSyncEnabledListener);
+            // Gracefully stop the data store.
+            invalidateLocked();
+            // TODO(b/430676212): handle deletion
+        }
+    }
+
+    @Override
+    public void dump(IndentingPrintWriter pw) {
+        pw.println("CtxModeSyncController:");
+        pw.increaseIndent();
+        synchronized (mLock) {
+            pw.println("mUser=" + mUser);
+            pw.println("mState=" + stateToString(mState));
+            pw.println("mStarted=" + mStarted);
+            pw.println("mModeSyncEnabled=" + mModeSyncEnabled);
+            pw.println("mModesCache=" + mModesCache.values());
+            pw.println("mNetwork=" + mNetwork);
+            pw.println("mDataStore=" + mSharedDataStore);
+        }
+        pw.decreaseIndent();
+    }
+
+    /** A factory to create a {@link ContextualModeSyncController} */
+    @AssistedFactory
+    public interface Factory {
+        /** Create a {@link ContextualModeSyncController} */
+        ContextualModeSyncController create(@Assisted UserHandle user);
+    }
+}

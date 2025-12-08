@@ -25,15 +25,23 @@ import javax.inject.Inject
 @SyncServiceSingleton
 class FakeAirplaneModeController @Inject constructor() : AirplaneModeController {
     private val airplaneModeState = AtomicBoolean(false)
+    private val airplaneModeSyncEnabledState = AtomicBoolean(true)
     private val listeners = mutableListOf<AirplaneModeController.Listener>()
 
-    override fun getAirplaneModeState(): Boolean {
+    override fun isAirplaneModeEnabled(): Boolean {
         return airplaneModeState.get()
     }
+
+    override fun isAirplaneModeSyncEnabled(): Boolean = airplaneModeSyncEnabledState.get()
 
     override fun updateAirplaneModeState(enabled: Boolean) {
         airplaneModeState.set(enabled)
         listeners.forEach { it.onAirplaneModeChanged(enabled) }
+    }
+
+    fun setAirplaneModeSyncEnabledState(enabled: Boolean) {
+        airplaneModeSyncEnabledState.set(enabled)
+        listeners.forEach { it.onAirplaneModeSyncEnabledStateChanged(enabled) }
     }
 
     override fun registerAirplaneModeChangedListener(listener: AirplaneModeController.Listener) {

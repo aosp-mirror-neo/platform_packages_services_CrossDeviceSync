@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data;
+package com.android.crossdevicesync.data.storage;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase;
 
 import com.google.android.submerge.StorageInterface.StorageException;
 

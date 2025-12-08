@@ -20,15 +20,20 @@ import android.content.SharedPreferences;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
+import com.android.crossdevicesync.dagger.qualifier.Background;
+import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
 import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.notification.dagger.TestNotificationModule;
 import com.android.crossdevicesync.user.UserHelper;
 import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
@@ -41,7 +46,7 @@ import java.util.concurrent.Executor;
 import javax.inject.Singleton;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
-@Module(includes = {ApplicationBaseModule.class})
+@Module(includes = {ApplicationBaseModule.class, TestNotificationModule.class})
 public abstract class TestApplicationModule {
     private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
 
@@ -56,6 +61,11 @@ public abstract class TestApplicationModule {
     static Executor provideMainExecutor() {
         return new SynchronousExecutorService();
     }
+
+    @Binds
+    @Singleton
+    @Background
+    abstract Executor bindsBackgroundExecutor(@Main Executor executor);
 
     @Provides
     @Singleton
@@ -75,11 +85,23 @@ public abstract class TestApplicationModule {
         return isWatchProvider.isWatch;
     }
 
+    @Provides
+    @IsKidsWatch
+    @Singleton
+    static boolean providesIsKidsWatch(IsWatchProvider isWatchProvider) {
+        return isWatchProvider.isKidsWatch;
+    }
+
     @Singleton
     @Provides
     static SharedPreferences provideSharedPreferences(Context context) {
         return context.getSharedPreferences(SHARED_PREFS_FILE_NAME, Context.MODE_PRIVATE);
     }
+
+    @Singleton
+    @Binds
+    abstract ContextualModeManagerProxy bindsContextualModeManagerProxy(
+            FakeContextualModeManager fake);
 
     @Singleton
     @Binds
