@@ -37,6 +37,7 @@ import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice
 import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase
+import com.android.internal.R
 import com.android.server.connectivity.Flags
 import com.google.common.truth.Truth.assertThat
 import java.io.StringWriter
@@ -45,10 +46,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.anyString
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
 
 @RunWith(AndroidJUnit4::class)
 class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
@@ -250,9 +247,12 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @DisableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testDump_flagDisabled_doesNothing() {
-        val pw = mock(IndentingPrintWriter::class.java)
+        val stringWriter = StringWriter()
+        val pw = IndentingPrintWriter(stringWriter, "  ")
+
         mAirplaneModeSyncManager.dump(pw)
-        verify(pw, never()).println(anyString())
+
+        assertThat(stringWriter.toString()).isEmpty()
     }
 
     @Test
@@ -310,6 +310,19 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isKidsWatch_publishesNotSupported() {
         mIsWatchProvider.isKidsWatch = true
+        mAirplaneModeSyncManager.init()
+        assertThat(
+                mFakeMetadataPublisher
+                    .getMetadata(UserHandle.USER_ALL)
+                    .getBoolean(APM_SYNC_SUPPORTED)
+            )
+            .isFalse()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testInit_configIsNotSupported_publishesNotSupported() {
+        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
         mAirplaneModeSyncManager.init()
         assertThat(
                 mFakeMetadataPublisher

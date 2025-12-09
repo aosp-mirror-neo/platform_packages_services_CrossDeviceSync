@@ -26,6 +26,7 @@ import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.fake.FakeContextWrapper;
 import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
@@ -46,9 +47,14 @@ import java.util.concurrent.Executor;
 import javax.inject.Singleton;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
-@Module(includes = {ApplicationBaseModule.class, TestNotificationModule.class})
+@Module(includes = {TestNotificationModule.class})
 public abstract class TestApplicationModule {
     private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
+
+    /** Dagger binding for application context. */
+    @Binds
+    @Singleton
+    abstract Context bindApplicationContext(FakeContextWrapper fakeContextWrapper);
 
     @Binds
     @Singleton
