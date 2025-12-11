@@ -19,6 +19,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.Converter;
@@ -61,6 +62,12 @@ public class TestSharedDataStoreComponentBuilderWrapper
     public TestSharedDataStoreComponentBuilderWrapper schemaProvider(
             SchemaProvider<?> schemaProvider) {
         mBuilder.schemaProvider(schemaProvider);
+        return this;
+    }
+
+    @Override
+    public TestSharedDataStoreComponentBuilderWrapper storage(IStorage storage) {
+        mBuilder.storage(storage);
         return this;
     }
 

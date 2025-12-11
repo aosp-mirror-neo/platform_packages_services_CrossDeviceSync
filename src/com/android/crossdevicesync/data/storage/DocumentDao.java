@@ -41,6 +41,9 @@ abstract class DocumentDao {
     @Query(("SELECT docId from Document"))
     abstract List<String> getAllDocIds();
 
+    @Query("DELETE FROM Document WHERE docId IN (:docIds)")
+    abstract void deleteByDocIds(List<String> docIds);
+
     @Transaction
     void createOrUpdateContent(String docId, @Nullable byte[] content) {
         Document doc = get(docId);

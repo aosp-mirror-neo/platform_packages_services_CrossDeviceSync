@@ -43,12 +43,9 @@ import com.google.android.submerge.VersionVector;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.errorprone.annotations.MustBeClosed;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-
-import dagger.Lazy;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -85,7 +82,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private final Object mLock;
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
-    private final Lazy<ListeningExecutorService> mIOThreadExecutor;
     private final IStorage mStorage;
     private final TimestampProvider mTimestampProvider;
     private final Converter<T> mConverter;
@@ -145,7 +141,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             String name,
             Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
-            Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
             TimestampProvider timestampProvider,
             Converter<T> converter,
@@ -155,7 +150,6 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         this.mName = name;
         this.mLock = lock;
         this.mDeviceNodeIdProvider = deviceNodeIdProvider;
-        this.mIOThreadExecutor = ioThreadExecutor;
         this.mStorage = storage;
         this.mTimestampProvider = timestampProvider;
         this.mConverter = converter;
@@ -191,7 +185,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
                 // Init the storage and upgrade the data store asynchronously.
                 mInitFuture =
-                        FluentFuture.from(mIOThreadExecutor.get().submit(this::doInit))
+                        FluentFuture.from(mStorage.submitToIoThread(this::doInit))
                                 .catchingAsync(
                                         Exception.class,
                                         e -> {
@@ -222,9 +216,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private boolean doInit() throws Exception {
         synchronized (mLock) {
             requireStateLocked(STATE_UPGRADING);
-            mNetwork.registerListener(mIOThreadExecutor.get(), this);
+            mNetwork.registerListener(mStorage.getIoThreadExecutor(), this);
         }
-        mStorage.init();
+        mStorage.open();
         upgrade();
         return true;
     }
@@ -397,7 +391,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             try {
                 requireStateLocked(STATE_UPGRADING, STATE_OPEN);
                 Log.d(TAG, "Starting a transaction on " + getDebugDocIdentityString(docId));
-                return mIOThreadExecutor.get().submit(() -> doTransact(docId, applier));
+                return mStorage.submitToIoThread(() -> doTransact(docId, applier));
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
             }
@@ -642,15 +636,13 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 final DataStore<T> submergeDataStore = mSubmergeDataStore;
                 mSubmergeDataStore = null;
                 mCloseFuture =
-                        mIOThreadExecutor
-                                .get()
-                                .submit(
-                                        () -> {
-                                            submergeDataStore.close();
-                                            mStorage.close();
-                                            mHandle.unlock(this);
-                                            return true;
-                                        });
+                        mStorage.submitToIoThread(
+                                () -> {
+                                    submergeDataStore.close();
+                                    mStorage.close();
+                                    mHandle.unlock(this);
+                                    return true;
+                                });
             } else {
                 mHandle.unlock(this);
                 mCloseFuture = Futures.immediateFuture(true);

@@ -33,11 +33,15 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.data.SharedDataStore.Document;
+import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
 import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+
+import com.google.android.submerge.StorageInterface.StorageException;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -52,6 +56,7 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     private ContextualMode mDoNotDisturbMode;
     private TestSharedDataStoreFactory<String> mDataStoreFactory;
     private FakeSharedDataStore<String> mSharedDataStore;
+    private IStorage mStorage;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -69,12 +74,13 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         mFakeNetworkManager.init();
         mFakeMetadataPublisher.init();
         mController.start();
+        TestSharedDataStoreComponent component =
+                mSharedDataStoreComponentBuilderWrapper.getComponent(
+                        DATASTORE_NAME_PREFIX + mUser.getIdentifier());
         mDataStoreFactory =
-                (TestSharedDataStoreFactory<String>)
-                        mSharedDataStoreComponentBuilderWrapper
-                                .getComponent(DATASTORE_NAME_PREFIX + mUser.getIdentifier())
-                                .getTestSharedDataStoreFactory();
+                (TestSharedDataStoreFactory<String>) component.getTestSharedDataStoreFactory();
         mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
+        mStorage = component.getStorage();
     }
 
     @Test
@@ -132,21 +138,25 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     }
 
     @Test
-    public void stop_resourcesAreCleanedUp() {
+    public void stop_resourcesAreCleanedUp() throws StorageException {
         mController.stop();
 
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
-        assertThat(mSharedDataStore.getDocumentUnchecked(CONTEXTUAL_MODES_DOC_ID)).isNotNull();
+        // Check that the storage still contains the document
+        mStorage.open();
+        assertThat(mStorage.getDocument(CONTEXTUAL_MODES_DOC_ID)).isNotNull();
     }
 
     @Test
-    public void stop_deleteDataStore() {
+    public void stop_deleteDataStore() throws StorageException {
         mController.stop(true);
 
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
-        assertThat(mSharedDataStore.getDocumentUnchecked(CONTEXTUAL_MODES_DOC_ID)).isNull();
+        // Check that the document is deleted.
+        mStorage.open();
+        assertThat(mStorage.getDocument(CONTEXTUAL_MODES_DOC_ID)).isNull();
     }
 
     @SuppressWarnings("unchecked")

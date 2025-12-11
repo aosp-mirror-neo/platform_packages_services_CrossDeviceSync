@@ -22,9 +22,8 @@ import com.android.crossdevicesync.network.NetworkManager.Network
 import com.google.common.util.concurrent.FluentFuture
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.ListeningExecutorService
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
-import javax.inject.Provider
+import java.util.concurrent.Callable
 
 /** A [SharedDataStoreHandle] that represents a [SharedDataStore]. */
 class DefaultSharedDataStoreHandle<T>(
@@ -32,7 +31,6 @@ class DefaultSharedDataStoreHandle<T>(
     private val mLock: Object,
     private val mNodeIdProvider: DeviceNodeIdProvider,
     private val mStorage: IStorage,
-    private val mIoExecutor: Provider<ListeningExecutorService>,
     private val mSharedDataStoreFactory: SharedDataStoreFactory<T>,
 ) : SharedDataStoreHandle<T> {
     @GuardedBy("mLock") private var mLockedDataStore: SharedDataStore<T>? = null
@@ -166,7 +164,7 @@ class DefaultSharedDataStoreHandle<T>(
                 }
                 check(!isLocked()) { "Cannot delete locked data store $name" }
                 Log.w(TAG, "Deleting data store \"$name\".")
-                return mIoExecutor.get().submit<Boolean> { doDelete(forDestroying) }
+                return mStorage.submitToIoThread(Callable { doDelete(forDestroying) })
             } catch (e: IllegalStateException) {
                 return Futures.immediateFailedFuture(e)
             }
@@ -193,7 +191,7 @@ class DefaultSharedDataStoreHandle<T>(
             future.addListener(
                 {
                     noteDestroyed()
-                    mIoExecutor.get().shutdown()
+                    mStorage.shutdownIoThread()
                 },
                 directExecutor(),
             )

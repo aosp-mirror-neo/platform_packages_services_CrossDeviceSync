@@ -25,6 +25,8 @@ import static org.junit.Assert.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import android.util.Log;
+
 import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -34,7 +36,7 @@ import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
-import com.android.crossdevicesync.data.fake.FakeStorage;
+import com.android.crossdevicesync.data.storage.fake.FakeStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
@@ -55,6 +57,7 @@ import java.util.function.Consumer;
 @SuppressWarnings({"unchecked", "DataFlowIssue", "FutureReturnValueIgnored"})
 @RunWith(AndroidJUnit4.class)
 public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBase {
+    private static final String TAG = "SubmergeSharedDataStoreTest";
     private static final String NETWORK_ID = "test_network";
 
     private SubmergeSharedDataStore<String> mDataStore;
@@ -72,10 +75,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         mRemoteDevice1 = new RemoteDeviceContext();
         mRemoteDevice2 = new RemoteDeviceContext();
         mRemoteDevice3 = new RemoteDeviceContext();
+        Log.i(TAG, "Finished setUp().");
     }
 
     @After
     public void tearDown() {
+        Log.i(TAG, "Starting tearDown().");
         mDataStore.close();
         mRemoteDevice1.close();
         mRemoteDevice2.close();
@@ -486,7 +491,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                                 }));
 
         // Recover storage and verify nothing is written.
-        mFakeStorage.init();
+        mFakeStorage.open();
         transactDataStore(
                 doc -> {
                     Record<String> r = doc.getRecord("/root/register");
@@ -1045,7 +1050,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         // Create a new data store sharing the same network.
         SubmergeSharedDataStore<String> newDataStore =
                 (SubmergeSharedDataStore<String>)
-                        newSharedDataStoreComponent("newDataStore", getSchemaProvider())
+                        newSharedDataStoreComponent(
+                                        "newDataStore", getSchemaProvider(), new FakeStorage())
                                 .getSubmergeSharedDataStore();
         newDataStore.init(mNetwork);
         // Both data store connect to a remote device.
@@ -1195,15 +1201,14 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             DocumentSchemaInfo... schema) {
         // Close the current data store. And build a new one with a higher schema version.
         testContext.mSubmergeSharedDataStore.close();
-        FakeStorage prevStorage = testContext.mFakeStorage;
         testContext
                 .newSharedDataStoreComponent(
                         testContext.mDataStoreName,
                         new TestSchemaProvider(schema)
                                 .setMigrator(migrator)
-                                .setValidator(validator))
+                                .setValidator(validator),
+                        testContext.mFakeStorage)
                 .inject(testContext);
-        testContext.mFakeStorage.copyAll(prevStorage);
         return testContext.mSubmergeSharedDataStore.init(
                 testContext.getNetworkManager().createNetwork(NETWORK_ID, device -> true));
     }
@@ -1215,13 +1220,12 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
     private void closeAndReCreateDataStore(SharedDataStoreComponentTestBase testContext) {
         testContext.mSharedDataStore.close();
-        FakeStorage prevStorage = testContext.mFakeStorage;
         testContext
                 .newSharedDataStoreComponent(
                         testContext.mDataStoreName,
-                        (SchemaProvider<String>) testContext.mSchemaProvider)
+                        (SchemaProvider<String>) testContext.mSchemaProvider,
+                        testContext.mFakeStorage)
                 .inject(testContext);
-        testContext.mFakeStorage.copyAll(prevStorage);
     }
 
     private ListenableFuture<Boolean> reInitWithNewSchema(

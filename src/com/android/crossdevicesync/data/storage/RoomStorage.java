@@ -21,44 +21,50 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.room.Room;
 
-import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
-import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface.StorageException;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 
-import javax.inject.Inject;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 
 /** Implementation of {@link IStorage} using room DB. */
-@SharedDataStoreSingleton
 public class RoomStorage implements IStorage {
     private static final String TAG = "RoomStorage";
+    private static final ThreadLocal<Boolean> IS_IO_THREAD = ThreadLocal.withInitial(() -> false);
 
     private final Context mContext;
     private final String mName;
 
     @Nullable private DocumentDB mDatabase;
     @Nullable private DocumentDao mDao;
+    @Nullable private volatile ListeningExecutorService mIoThreadExecutorService;
 
-    @Inject
-    RoomStorage(Context context, @DataStoreName String name) {
+    public RoomStorage(Context context, String name) {
         mContext = context.createDeviceProtectedStorageContext();
         mName = name;
     }
 
     @Override
-    public void init() {
+    public void open() {
+        requireIoThread();
         if (mDatabase != null) {
-            Log.w(TAG, "init: already initialized!");
             return;
         }
         mDatabase = Room.databaseBuilder(mContext, DocumentDB.class, mName).build();
         mDao = mDatabase.documentDao();
+        Log.i(TAG, "Database \"" + mName + "\" is open!");
     }
 
     @Override
     @Nullable
     public byte[] getDocument(String docId) throws StorageException {
+        requireIoThread();
         try {
             Document doc = mDao.get(docId);
             if (doc != null) {
@@ -73,6 +79,7 @@ public class RoomStorage implements IStorage {
 
     @Override
     public void persistDocument(String docId, byte[] serializedDoc) throws StorageException {
+        requireIoThread();
         try {
             mDao.createOrUpdateContent(docId, serializedDoc);
         } catch (Exception e) {
@@ -83,6 +90,7 @@ public class RoomStorage implements IStorage {
 
     @Override
     public byte[] getDocumentSchema(String docId) throws StorageException {
+        requireIoThread();
         try {
             Document doc = mDao.get(docId);
             if (doc != null) {
@@ -97,6 +105,7 @@ public class RoomStorage implements IStorage {
 
     @Override
     public void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException {
+        requireIoThread();
         try {
             mDao.createOrUpdateSchema(docId, documentSchema);
         } catch (Exception e) {
@@ -108,6 +117,7 @@ public class RoomStorage implements IStorage {
     @Override
     @Nullable
     public byte[] getMetadata(String docId) throws StorageException {
+        requireIoThread();
         try {
             Document doc = mDao.get(docId);
             if (doc != null) {
@@ -122,6 +132,7 @@ public class RoomStorage implements IStorage {
 
     @Override
     public void persistMetadata(String docId, byte[] metadata) throws StorageException {
+        requireIoThread();
         try {
             mDao.createOrUpdateMetadata(docId, metadata);
         } catch (Exception e) {
@@ -132,6 +143,7 @@ public class RoomStorage implements IStorage {
 
     @Override
     public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
+        requireIoThread();
         try {
             mDao.transact(() -> transactionApplier.acceptOrThrow(this));
         } catch (Exception e) {
@@ -140,22 +152,83 @@ public class RoomStorage implements IStorage {
     }
 
     @Override
+    public List<String> getAllDocumentIds() throws StorageException {
+        requireIoThread();
+        try {
+            return mDao.getAllDocIds();
+        } catch (Exception e) {
+            throw new StorageException();
+        }
+    }
+
+    @Override
+    public void deleteDocuments(List<String> docIds) throws StorageException {
+        requireIoThread();
+        try {
+            mDao.deleteByDocIds(docIds);
+        } catch (Exception e) {
+            throw new StorageException();
+        }
+    }
+
+    @Override
     public void close() {
+        requireIoThread();
         if (mDatabase == null) {
             return;
         }
         mDatabase.close();
         mDatabase = null;
         mDao = null;
+        Log.i(TAG, "Database \"" + mName + "\" is closed!");
     }
 
     @Override
     public boolean deleteDatabase() {
+        requireIoThread();
         close();
         if (mContext.deleteDatabase(mName)) {
-            Log.i(TAG, "deleteDatabase: database is deleted!");
+            Log.i(TAG, "deleteDatabase: database \"" + mName + "\" is deleted!");
             return true;
         }
         return false;
+    }
+
+    @Override
+    public <R> ListenableFuture<R> submitToIoThread(Callable<R> task) {
+        ListeningExecutorService ioExecutorService = getOrCreateIoThreadExecutor();
+        if (ioExecutorService.isShutdown()) {
+            return Futures.immediateFailedFuture(
+                    new IllegalStateException("IO thread is shutdown!"));
+        }
+        return ioExecutorService.submit(task);
+    }
+
+    @Override
+    public void shutdownIoThread() {
+        ListeningExecutorService ioExecutorService = mIoThreadExecutorService;
+        if (ioExecutorService != null) {
+            ioExecutorService.shutdown();
+        }
+    }
+
+    private ListeningExecutorService getOrCreateIoThreadExecutor() {
+        if (mIoThreadExecutorService != null) {
+            return mIoThreadExecutorService;
+        }
+        synchronized (this) {
+            if (mIoThreadExecutorService == null) {
+                mIoThreadExecutorService =
+                        MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+                mIoThreadExecutorService.execute(() -> IS_IO_THREAD.set(true));
+            }
+        }
+        return mIoThreadExecutorService;
+    }
+
+    private static void requireIoThread() {
+        if (!IS_IO_THREAD.get()) {
+            throw new IllegalThreadStateException("Not in IO thread!");
+        }
     }
 }

@@ -13,57 +13,67 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data.fake;
+package com.android.crossdevicesync.data.storage.fake;
 
 import android.annotation.Nullable;
 
-import com.android.crossdevicesync.data.dagger.SharedDataStoreSingleton;
+import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.StorageInterface.StorageException;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-
-import javax.inject.Inject;
+import java.util.Set;
+import java.util.concurrent.Callable;
 
 /** Fake implementation of {@link StorageInterface}. */
-@SharedDataStoreSingleton
 public class FakeStorage implements IStorage {
 
     private final Map<String, byte[]> mDocuments = new HashMap<>();
     private final Map<String, byte[]> mMetadata = new HashMap<>();
     private final Map<String, byte[]> mSchema = new HashMap<>();
-    // Generic data for test usage.
-    private final Map<String, Object> mObjects = new HashMap<>();
-    private boolean mInitialized;
+    private final ListeningExecutorService mExecutorService =
+            MoreExecutors.listeningDecorator(new SynchronousExecutorService());
+    private boolean mOpen;
     private RuntimeException mException;
 
-    @Inject
-    FakeStorage() {}
+    public FakeStorage() {}
 
     @Override
-    public void init() {
+    public void open() {
         maybeThrowException();
-        mInitialized = true;
+        mOpen = true;
     }
 
     @Nullable
     @Override
     public byte[] getDocument(String docId) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
+        return mDocuments.get(docId);
+    }
+
+    /** Get a document without any precondition check. */
+    @Nullable
+    public byte[] getDocumentUnchecked(String docId) {
         return mDocuments.get(docId);
     }
 
     @Override
     public void persistDocument(String docId, byte[] document) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         mDocuments.put(docId, document);
@@ -72,7 +82,7 @@ public class FakeStorage implements IStorage {
     @Override
     public byte[] getDocumentSchema(String docId) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         return mSchema.get(docId);
@@ -81,7 +91,7 @@ public class FakeStorage implements IStorage {
     @Override
     public void persistDocumentSchema(String docId, byte[] documentSchema) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         mSchema.put(docId, documentSchema);
@@ -91,7 +101,7 @@ public class FakeStorage implements IStorage {
     @Nullable
     public byte[] getMetadata(String docId) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         return mMetadata.get(docId);
@@ -100,7 +110,7 @@ public class FakeStorage implements IStorage {
     @Override
     public void persistMetadata(String docId, byte[] metadata) throws StorageException {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         mMetadata.put(docId, metadata);
@@ -109,56 +119,70 @@ public class FakeStorage implements IStorage {
     @Override
     public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
         maybeThrowException();
-        if (!mInitialized) {
+        if (!mOpen) {
             throw new StorageException();
         }
         transactionApplier.acceptOrThrow(this);
     }
 
-    /** Persist a generic object. */
-    public <T> void persistObject(String key, T val) {
+    @Override
+    public List<String> getAllDocumentIds() throws StorageException {
         maybeThrowException();
-        mObjects.put(key, val);
+        if (!mOpen) {
+            throw new StorageException();
+        }
+        Set<String> ids = new HashSet<>();
+        ids.addAll(mDocuments.keySet());
+        ids.addAll(mMetadata.keySet());
+        ids.addAll(mSchema.keySet());
+        return ids.stream().toList();
     }
 
-    /** Get a generic object. */
-    @SuppressWarnings("TypeParameterUnusedInFormals")
-    @Nullable
-    public <T> T getObject(String val) {
+    @Override
+    public void deleteDocuments(List<String> docIds) throws StorageException {
         maybeThrowException();
-        return getObjectUnchecked(val);
-    }
-
-    /** Get all persistent generic objects without any precondition check. */
-    @Nullable
-    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
-    public <T> T getObjectUnchecked(String val) {
-        return (T) mObjects.get(val);
-    }
-
-    public Map<String, Object> getAllObjectsUnchecked() {
-        return mObjects;
+        if (!mOpen) {
+            throw new StorageException();
+        }
+        for (String docId : docIds) {
+            mDocuments.remove(docId);
+            mMetadata.remove(docId);
+            mSchema.remove(docId);
+        }
     }
 
     @Override
     public void close() {
         maybeThrowException();
-        mInitialized = false;
+        mOpen = false;
+    }
+
+    @Override
+    public <R> ListenableFuture<R> submitToIoThread(Callable<R> task) {
+        if (mExecutorService.isShutdown()) {
+            return Futures.immediateFailedFuture(new IllegalStateException("Shutdown"));
+        }
+        return mExecutorService.submit(task);
+    }
+
+    @Override
+    public void shutdownIoThread() {
+        maybeThrowException();
+        mExecutorService.shutdown();
+    }
+
+    public boolean isIoThreadShutdown() {
+        return mExecutorService.isShutdown();
     }
 
     @Override
     public boolean deleteDatabase() {
         maybeThrowException();
         close();
-        boolean hasData =
-                !mDocuments.isEmpty()
-                        || !mMetadata.isEmpty()
-                        || !mSchema.isEmpty()
-                        || !mObjects.isEmpty();
+        boolean hasData = !mDocuments.isEmpty() || !mMetadata.isEmpty() || !mSchema.isEmpty();
         mDocuments.clear();
         mMetadata.clear();
         mSchema.clear();
-        mObjects.clear();
         return hasData;
     }
 
@@ -175,13 +199,6 @@ public class FakeStorage implements IStorage {
     }
 
     public boolean isOpen() {
-        return mInitialized;
-    }
-
-    /** Copy all content from another storage. */
-    public void copyAll(FakeStorage other) {
-        mDocuments.putAll(other.mDocuments);
-        mMetadata.putAll(other.mMetadata);
-        mSchema.putAll(other.mSchema);
+        return mOpen;
     }
 }

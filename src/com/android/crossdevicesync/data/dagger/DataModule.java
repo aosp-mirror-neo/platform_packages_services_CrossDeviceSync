@@ -15,15 +15,21 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import android.content.Context;
+
 import com.android.crossdevicesync.data.DefaultTimestampProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProviderImpl;
+import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
+import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.crossdevicesync.data.storage.RoomStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.TimestampProvider;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
 /**
  * Dagger module for injecting data related bindings in the sync service scope. Production-only
@@ -36,6 +42,7 @@ import dagger.Module;
         includes = {DataBaseModule.class},
         subcomponents = {SharedDataStoreComponent.class})
 public abstract class DataModule {
+    private static final String GLOBAL_DATABASE_NAME = "cross_device_sync_global_db";
 
     @Binds
     @SyncServiceSingleton
@@ -44,4 +51,11 @@ public abstract class DataModule {
     @Binds
     @SyncServiceSingleton
     abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(DeviceNodeIdProviderImpl provider);
+
+    @Provides
+    @SyncServiceSingleton
+    @GlobalStorage
+    static IStorage providesGlobalStorage(Context context) {
+        return new RoomStorage(context, GLOBAL_DATABASE_NAME);
+    }
 }

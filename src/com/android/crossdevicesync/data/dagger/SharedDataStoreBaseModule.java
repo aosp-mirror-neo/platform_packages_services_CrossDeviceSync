@@ -24,22 +24,13 @@ import com.android.crossdevicesync.data.SubmergeSchemaUpgradeHelper;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreLock;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
-import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
 import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.TimestampProvider;
-import com.google.common.util.concurrent.ListeningExecutorService;
 
-import dagger.Binds;
-import dagger.Lazy;
 import dagger.Module;
 import dagger.Provides;
-
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-
-import javax.inject.Provider;
 
 /**
  * Base module for shared data store component that is included in both production app and test
@@ -60,7 +51,6 @@ interface SharedDataStoreBaseModule {
             @DataStoreName String name,
             @DataStoreLock Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
-            @IOThread Lazy<ListeningExecutorService> ioThreadExecutor,
             IStorage storage,
             TimestampProvider timestampProvider,
             Converter<?> converter,
@@ -71,7 +61,6 @@ interface SharedDataStoreBaseModule {
                 name,
                 lock,
                 deviceNodeIdProvider,
-                ioThreadExecutor,
                 storage,
                 timestampProvider,
                 converter,
@@ -87,21 +76,10 @@ interface SharedDataStoreBaseModule {
             @DataStoreLock Object lock,
             DeviceNodeIdProvider nodeIdProvider,
             IStorage storage,
-            @IOThread Provider<ListeningExecutorService> ioExecutor,
             SharedDataStoreFactory<?> dataStoreFactory) {
         return new DefaultSharedDataStoreHandle(
-                name, lock, nodeIdProvider, storage, ioExecutor, dataStoreFactory);
+                name, lock, nodeIdProvider, storage, dataStoreFactory);
     }
-
-    @Binds
-    @IOThread
-    @SharedDataStoreSingleton
-    ExecutorService bindsIOThreadExecutorService(@IOThread ListeningExecutorService service);
-
-    @Binds
-    @IOThread
-    @SharedDataStoreSingleton
-    Executor bindsIOThreadExecutor(@IOThread ExecutorService service);
 
     @Provides
     @DataStoreLock

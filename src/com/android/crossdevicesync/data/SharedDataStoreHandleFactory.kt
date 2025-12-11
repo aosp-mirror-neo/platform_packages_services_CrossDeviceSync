@@ -16,6 +16,9 @@
 package com.android.crossdevicesync.data
 
 import com.android.crossdevicesync.data.dagger.SharedDataStoreComponent
+import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage
+import com.android.crossdevicesync.data.storage.IStorage
+import com.android.crossdevicesync.data.storage.StorageNamespaceDecorator
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
 import com.google.android.submerge.Converter
 import javax.inject.Inject
@@ -24,7 +27,10 @@ import javax.inject.Inject
 @SyncServiceSingleton
 class SharedDataStoreHandleFactory
 @Inject
-constructor(private val mComponentBuilder: SharedDataStoreComponent.Builder) {
+constructor(
+    private val mComponentBuilder: SharedDataStoreComponent.Builder,
+    @param:GlobalStorage private val mGlobalStorage: IStorage,
+) {
     /**
      * Creates a [SharedDataStoreHandle]
      *
@@ -42,6 +48,9 @@ constructor(private val mComponentBuilder: SharedDataStoreComponent.Builder) {
             .name(name)
             .converter(converter)
             .schemaProvider(schemaProvider)
+            // Use the global storage with the namespace decorator to reuse the same database
+            // connection and reduce memory cost for multiple databases.
+            .storage(StorageNamespaceDecorator(name, mGlobalStorage))
             .build()
             .sharedDataStoreHandle as SharedDataStoreHandle<T>
 }

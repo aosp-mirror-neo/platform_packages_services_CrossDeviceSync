@@ -24,7 +24,6 @@ import com.android.crossdevicesync.network.NetworkManager
 import com.google.common.util.concurrent.FluentFuture
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.ListeningExecutorService
 import com.google.common.util.concurrent.MoreExecutors.directExecutor
 
 /** Fake implementation of [SharedDataStoreHandle]. */
@@ -32,7 +31,6 @@ class FakeSharedDataStoreHandle<T>(
     override val name: String,
     private val mNodeIdProvider: DeviceNodeIdProvider,
     private val mStorage: IStorage,
-    private val mIoExecutor: ListeningExecutorService,
     private val mDataStoreFactory: SharedDataStoreFactory<T>,
 ) : SharedDataStoreHandle<T> {
     private var mLockedDataStore: SharedDataStore<T>? = null
@@ -68,7 +66,7 @@ class FakeSharedDataStoreHandle<T>(
         }
     }
 
-    override fun delete(): ListenableFuture<Boolean> = mIoExecutor.submit(this::doDelete)
+    override fun delete(): ListenableFuture<Boolean> = mStorage.submitToIoThread(this::doDelete)
 
     private fun doDelete(): Boolean {
         if (isLocked()) {
@@ -87,6 +85,6 @@ class FakeSharedDataStoreHandle<T>(
         if (deleteDataStore) {
             future = Futures.transformAsync(future, { _ -> delete() }, directExecutor())
         }
-        future.addListener({ mIoExecutor.shutdown() }, directExecutor())
+        future.addListener({ mStorage.shutdownIoThread() }, directExecutor())
     }
 }

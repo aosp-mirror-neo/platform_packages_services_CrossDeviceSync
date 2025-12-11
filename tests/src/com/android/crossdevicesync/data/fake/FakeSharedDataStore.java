@@ -19,6 +19,7 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import static java.util.Objects.requireNonNull;
 
+import android.util.Log;
 import android.util.Pair;
 
 import androidx.annotation.Nullable;
@@ -30,13 +31,20 @@ import com.android.crossdevicesync.data.RecordType;
 import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SharedDataStoreHandle;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
+import com.google.android.submerge.Converter;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,12 +57,15 @@ import java.util.concurrent.Executor;
 /** Fake implementation of {@link SharedDataStore} for testing. */
 @SuppressWarnings("EffectivelyPrivate")
 public class FakeSharedDataStore<T> implements SharedDataStore<T> {
-    private final FakeStorage mStorage;
+    private static final String TAG = "FakeSharedDataStore";
+
+    private final IStorage mStorage;
     private final List<Pair<Executor, OnRemoteChangeListener>> mListeners = new ArrayList<>();
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
-    @Nullable private final SchemaProvider<T> mSchemaProvider;
+    private final SchemaProvider<T> mSchemaProvider;
     private final SharedDataStoreHandle<T> mHandle;
+    private final Converter<T> mConverter;
     private boolean mOpen;
     private boolean mAsync;
     @Nullable private String mSelfNodeId;
@@ -64,41 +75,22 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     @Nullable private ListenableFuture<?> mExternalInitFuture;
     @Nullable private ListenableFuture<?> mExternalCloseFuture;
 
-    /** Create an empty shared data store. */
-    public FakeSharedDataStore() {
-        this(
-                "test_data_store",
-                new DeviceNodeIdProvider() {
-                    @Override
-                    public String getOrCreateNodeIdForDataStore(String dataStore) {
-                        return "test_node_id";
-                    }
-
-                    @Override
-                    public void noteDataStoreDeletion(String dataStore) {
-                        // Do nothing
-                    }
-                },
-                /* schemaProvider= */ null,
-                new FakeStorage(),
-                /* handle= */ null);
-        mStorage.init();
-    }
-
     /**
      * Create an empty shared data store with specified name, node id provider, and schema provider.
      */
     public FakeSharedDataStore(
             String name,
             DeviceNodeIdProvider deviceNodeIdProvider,
-            @Nullable SchemaProvider<T> schemaProvider,
-            FakeStorage storage,
-            @Nullable SharedDataStoreHandle<T> handle) {
+            SchemaProvider<T> schemaProvider,
+            IStorage storage,
+            SharedDataStoreHandle<T> handle,
+            Converter<T> converter) {
         mName = name;
         mDeviceNodeIdProvider = deviceNodeIdProvider;
         mSchemaProvider = schemaProvider;
         mStorage = storage;
         mHandle = handle;
+        mConverter = converter;
     }
 
     @Override
@@ -106,23 +98,22 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         if (mOpen) {
             return requireNonNull(mExternalInitFuture);
         }
-        if (mHandle != null && !mHandle.lock(this)) {
+        if (!mHandle.lock(this)) {
             return Futures.immediateFailedFuture(new IllegalStateException("Already locked"));
         }
         mOpen = true;
         mSelfNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
         List<ListenableFuture<?>> futures = new ArrayList<>();
-        if (mSchemaProvider != null) {
-            for (DocumentSchemaInfo schemaInfo : mSchemaProvider.getAllDocumentSchema()) {
-                futures.add(
-                        transact(
-                                schemaInfo.getDocId(),
-                                doc -> {
-                                    ((FakeDocument<T>) doc).initWithSchema(schemaInfo);
-                                    mSchemaProvider.migrateDocument(doc);
-                                    return true;
-                                }));
-            }
+        futures.add(mStorage.runInIoThread(mStorage::open));
+        for (DocumentSchemaInfo schemaInfo : mSchemaProvider.getAllDocumentSchema()) {
+            futures.add(
+                    transact(
+                            schemaInfo.getDocId(),
+                            doc -> {
+                                ((FakeDocument) doc).initWithSchema(schemaInfo);
+                                mSchemaProvider.migrateDocument(doc);
+                                return true;
+                            }));
         }
         if (mAsync) {
             mInitFuture = SettableFuture.create();
@@ -180,9 +171,9 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         return doTransact(
                 docId,
                 doc -> {
-                    Map<String, Object> before = ((FakeDocument<T>) doc).getAll();
+                    Map<String, Object> before = ((FakeDocument) doc).getAll();
                     R result = applier.transact(doc);
-                    Map<String, Object> after = ((FakeDocument<T>) doc).getAll();
+                    Map<String, Object> after = ((FakeDocument) doc).getAll();
                     List<String> paths = new ArrayList<>();
                     for (String path : after.keySet()) {
                         if (!Objects.equals(before.get(path), after.get(path))) {
@@ -201,43 +192,37 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
 
     private <R> ListenableFuture<R> doTransact(
             String docId, TransactionApplier<T, R> applier, boolean isLocal, String nodeId) {
-        if (!mOpen) {
-            return Futures.immediateFailedFuture(new IllegalStateException("Closed"));
-        }
-        final int schemaVersion;
-        if (mSchemaProvider == null) {
-            schemaVersion = 1;
-        } else {
-            DocumentSchemaInfo schemaInfo = mSchemaProvider.findSchema(docId);
-            if (schemaInfo == null) {
-                return Futures.immediateFailedFuture(new IllegalStateException("No schema"));
-            }
-            schemaVersion = schemaInfo.getVersion();
-        }
-        try {
-            FakeDocument<T> doc = mStorage.getObject(docId);
-            if (doc == null) {
-                doc = new FakeDocument<>(docId, schemaVersion, nodeId);
-                mStorage.persistObject(docId, doc);
-            }
-            R result = applier.transact(doc.withIdentity(isLocal, nodeId));
-            if (mSchemaProvider != null) {
-                try {
+        return mStorage.submitToIoThread(
+                () -> {
+                    if (!mOpen) {
+                        throw new IllegalStateException("Closed");
+                    }
+                    DocumentSchemaInfo schemaInfo = mSchemaProvider.findSchema(docId);
+                    if (schemaInfo == null) {
+                        throw new IllegalStateException("No schema");
+                    }
+                    final int schemaVersion = schemaInfo.getVersion();
+                    byte[] docBytes = mStorage.getDocument(docId);
+                    FakeDocument doc =
+                            docBytes == null
+                                    ? new FakeDocument(docId, schemaVersion, nodeId)
+                                    : new FakeDocument(docBytes);
+                    R result = applier.transact(doc.withIdentity(isLocal, nodeId));
                     mSchemaProvider.validateDocument(doc);
-                } catch (Exception e) {
-                    return Futures.immediateFailedFuture(e);
-                }
-            }
-            return Futures.immediateFuture(result);
-        } catch (Exception e) {
-            return Futures.immediateFailedFuture(e);
-        }
+                    mStorage.persistDocument(docId, doc.toByteArray());
+                    return result;
+                });
     }
 
     /** Get document without any precondition check. */
     @Nullable
     public MutableDocument<T> getDocumentUnchecked(String docId) {
-        return mStorage.getObjectUnchecked(docId);
+        try {
+            byte[] docBytes = mStorage.getDocument(docId);
+            return docBytes == null ? null : new FakeDocument(docBytes);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     @Override
@@ -261,9 +246,7 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         } else {
             mExternalCloseFuture = Futures.immediateVoidFuture();
         }
-        if (mHandle != null) {
-            mExternalCloseFuture.addListener(() -> mHandle.unlock(this), directExecutor());
-        }
+        mExternalCloseFuture.addListener(() -> mHandle.unlock(this), directExecutor());
         return mExternalCloseFuture;
     }
 
@@ -299,18 +282,30 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
 
     @Override
     public String toString() {
-        return "{name="
-                + mName
-                + ", open="
-                + mOpen
-                + ", docs="
-                + mStorage.getAllObjectsUnchecked()
-                + "}";
+        StringBuilder docsString = new StringBuilder();
+        try {
+            for (String docId : mStorage.getAllDocumentIds()) {
+                FakeDocument doc = new FakeDocument(mStorage.getDocument(docId));
+                docsString.append("\n").append(doc.toString());
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error reading document", e);
+        }
+        return "{name=" + mName + ", open=" + mOpen + ", docs=" + docsString + "}";
     }
 
-    private static class FakeRecord<T> implements Record<T> {
+    private class FakeRecord implements Record<T> {
         @Nullable private T mData;
-        private final FakeMetadata mMetadata = new FakeMetadata();
+        private final FakeMetadata mMetadata;
+
+        FakeRecord() {
+            mMetadata = new FakeMetadata();
+        }
+
+        FakeRecord(DataInputStream dis) throws IOException {
+            mData = mConverter.deserialize(readByteArray(dis));
+            mMetadata = new FakeMetadata(dis);
+        }
 
         @Nullable
         @Override
@@ -335,11 +330,27 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                     + mMetadata
                     + "}";
         }
+
+        public void write(DataOutputStream dos) throws IOException {
+            writeByteArray(dos, mConverter.serialize(mData));
+            mMetadata.write(dos);
+        }
     }
 
-    private static class FakeSetRecord<T> implements SetRecord<T> {
+    private class FakeSetRecord implements SetRecord<T> {
         private final Set<T> mSet = new HashSet<>();
-        private final FakeMetadata mMetadata = new FakeMetadata();
+        private final FakeMetadata mMetadata;
+
+        FakeSetRecord() {
+            mMetadata = new FakeMetadata();
+        }
+
+        FakeSetRecord(DataInputStream dis) throws IOException {
+            for (byte[] bytes : readByteArrayList(dis)) {
+                mSet.add(mConverter.deserialize(bytes));
+            }
+            mMetadata = new FakeMetadata(dis);
+        }
 
         @Override
         public Set<T> entries() {
@@ -355,16 +366,29 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         public String toString() {
             return "{set=" + mSet + ", metadata=" + mMetadata + "}";
         }
+
+        public void write(DataOutputStream dos) throws IOException {
+            writeByteArrayList(dos, mSet.stream().map(mConverter::serialize).toList());
+            mMetadata.write(dos);
+        }
     }
 
-    private static class FakeUnmergedRecord<T> implements UnmergedRecord<T> {
-
+    private class FakeUnmergedRecord implements UnmergedRecord<T> {
         private final Map<String, T> mEntries = new HashMap<>();
-        private final FakeMetadata mMetadata = new FakeMetadata();
-        private final String mSelfNodeIf;
+        private final FakeMetadata mMetadata;
+        private final String mSelfNodeId;
 
         FakeUnmergedRecord(String selfNodeId) {
-            mSelfNodeIf = selfNodeId;
+            mSelfNodeId = selfNodeId;
+            mMetadata = new FakeMetadata();
+        }
+
+        FakeUnmergedRecord(DataInputStream dis) throws IOException {
+            mSelfNodeId = dis.readUTF();
+            for (Map.Entry<String, byte[]> entry : readByteArrayMap(dis).entrySet()) {
+                mEntries.put(entry.getKey(), mConverter.deserialize(entry.getValue()));
+            }
+            mMetadata = new FakeMetadata(dis);
         }
 
         @Override
@@ -375,7 +399,7 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         @Nullable
         @Override
         public T get() {
-            return mEntries.get(mSelfNodeIf);
+            return mEntries.get(mSelfNodeId);
         }
 
         @Override
@@ -387,9 +411,19 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         public String toString() {
             return "{entries=" + mEntries + ", metadata=" + mMetadata + "}";
         }
+
+        public void write(DataOutputStream dos) throws IOException {
+            dos.writeUTF(mSelfNodeId);
+            Map<String, byte[]> bytesMap = new HashMap<>();
+            for (Map.Entry<String, T> entry : mEntries.entrySet()) {
+                bytesMap.put(entry.getKey(), mConverter.serialize(entry.getValue()));
+            }
+            writeByteArrayMap(dos, bytesMap);
+            mMetadata.write(dos);
+        }
     }
 
-    public static class FakeDocument<T> implements MutableDocument<T> {
+    public class FakeDocument implements MutableDocument<T> {
         private final Map<String, Record<T>> mRecords = new HashMap<>();
         private final String mId;
         private final int mSchemaVersion;
@@ -405,10 +439,61 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
             mNextUpdateNodeId = mSelfNodeId;
         }
 
+        public FakeDocument(byte[] data) throws IOException {
+            ByteArrayInputStream bis = new ByteArrayInputStream(data);
+            DataInputStream dis = new DataInputStream(bis);
+            mId = dis.readUTF();
+            mSchemaVersion = dis.readInt();
+            mSelfNodeId = dis.readUTF();
+            mIsNextUpdateLocal = true;
+            mNextUpdateNodeId = mSelfNodeId;
+
+            int count = dis.readInt();
+            for (int i = 0; i < count; i++) {
+                String path = dis.readUTF();
+                int type = dis.readInt();
+                if (type == RecordType.TYPE_REGISTER) {
+                    mRecords.put(path, new FakeRecord(dis));
+                } else if (type == RecordType.TYPE_SET) {
+                    mRecords.put(path, new FakeSetRecord(dis));
+                } else if (type == RecordType.TYPE_UNMERGED) {
+                    mRecords.put(path, new FakeUnmergedRecord(dis));
+                } else {
+                    throw new IOException("Unknown record type " + type);
+                }
+            }
+        }
+
+        byte[] toByteArray() throws IOException {
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(bos);
+            dos.writeUTF(mId);
+            dos.writeInt(mSchemaVersion);
+            dos.writeUTF(mSelfNodeId);
+
+            dos.writeInt(mRecords.size());
+            for (Map.Entry<String, Record<T>> entry : mRecords.entrySet()) {
+                dos.writeUTF(entry.getKey());
+                Record<T> record = entry.getValue();
+                if (record instanceof FakeRecord) {
+                    dos.writeInt(RecordType.TYPE_REGISTER);
+                    ((FakeRecord) record).write(dos);
+                } else if (record instanceof FakeSetRecord) {
+                    dos.writeInt(RecordType.TYPE_SET);
+                    ((FakeSetRecord) record).write(dos);
+                } else if (record instanceof FakeUnmergedRecord) {
+                    dos.writeInt(RecordType.TYPE_UNMERGED);
+                    ((FakeUnmergedRecord) record).write(dos);
+                } else {
+                    throw new IOException("Unknown record type " + record.getClass());
+                }
+            }
+            return bos.toByteArray();
+        }
+
         @Override
         public void putData(String path, @Nullable T data) {
-            FakeRecord<T> r =
-                    ((FakeRecord<T>) mRecords.computeIfAbsent(path, k -> new FakeRecord<>()));
+            FakeRecord r = (FakeRecord) mRecords.computeIfAbsent(path, k -> new FakeRecord());
             if (Objects.equals(r.get(), data)) {
                 return;
             }
@@ -418,10 +503,10 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
 
         @Override
         public void putUnmergedData(String path, @Nullable T data) {
-            FakeUnmergedRecord<T> r =
-                    ((FakeUnmergedRecord<T>)
+            FakeUnmergedRecord r =
+                    ((FakeUnmergedRecord)
                             mRecords.computeIfAbsent(
-                                    path, k -> new FakeUnmergedRecord<>(mSelfNodeId)));
+                                    path, k -> new FakeUnmergedRecord(mSelfNodeId)));
             if (Objects.equals(r.entries().get(mSelfNodeId), data)) {
                 return;
             }
@@ -431,8 +516,8 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
 
         @Override
         public void addDataToSet(String path, T data) {
-            FakeSetRecord<T> r =
-                    ((FakeSetRecord<T>) mRecords.computeIfAbsent(path, k -> new FakeSetRecord<>()));
+            FakeSetRecord r =
+                    ((FakeSetRecord) mRecords.computeIfAbsent(path, k -> new FakeSetRecord()));
             if (r.entries().add(data)) {
                 r.getMetadata().setLastModifiedByLocalDevice(mIsNextUpdateLocal);
             }
@@ -440,8 +525,8 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
 
         @Override
         public void removeDataFromSet(String path, T data) {
-            FakeSetRecord<T> r =
-                    ((FakeSetRecord<T>) mRecords.computeIfAbsent(path, k -> new FakeSetRecord<>()));
+            FakeSetRecord r =
+                    ((FakeSetRecord) mRecords.computeIfAbsent(path, k -> new FakeSetRecord()));
             if (r.entries().remove(data)) {
                 r.getMetadata().setLastModifiedByLocalDevice(mIsNextUpdateLocal);
             }
@@ -492,7 +577,7 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         }
 
         /** Save the identity of the caller. */
-        public FakeDocument<T> withIdentity(boolean isLocal, String nodeId) {
+        public FakeDocument withIdentity(boolean isLocal, String nodeId) {
             mIsNextUpdateLocal = isLocal;
             if (isLocal) {
                 mNextUpdateNodeId = mSelfNodeId;
@@ -506,11 +591,11 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
             for (PathSchemaInfo pathSchema : schema.getPathSchema()) {
                 switch (pathSchema.type()) {
                     case RecordType.TYPE_REGISTER ->
-                            mRecords.put(pathSchema.path(), new FakeRecord<>());
+                            mRecords.put(pathSchema.path(), new FakeRecord());
                     case RecordType.TYPE_SET ->
-                            mRecords.put(pathSchema.path(), new FakeSetRecord<>());
+                            mRecords.put(pathSchema.path(), new FakeSetRecord());
                     case RecordType.TYPE_UNMERGED ->
-                            mRecords.put(pathSchema.path(), new FakeUnmergedRecord<>(mSelfNodeId));
+                            mRecords.put(pathSchema.path(), new FakeUnmergedRecord(mSelfNodeId));
                 }
             }
         }
@@ -530,6 +615,12 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     private static class FakeMetadata implements Metadata {
         private boolean mIsLastModifiedByLocalDevice = true;
 
+        FakeMetadata() {}
+
+        FakeMetadata(DataInputStream dis) throws IOException {
+            mIsLastModifiedByLocalDevice = dis.readBoolean();
+        }
+
         @Override
         public boolean isLastModifiedByLocalDevice() {
             return mIsLastModifiedByLocalDevice;
@@ -543,5 +634,58 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         public String toString() {
             return "{lastModifiedByLocalDevice=" + mIsLastModifiedByLocalDevice + "}";
         }
+
+        public void write(DataOutputStream dos) throws IOException {
+            dos.writeBoolean(mIsLastModifiedByLocalDevice);
+        }
+    }
+
+    private static void writeByteArray(DataOutputStream dos, byte[] val) throws IOException {
+        dos.writeInt(val.length);
+        dos.write(val);
+    }
+
+    private static byte[] readByteArray(DataInputStream dis) throws IOException {
+        int len = dis.readInt();
+        byte[] b = new byte[len];
+        dis.readFully(b);
+        return b;
+    }
+
+    private static void writeByteArrayList(DataOutputStream dos, List<byte[]> val)
+            throws IOException {
+        dos.writeInt(val.size());
+        for (byte[] bytes : val) {
+            writeByteArray(dos, bytes);
+        }
+    }
+
+    private static List<byte[]> readByteArrayList(DataInputStream dis) throws IOException {
+        int len = dis.readInt();
+        List<byte[]> res = new ArrayList<>(len);
+        for (int i = 0; i < len; i++) {
+            res.add(readByteArray(dis));
+        }
+        return res;
+    }
+
+    private static void writeByteArrayMap(DataOutputStream dos, Map<String, byte[]> val)
+            throws IOException {
+        dos.writeInt(val.size());
+        for (Map.Entry<String, byte[]> entry : val.entrySet()) {
+            dos.writeUTF(entry.getKey());
+            writeByteArray(dos, entry.getValue());
+        }
+    }
+
+    private static Map<String, byte[]> readByteArrayMap(DataInputStream dis) throws IOException {
+        int len = dis.readInt();
+        Map<String, byte[]> res = new HashMap<>();
+        for (int i = 0; i < len; i++) {
+            String key = dis.readUTF();
+            byte[] val = readByteArray(dis);
+            res.put(key, val);
+        }
+        return res;
     }
 }

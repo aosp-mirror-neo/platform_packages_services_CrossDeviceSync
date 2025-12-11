@@ -18,6 +18,7 @@ package com.android.crossdevicesync.data.dagger;
 import com.android.crossdevicesync.data.SchemaProvider;
 import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
+import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
 
@@ -55,6 +56,10 @@ public interface SharedDataStoreComponent {
         /** Set the schema provider for the data store. */
         @BindsInstance
         Builder schemaProvider(SchemaProvider<?> schemaProvider);
+
+        /** Set the storage for the data store. */
+        @BindsInstance
+        Builder storage(IStorage storage);
 
         /** Build an instance of this component. */
         SharedDataStoreComponent build();

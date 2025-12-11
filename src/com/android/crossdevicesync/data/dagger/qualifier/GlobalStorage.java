@@ -17,16 +17,15 @@ package com.android.crossdevicesync.data.dagger.qualifier;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
+import com.android.crossdevicesync.data.storage.IStorage;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 
 import javax.inject.Qualifier;
 
-/**
- * Qualifier to annotate the IO thread. Each data store has a single IO thread that is not shared
- * with other data stores. Any data store operation happens in the IO thread.
- */
+/** Qualifier to annotate the global {@link IStorage} that is shared across multiple data stores. */
 @Qualifier
 @Documented
 @Retention(RUNTIME)
-public @interface IOThread {}
+public @interface GlobalStorage {}

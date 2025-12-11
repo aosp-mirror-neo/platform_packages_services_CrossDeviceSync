@@ -49,7 +49,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
     @Before
     public void setUp() {
         super.setUp();
-        mFakeStorage.init();
+        mFakeStorage.open();
         mHandle = (DefaultSharedDataStoreHandle<String>) mSharedDataStoreHandle;
         mDataStoreFactory =
                 (TestSharedDataStoreFactory<String>)
@@ -128,10 +128,10 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void testDelete_success() throws Exception {
-        mFakeStorage.persistObject(DOC_ID, new Object());
+        mFakeStorage.persistDocument(DOC_ID, new byte[1]);
 
         assertThat(mHandle.delete().get()).isTrue();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isFalse();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNull();
     }
 
     @Test
@@ -273,7 +273,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
     public void destroy_noDataStore_shutDownIoThread() {
         mHandle.destroy();
 
-        assertThat(mIOThreadExecutorService.isShutdown()).isTrue();
+        assertThat(mFakeStorage.isIoThreadShutdown()).isTrue();
     }
 
     @Test
@@ -282,13 +282,13 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
         mDataStoreFactory.setDataStoresAsync(false);
         // Open and close.
         mHandle.openDataStore(mNetwork).get().close().get();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNotNull();
         assertThat(mHandle.getLockedDataStore()).isNull();
 
         mHandle.destroy(/* deleteDataStore= */ true);
 
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isFalse();
-        assertThat(mIOThreadExecutorService.isShutdown()).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNull();
+        assertThat(mFakeStorage.isIoThreadShutdown()).isTrue();
     }
 
     @Test
@@ -297,14 +297,14 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
         mDataStoreFactory.setDataStoresAsync(false);
         SharedDataStore<?> dataStore = mHandle.openDataStore(mNetwork).get();
         assertThat(dataStore.isOpen()).isTrue();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNotNull();
         assertThat(mHandle.getLockedDataStore()).isSameInstanceAs(dataStore);
 
         mHandle.destroy();
 
         assertThat(dataStore.isOpen()).isFalse();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isTrue();
-        assertThat(mIOThreadExecutorService.isShutdown()).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNotNull();
+        assertThat(mFakeStorage.isIoThreadShutdown()).isTrue();
     }
 
     @Test
@@ -313,14 +313,14 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
         mDataStoreFactory.setDataStoresAsync(false);
         SharedDataStore<String> dataStore = mHandle.openDataStore(mNetwork).get();
         assertThat(dataStore.isOpen()).isTrue();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNotNull();
         assertThat(mHandle.getLockedDataStore()).isSameInstanceAs(dataStore);
 
         mHandle.destroy(/* deleteDataStore= */ true);
 
         assertThat(dataStore.isOpen()).isFalse();
-        assertThat(mFakeStorage.getAllObjectsUnchecked().containsKey(DOC_ID)).isFalse();
-        assertThat(mIOThreadExecutorService.isShutdown()).isTrue();
+        assertThat(mFakeStorage.getDocumentUnchecked(DOC_ID)).isNull();
+        assertThat(mFakeStorage.isIoThreadShutdown()).isTrue();
     }
 
     private void addSchema() {
