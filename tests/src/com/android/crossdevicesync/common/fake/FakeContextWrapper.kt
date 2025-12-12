@@ -13,22 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.dagger;
+package com.android.crossdevicesync.common.fake
 
-import android.app.Application;
-import android.content.Context;
+import android.app.Application
+import android.content.ContextWrapper
+import javax.inject.Inject
+import javax.inject.Singleton
 
-import dagger.Binds;
-import dagger.Module;
-
-import javax.inject.Singleton;
-
-/** Base module that is included in both production app and test cases. */
-@Module
-public abstract class ApplicationBaseModule {
-
-    /** Dagger binding for application context. */
-    @Binds
-    @Singleton
-    abstract Context bindApplicationContext(Application app);
+/** A Fake Context that can provide custom implementation for resources. */
+@Singleton
+class FakeContextWrapper
+@Inject
+internal constructor(application: Application, private val fakeResources: FakeResources) :
+    ContextWrapper(application) {
+    override fun getResources() = fakeResources
 }

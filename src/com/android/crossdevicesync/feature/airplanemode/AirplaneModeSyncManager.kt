@@ -17,6 +17,7 @@ package com.android.crossdevicesync.feature.airplanemode
 
 import android.companion.AssociationRequest
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
+import android.content.Context
 import android.os.UserHandle.USER_ALL
 import android.provider.Settings.Global.AIRPLANE_MODE_SYNC
 import android.util.IndentingPrintWriter
@@ -40,6 +41,7 @@ import com.android.crossdevicesync.network.NetworkManager
 import com.android.crossdevicesync.notification.NotificationHelper
 import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
+import com.android.internal.R
 import com.android.server.connectivity.Flags
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
@@ -52,6 +54,7 @@ import javax.inject.Provider
 class AirplaneModeSyncManager
 @Inject
 internal constructor(
+    private val mContext: Context,
     private val mNetworkManager: NetworkManager,
     private val mAirplaneModeController: AirplaneModeController,
     private val mMetadataPublisher: MetadataPublisher,
@@ -80,8 +83,12 @@ internal constructor(
         val syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled()
         Log.d(TAG, "Initializing with apm state: $apmEnabled and sync enabled: $syncEnabled")
 
-        // TODO(b/427295302): Set up Config resources to allow OEMs to disable Airplane Mode Sync.
-        mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, !mIsKidsWatch.get())
+        val apmSyncSupported = mContext.resources.getBoolean(R.bool.config_supportAirplaneModeSync)
+        mMetadataPublisher.putBooleanMetaData(
+            USER_ALL,
+            APM_SYNC_SUPPORTED,
+            apmSyncSupported && !mIsKidsWatch.get(),
+        )
 
         synchronized(mLock) {
             mAirplaneModeState = apmEnabled
