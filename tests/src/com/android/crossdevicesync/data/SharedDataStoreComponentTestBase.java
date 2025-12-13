@@ -18,51 +18,50 @@ package com.android.crossdevicesync.data;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
-import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
-import com.android.crossdevicesync.data.fake.FakeStorage;
-import com.android.crossdevicesync.data.storage.RoomStorage;
+import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.crossdevicesync.data.storage.fake.FakeStorage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import javax.inject.Inject;
 
 /** Base class for tests dependent on the shared storage component. */
 public abstract class SharedDataStoreComponentTestBase extends SyncServiceComponentTestBase {
     public static final String DOC_ID = "test_doc";
-    public static final String NETWORK_ID = "test_network";
 
     protected TestSharedDataStoreComponent mSharedDataStoreComponent;
-    @Inject protected RoomStorage mRoomStorage;
-    @Inject protected FakeStorage mFakeStorage;
+    protected FakeStorage mFakeStorage;
     @Inject @DataStoreName protected String mDataStoreName;
     @Inject protected SharedDataStore<?> mSharedDataStore;
     @Inject protected SubmergeSharedDataStore<?> mSubmergeSharedDataStore;
-    @Inject @IOThread protected ExecutorService mExecutorService;
+    @Inject protected FakeSharedDataStore<?> mFakeSharedDataStore;
+    @Inject protected TestSharedDataStoreFactory<?> mTestSharedDataStoreFactory;
+    @Inject protected SharedDataStoreHandle<?> mSharedDataStoreHandle;
+    @Inject protected SchemaProvider<?> mSchemaProvider;
 
     @Override
     public void setUp() {
         super.setUp();
+        mFakeStorage = new FakeStorage();
         mFakeNetworkManager.init();
         mSharedDataStoreComponent =
-                newSharedDataStoreComponent(getClass().getSimpleName(), getSchemaProvider());
+                newSharedDataStoreComponent(
+                        getClass().getSimpleName(), getSchemaProvider(), mFakeStorage);
         mSharedDataStoreComponent.inject(this);
     }
 
-    protected String getNetworkId() {
-        return NETWORK_ID;
-    }
-
     protected TestSharedDataStoreComponent newSharedDataStoreComponent(
-            String dataStoreName, SchemaProvider<String> schemaProvider) {
+            String dataStoreName, SchemaProvider<String> schemaProvider, IStorage storage) {
         return (TestSharedDataStoreComponent)
                 mSyncServiceComponent
                         .getTestSharedDataStoreComponentBuilder()
-                        .network(getNetworkManager().createNetwork(getNetworkId(), device -> true))
                         .name(dataStoreName)
                         .converter(mStringConverter)
                         .schemaProvider(schemaProvider)
+                        .storage(storage)
                         .build();
     }
 

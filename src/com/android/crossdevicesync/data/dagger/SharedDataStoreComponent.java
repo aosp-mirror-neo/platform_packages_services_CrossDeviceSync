@@ -16,9 +16,9 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.SchemaProvider;
-import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.dagger.qualifier.DataStoreName;
-import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
 
@@ -35,8 +35,9 @@ import dagger.Subcomponent;
 @SharedDataStoreSingleton
 @Subcomponent(modules = {SharedDataStoreModule.class})
 public interface SharedDataStoreComponent {
-    /** The {@link SharedDataStore} that is in sync with remote devices. */
-    SharedDataStore<?> getSharedDataStore();
+
+    /** Get the {@link SharedDataStoreHandle} for this data store. */
+    SharedDataStoreHandle<?> getSharedDataStoreHandle();
 
     /** Builder interface for SharedDataStoreComponent. */
     @Subcomponent.Builder
@@ -56,9 +57,9 @@ public interface SharedDataStoreComponent {
         @BindsInstance
         Builder schemaProvider(SchemaProvider<?> schemaProvider);
 
-        /** Set the network factory for the data store. */
+        /** Set the storage for the data store. */
         @BindsInstance
-        Builder network(Network network);
+        Builder storage(IStorage storage);
 
         /** Build an instance of this component. */
         SharedDataStoreComponent build();

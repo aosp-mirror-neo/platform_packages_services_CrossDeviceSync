@@ -17,6 +17,7 @@ package com.android.crossdevicesync.services;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import android.content.Intent;
 
@@ -24,13 +25,16 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
 
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
+import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.util.Map;
@@ -53,13 +57,15 @@ public final class SyncServiceTest {
         // Create a new service with mock feature manager.
         NetworkManager networkManager = mock(NetworkManager.class);
         MetadataPublisher metadataPublisher = mock(MetadataPublisher.class);
+        IStorage storage = mock(IStorage.class);
         FeatureManager featureManager = mock(FeatureManager.class);
         SyncService service =
                 new SyncService(
                         networkManager,
                         metadataPublisher,
+                        storage,
                         Map.of(FeatureManager.class, () -> featureManager));
-        InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager);
+        InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager, storage);
 
         // Service created.
         service.onCreate();
@@ -76,5 +82,11 @@ public final class SyncServiceTest {
         inOrder.verify(featureManager).destroy();
         inOrder.verify(metadataPublisher).destroy();
         inOrder.verify(networkManager).destroy();
+        ArgumentCaptor<ThrowingRunnable> captor = ArgumentCaptor.forClass(ThrowingRunnable.class);
+        inOrder.verify(storage).runInIoThread(captor.capture());
+        inOrder.verify(storage).shutdownIoThread();
+
+        captor.getValue().run();
+        verify(storage).close();
     }
 }

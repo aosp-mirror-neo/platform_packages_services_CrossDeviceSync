@@ -22,11 +22,8 @@ import java.lang.annotation.Retention;
 
 import javax.inject.Qualifier;
 
-/**
- * Qualifier to annotate the IO thread. Each data store has a single IO thread that is not shared
- * with other data stores. Any data store operation happens in the IO thread.
- */
+/** Qualifier to annotate the data store lock. */
 @Qualifier
 @Documented
 @Retention(RUNTIME)
-public @interface IOThread {}
+public @interface DataStoreLock {}

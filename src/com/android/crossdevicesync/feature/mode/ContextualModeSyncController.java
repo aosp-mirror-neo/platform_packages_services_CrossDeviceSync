@@ -17,7 +17,6 @@ package com.android.crossdevicesync.feature.mode;
 
 import static android.app.modes.ContextualMode.TYPE_MANUAL_DO_NOT_DISTURB;
 
-import static com.android.crossdevicesync.data.DataStoreInitHelper.getInitializedDataStore;
 import static com.android.crossdevicesync.feature.mode.ModeSyncDocs.CONTEXTUAL_MODES_DOC_ID;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED;
@@ -44,13 +43,13 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.Dumpable;
-import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.data.Docs;
 import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
-import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
+import com.android.crossdevicesync.data.SharedDataStoreHandleFactory;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
@@ -98,10 +97,8 @@ public class ContextualModeSyncController
 
     private final Object mLock = new Object();
     private final NetworkManager mNetworkManager;
-    private final SharedDataStoreFactory mSharedDataStoreFactory;
+    private final SharedDataStoreHandle<String> mSharedDataStoreHandle;
     private final Executor mMainExecutor;
-    private final Executor mBgExecutor;
-    private final StringConverter mConverter;
     private final ContextualModeManagerProxy mContextualModeManager;
     private final UserHandle mUser;
     private final MetadataPublisher mMetadataPublisher;
@@ -128,24 +125,22 @@ public class ContextualModeSyncController
     @GuardedBy("mLock")
     private boolean mStarted;
 
-    @GuardedBy("mLock")
-    private boolean mShouldDeleteDataStore;
-
     @AssistedInject
     ContextualModeSyncController(
             NetworkManager networkManager,
-            SharedDataStoreFactory sharedDataStoreFactory,
+            SharedDataStoreHandleFactory sharedDataStoreHandleFactory,
             @Main Executor mainExecutor,
-            @Background Executor backgroundExecutor,
             StringConverter converter,
             ContextualModeManagerProxy contextualModeManager,
             MetadataPublisher metadataPublisher,
             @Assisted UserHandle user) {
         mNetworkManager = networkManager;
-        mSharedDataStoreFactory = sharedDataStoreFactory;
+        mSharedDataStoreHandle =
+                sharedDataStoreHandleFactory.create(
+                        DATASTORE_NAME_PREFIX + user.getIdentifier(),
+                        converter,
+                        ModeSyncDocs.getSchemaProvider(this::onDataMigration));
         mMainExecutor = mainExecutor;
-        mBgExecutor = backgroundExecutor;
-        mConverter = converter;
         mContextualModeManager = contextualModeManager;
         mMetadataPublisher = metadataPublisher;
         mUser = user;
@@ -211,8 +206,8 @@ public class ContextualModeSyncController
                         NETWORK_ID,
                         ContextualModeSyncController::shouldSyncWithDevice);
         Futures.addCallback(
-                getInitializedDataStore(this::createSharedDataStore, mMainExecutor),
-                new FutureCallback<>() {
+                mSharedDataStoreHandle.openDataStore(mNetwork),
+                new FutureCallback<SharedDataStore<String>>() {
                     @Override
                     public void onSuccess(SharedDataStore<String> dataStore) {
                         onDataStoreInitialized(dataStore);
@@ -236,25 +231,7 @@ public class ContextualModeSyncController
         mState = STATE_CLOSING_DATA_STORE;
         SharedDataStore<String> dataStore = requireNonNull(mSharedDataStore);
         dataStore.unregisterOnRemoteChangeListener(this);
-        dataStore.closeWithCallback().addListener(this::onDataStoreClosed, mMainExecutor);
-    }
-
-    private SharedDataStore<String> createSharedDataStore() {
-        synchronized (mLock) {
-            if (mState != STATE_OPENING_DATA_STORE) {
-                throw new IllegalArgumentException(
-                        "createSharedDataStore: illegal state " + stateToString(mState));
-            }
-            return mSharedDataStoreFactory.create(
-                    getDataStoreName(),
-                    mConverter,
-                    ModeSyncDocs.getSchemaProvider(this::onDataMigration),
-                    requireNonNull(mNetwork));
-        }
-    }
-
-    private String getDataStoreName() {
-        return DATASTORE_NAME_PREFIX + mUser.getIdentifier();
+        dataStore.close().addListener(this::onDataStoreClosed, mMainExecutor);
     }
 
     // Called in IO thread.
@@ -523,9 +500,15 @@ public class ContextualModeSyncController
             mStarted = false;
             mContextualModeManager.unregisterModeListener(this);
             mContextualModeManager.unregisterModeSyncEnabledListener(mModeSyncEnabledListener);
-            // Gracefully stop the data store.
-            invalidateLocked();
-            // TODO(b/430676212): handle deletion
+            if (mSharedDataStore != null) {
+                mSharedDataStore.unregisterOnRemoteChangeListener(this);
+                mSharedDataStore = null;
+            }
+            if (mNetwork != null) {
+                mNetwork.destroy();
+                mNetwork = null;
+            }
+            mSharedDataStoreHandle.destroy(deleteDataStore);
         }
     }
 

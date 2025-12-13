@@ -16,16 +16,19 @@
 package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
-import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
 import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
 import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
-import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreComponentBuilderWrapper;
+import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.crossdevicesync.data.storage.fake.FakeStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.TimestampProvider;
 
 import dagger.Binds;
 import dagger.Module;
+import dagger.Provides;
 
 /** Test-only dagger module for injecting data related bindings into the sync service scope. */
 @Module(
@@ -42,7 +45,14 @@ public abstract class TestDataModule {
     abstract DeviceNodeIdProvider bindsDeviceNodeIdProvider(
             FakeDeviceNodeIdProvider fakeDeviceNodeIdProvider);
 
-    @SyncServiceSingleton
     @Binds
-    abstract SharedDataStoreFactory bindsSharedDataStoreFactory(TestSharedDataStoreFactory factory);
+    abstract SharedDataStoreComponent.Builder bindsSharedDataStoreComponentBuilder(
+            TestSharedDataStoreComponentBuilderWrapper wrapper);
+
+    @SyncServiceSingleton
+    @GlobalStorage
+    @Provides
+    static IStorage providesGlobalStorage() {
+        return new FakeStorage();
+    }
 }

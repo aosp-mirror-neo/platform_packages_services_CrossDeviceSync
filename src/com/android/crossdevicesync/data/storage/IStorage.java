@@ -18,14 +18,21 @@ package com.android.crossdevicesync.data.storage;
 import android.annotation.Nullable;
 
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
+import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
 import com.google.android.submerge.StorageInterface.StorageException;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 
 /** Interface representing a persistent storage. */
-public interface IStorage extends AutoCloseable {
+public interface IStorage {
 
-    /** Init the storage. */
-    void init();
+    /** Open the storage. */
+    void open();
 
     /** Get the serialized document. */
     byte[] getDocument(String docId) throws StorageException;
@@ -54,9 +61,53 @@ public interface IStorage extends AutoCloseable {
      */
     void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception;
 
+    /** Get all document ids from this storage. */
+    List<String> getAllDocumentIds() throws StorageException;
+
+    /** Delete documents based on the given doc ids. */
+    void deleteDocuments(List<String> docIds) throws StorageException;
+
     /** Delete the database. */
     boolean deleteDatabase();
 
-    /** Close the database. */
+    /**
+     * Close the database. Note that this will not shutdown the IO thread if it's running, since the
+     * database could be reopen via {@link #open()}. To shutdown the IO thread, please call {@link
+     * #shutdownIoThread()} instead.
+     */
     void close();
+
+    /**
+     * Submit a task to to the internal IO thread.
+     *
+     * @param task a task to be executed in the IO thread
+     * @return a {@link ListenableFuture} that will be completed with the result of the task
+     */
+    <R> ListenableFuture<R> submitToIoThread(Callable<R> task);
+
+    /**
+     * Same as {@link #submitToIoThread(Callable)} but accepts a {@link ThrowingRunnable} instead.
+     */
+    @CanIgnoreReturnValue
+    default ListenableFuture<Void> runInIoThread(ThrowingRunnable runnable) {
+        return submitToIoThread(
+                () -> {
+                    runnable.run();
+                    return null;
+                });
+    }
+
+    /**
+     * Get an {@link Executor} that submits tasks to the internal IO thread as if directly calling
+     * {@link #runInIoThread(ThrowingRunnable)}.
+     */
+    default Executor getIoThreadExecutor() {
+        return runnable -> runInIoThread(runnable::run);
+    }
+
+    /**
+     * Shutdown the IO thread if it's running. This is a no-op if the IO thread is not running.
+     * After calling this method, {@link #submitToIoThread(Callable)} will fail immediately.
+     */
+    void shutdownIoThread();
 }

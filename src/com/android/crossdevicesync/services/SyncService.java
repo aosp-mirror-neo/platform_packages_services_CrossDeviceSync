@@ -25,6 +25,8 @@ import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
 
+import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
+import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
@@ -53,6 +55,7 @@ public class SyncService extends Service {
 
     private final NetworkManager mNetworkManager;
     private final MetadataPublisher mMetadataPublisher;
+    private final IStorage mGlobalStorage;
     private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
     private final Set<FeatureManager> mFeatureManagers = new HashSet<>();
 
@@ -62,9 +65,11 @@ public class SyncService extends Service {
     public SyncService(
             NetworkManager networkManager,
             MetadataPublisher metadataPublisher,
+            @GlobalStorage IStorage globalStorage,
             Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
         mNetworkManager = networkManager;
         mMetadataPublisher = metadataPublisher;
+        mGlobalStorage = globalStorage;
         mFeatureManagerProviders = featureManagerProviders;
     }
 
@@ -94,6 +99,8 @@ public class SyncService extends Service {
         mFeatureManagers.clear();
         mMetadataPublisher.destroy();
         mNetworkManager.destroy();
+        mGlobalStorage.runInIoThread(mGlobalStorage::close);
+        mGlobalStorage.shutdownIoThread();
         if (mDestroyLatch != null) {
             mDestroyLatch.countDown();
             mDestroyLatch = null;

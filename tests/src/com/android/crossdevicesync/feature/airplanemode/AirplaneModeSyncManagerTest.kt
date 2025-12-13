@@ -483,7 +483,12 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         private class RemoteDeviceContext : SharedDataStoreComponentTestBase() {
             init {
                 super.setUp()
-                mSharedDataStore.init()
+                mSharedDataStore.init(
+                    networkManager.createNetwork(
+                        AirplaneModeSyncManager.NETWORK_ID,
+                        { device -> true },
+                    )
+                )
             }
 
             override fun getSchemaProvider() =
@@ -494,7 +499,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
                     override fun migrateDocument(document: MutableDocument<String>) {}
                 }
 
-            override fun getNetworkId() = AirplaneModeSyncManager.NETWORK_ID
+            override fun useRealSharedDataStoreImpl(): Boolean = true
 
             fun close() = mSharedDataStore.close()
         }

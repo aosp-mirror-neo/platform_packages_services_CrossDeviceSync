@@ -17,6 +17,8 @@ package com.android.crossdevicesync.data.dagger;
 
 import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase;
 import com.android.crossdevicesync.data.SubmergeSharedDataStore;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.storage.IStorage;
 
 import dagger.Subcomponent;
 
@@ -31,12 +33,18 @@ public interface TestSharedDataStoreComponent extends SharedDataStoreComponent {
     /** Builder interface for TestSharedDataStoreComponent. */
     @Subcomponent.Builder
     interface Builder extends SharedDataStoreComponent.Builder {
-
         /** Build an instance of this component. */
         TestSharedDataStoreComponent build();
     }
 
+    /** Get the {@link SubmergeSharedDataStore} instance. */
     SubmergeSharedDataStore<?> getSubmergeSharedDataStore();
+
+    /** Get the {@link TestSharedDataStoreFactory} instance. */
+    TestSharedDataStoreFactory<?> getTestSharedDataStoreFactory();
+
+    /** Get the {@link IStorage} instance. */
+    IStorage getStorage();
 
     /** Inject dagger bindings into the test case. */
     void inject(SharedDataStoreComponentTestBase test);

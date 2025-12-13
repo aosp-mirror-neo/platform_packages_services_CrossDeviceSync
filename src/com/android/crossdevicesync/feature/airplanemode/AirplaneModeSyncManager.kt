@@ -26,14 +26,13 @@ import androidx.annotation.VisibleForTesting
 import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch
 import com.android.crossdevicesync.dagger.qualifier.IsWatch
 import com.android.crossdevicesync.dagger.qualifier.Main
-import com.android.crossdevicesync.data.DataStoreInitHelper.getInitializedDataStore
 import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.RecordType.TYPE_REGISTER
 import com.android.crossdevicesync.data.SchemaProvider
 import com.android.crossdevicesync.data.SharedDataStore
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument
 import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener
-import com.android.crossdevicesync.data.SharedDataStoreFactory
+import com.android.crossdevicesync.data.SharedDataStoreHandleFactory
 import com.android.crossdevicesync.data.StringConverter
 import com.android.crossdevicesync.feature.FeatureManager
 import com.android.crossdevicesync.metadata.MetadataPublisher
@@ -54,16 +53,18 @@ class AirplaneModeSyncManager
 @Inject
 internal constructor(
     private val mNetworkManager: NetworkManager,
-    private val mSharedDataStoreFactory: SharedDataStoreFactory,
-    private val mStringConverter: StringConverter,
     private val mAirplaneModeController: AirplaneModeController,
     private val mMetadataPublisher: MetadataPublisher,
     private val mNotificationHelper: NotificationHelper,
     @param:IsKidsWatch private val mIsKidsWatch: Provider<Boolean>,
     @param:IsWatch private val mIsWatch: Provider<Boolean>,
     @param:Main private val mExecutor: Executor,
+    stringConverter: StringConverter,
+    sharedDataStoreHandleFactory: SharedDataStoreHandleFactory,
 ) : FeatureManager, OnRemoteChangeListener, AirplaneModeController.Listener {
     private val mLock = Any()
+    private val mSharedDataStoreHandle =
+        sharedDataStoreHandleFactory.create(DATA_STORE_NAME, stringConverter, getSchemaProvider())
     @GuardedBy("mLock") private var mDataStore: SharedDataStore<String>? = null
     @GuardedBy("mLock") private var mNetwork: NetworkManager.Network? = null
     @GuardedBy("mLock") private var mState = STATE_INACTIVE
@@ -190,7 +191,7 @@ internal constructor(
         mNetwork = network
 
         Futures.addCallback(
-            getInitializedDataStore({ createSharedDataStore(network) }, mExecutor),
+            mSharedDataStoreHandle.openDataStore(network),
             object : FutureCallback<SharedDataStore<String>> {
                 override fun onSuccess(dataStore: SharedDataStore<String>) {
                     onDataStoreInitialized(dataStore)
@@ -202,22 +203,6 @@ internal constructor(
             },
             mExecutor,
         )
-    }
-
-    private fun createSharedDataStore(network: NetworkManager.Network): SharedDataStore<String> {
-        synchronized(mLock) {
-            if (mState != STATE_OPENING_DATA_STORE) {
-                throw IllegalArgumentException(
-                    "createSharedDataStore: illegal state " + stateToString(mState)
-                )
-            }
-            return mSharedDataStoreFactory.create(
-                DATA_STORE_NAME,
-                mStringConverter,
-                getSchemaProvider(),
-                network,
-            )
-        }
     }
 
     private fun onDataStoreInitialized(dataStore: SharedDataStore<String>) {
@@ -254,7 +239,7 @@ internal constructor(
         mState = STATE_CLOSING_DATA_STORE
         mDataStore?.let {
             it.unregisterOnRemoteChangeListener(this)
-            it.closeWithCallback().addListener({ onDataStoreClosed() }, mExecutor)
+            it.close().addListener({ onDataStoreClosed() }, mExecutor)
         }
     }
 
@@ -280,8 +265,13 @@ internal constructor(
                 return
             }
             mStarted = false
+            mState = STATE_INACTIVE
             mAirplaneModeController.unregisterAirplaneModeChangedListener(this)
-            invalidateLocked()
+            mDataStore?.unregisterOnRemoteChangeListener(this)
+            mDataStore = null
+            mNetwork?.destroy()
+            mNetwork = null
+            mSharedDataStoreHandle.destroy()
         }
     }
 

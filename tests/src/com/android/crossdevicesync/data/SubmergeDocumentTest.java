@@ -67,7 +67,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
     @Before
     public void setUp() {
         super.setUp();
-        mFakeStorage.init();
+        mFakeStorage.open();
         mDeviceNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mDataStoreName);
         mSubmergeDataStore = newDataStore(mDeviceNodeId);
         mDocument = newDocument(mDeviceNodeId);
@@ -601,7 +601,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
         // Create another datastore as if it's another device.
         String newDeviceNodeId = "new_device";
-        mFakeStorage.init();
+        mFakeStorage.open();
         mSubmergeDataStore = newDataStore(newDeviceNodeId);
         mDocument = newDocument(newDeviceNodeId);
         List<String> changed = mDocument.mergeNetworkUpdate(update);
@@ -626,7 +626,7 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
         // Create another datastore as if it's another device.
         String newDeviceNodeId = "new_device";
-        mFakeStorage.init();
+        mFakeStorage.open();
         mSubmergeDataStore = newDataStore(newDeviceNodeId);
         mDocument = newDocument(newDeviceNodeId);
         // Merge the update but consider the update as local.

@@ -15,18 +15,16 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import androidx.annotation.NonNull;
+import android.content.Context;
 
 import com.android.crossdevicesync.data.DefaultTimestampProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProviderImpl;
-import com.android.crossdevicesync.data.SchemaProvider;
-import com.android.crossdevicesync.data.SharedDataStore;
-import com.android.crossdevicesync.data.SharedDataStoreFactory;
-import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
+import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.crossdevicesync.data.storage.RoomStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
-import com.google.android.submerge.Converter;
 import com.google.android.submerge.TimestampProvider;
 
 import dagger.Binds;
@@ -44,6 +42,7 @@ import dagger.Provides;
         includes = {DataBaseModule.class},
         subcomponents = {SharedDataStoreComponent.class})
 public abstract class DataModule {
+    private static final String GLOBAL_DATABASE_NAME = "cross_device_sync_global_db";
 
     @Binds
     @SyncServiceSingleton
@@ -55,26 +54,8 @@ public abstract class DataModule {
 
     @Provides
     @SyncServiceSingleton
-    static SharedDataStoreFactory providesSharedDataStoreFactory(
-            SharedDataStoreComponent.Builder componentBuilder) {
-        return new SharedDataStoreFactory() {
-            @NonNull
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T> SharedDataStore<T> create(
-                    @NonNull String name,
-                    @NonNull Converter<T> converter,
-                    @NonNull SchemaProvider<T> schemaProvider,
-                    @NonNull Network network) {
-                return (SharedDataStore<T>)
-                        componentBuilder
-                                .name(name)
-                                .converter(converter)
-                                .schemaProvider(schemaProvider)
-                                .network(network)
-                                .build()
-                                .getSharedDataStore();
-            }
-        };
+    @GlobalStorage
+    static IStorage providesGlobalStorage(Context context) {
+        return new RoomStorage(context, GLOBAL_DATABASE_NAME);
     }
 }

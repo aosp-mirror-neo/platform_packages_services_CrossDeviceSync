@@ -19,7 +19,7 @@ import com.android.crossdevicesync.ApplicationComponentTestBase;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.data.fake.FakeDeviceNodeIdProvider;
 import com.android.crossdevicesync.data.fake.FakeTimestampProvider;
-import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
+import com.android.crossdevicesync.data.fake.TestSharedDataStoreComponentBuilderWrapper;
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager;
 import com.android.crossdevicesync.feature.airplanemode.fake.FakeAirplaneModeController;
 import com.android.crossdevicesync.feature.mode.ContextualModeSyncController;
@@ -60,8 +60,10 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     @Inject protected FakeAirplaneModeController mFakeAirplaneModeController;
     @Inject protected MetadataPublisherImpl mMetadataPublisher;
     @Inject protected FakeMetadataPublisher mFakeMetadataPublisher;
-    @Inject protected TestSharedDataStoreFactory mSharedDataStoreFactory;
     @Inject protected ContextualModeSyncController.Factory mContextualModeSyncControllerFactory;
+
+    @Inject
+    protected TestSharedDataStoreComponentBuilderWrapper mSharedDataStoreComponentBuilderWrapper;
 
     @Override
     public void setUp() {
@@ -74,6 +76,7 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
         return mApplicationComponent
                 .getTestSyncServiceComponentBuilder()
                 .useRealSharedDataStoreImpl(useRealSharedDataStoreImpl())
+                .useRealSharedDataStoreHandleImpl(useRealSharedDataStoreHandleImpl())
                 .build();
     }
 
@@ -81,6 +84,10 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
         // Use fake shared data store in sync service scope by default. Test can override this
         // method to ues the real shared data store implementation instead.
         return false;
+    }
+
+    protected boolean useRealSharedDataStoreHandleImpl() {
+        return useRealSharedDataStoreImpl();
     }
 
     public FakeNetworkManager getNetworkManager() {

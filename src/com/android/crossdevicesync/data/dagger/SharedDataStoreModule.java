@@ -15,18 +15,17 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
-import com.android.crossdevicesync.data.dagger.qualifier.IOThread;
-import com.android.crossdevicesync.data.storage.IStorage;
-import com.android.crossdevicesync.data.storage.RoomStorage;
-
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
+import com.android.crossdevicesync.data.DefaultSharedDataStoreHandle;
+import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStoreFactory;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
+import com.android.crossdevicesync.data.SubmergeSharedDataStore;
 
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 
-import java.util.concurrent.Executors;
+import javax.inject.Provider;
 
 /**
  * Dagger module for injecting objects in the {@link SharedDataStoreSingleton} scope.Production-only
@@ -40,12 +39,15 @@ interface SharedDataStoreModule {
 
     @Binds
     @SharedDataStoreSingleton
-    IStorage bindsIStorage(RoomStorage storage);
+    SharedDataStoreHandle<?> bindsSharedDataStoreHandle(DefaultSharedDataStoreHandle<?> handle);
+
+    @Binds
+    SharedDataStore<?> bindsSharedDataStore(SubmergeSharedDataStore<?> submergeSharedDataStore);
 
     @Provides
-    @IOThread
     @SharedDataStoreSingleton
-    static ListeningExecutorService provideIOThreadListeningExecutorService() {
-        return MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+    static SharedDataStoreFactory<?> providesSharedDataStoreFactory(
+            Provider<SharedDataStore<?>> provider) {
+        return (SharedDataStoreFactory) provider::get;
     }
 }
