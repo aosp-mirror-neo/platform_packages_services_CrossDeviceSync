@@ -24,6 +24,7 @@ import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
+import com.android.crossdevicesync.common.fake.FakeResources;
 import com.android.crossdevicesync.common.fake.IsWatchProvider;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
@@ -54,6 +55,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject protected SharedPreferences mSharedPreferences;
     @Inject protected FakeUserHelper mFakeUserHelper;
     @Inject protected FakeContextualModeManager mFakeContextualModeManager;
+    @Inject protected FakeResources mFakeResources;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();
@@ -63,5 +65,6 @@ public abstract class ApplicationComponentTestBase {
         mApplicationComponent.inject(this);
         // Clear shared preferences
         mSharedPreferences.edit().clear().commit();
+        mFakeResources.reset();
     }
 }

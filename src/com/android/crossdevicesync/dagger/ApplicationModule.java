@@ -20,6 +20,7 @@ import static android.provider.Settings.Global.Wearable.TETHERED_CONFIG_STANDALO
 import static android.provider.Settings.Global.Wearable.TETHERED_CONFIG_UNKNOWN;
 import static android.provider.Settings.Global.Wearable.TETHER_CONFIG_STATE;
 
+import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -54,15 +55,15 @@ import java.util.concurrent.Executors;
 
 import javax.inject.Singleton;
 
-/**
- * Dagger module for the {@link ApplicationComponent}. Production-only bindings should live here.
- *
- * <p>Note: if a binding is needed in both production and test code, please put it in {@link
- * ApplicationBaseModule} instead.
- */
-@Module(includes = {ApplicationBaseModule.class, NotificationModule.class})
+/** Dagger module for the {@link ApplicationComponent}. */
+@Module(includes = {NotificationModule.class})
 public abstract class ApplicationModule {
     private static final String DEFAULT_SHARED_PREFS_FILE_NAME = "cross_device_sync_prefs";
+
+    /** Dagger binding for application context. */
+    @Binds
+    @Singleton
+    abstract Context bindApplicationContext(Application app);
 
     /** Provides the application level default shared prefs. */
     @Singleton
