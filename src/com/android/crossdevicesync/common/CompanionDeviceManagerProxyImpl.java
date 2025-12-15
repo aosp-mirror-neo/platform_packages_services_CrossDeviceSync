@@ -124,8 +124,8 @@ public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerPr
     }
 
     @Override
-    public void removeOnActionResultListener(String serviceName) {
-        mCompanionDeviceManager.removeOnActionResultListener(serviceName);
+    public void clearOnActionResultListener(String serviceName) {
+        mCompanionDeviceManager.clearOnActionResultListener(serviceName);
     }
 
     @Override

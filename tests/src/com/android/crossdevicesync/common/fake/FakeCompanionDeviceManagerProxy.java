@@ -288,7 +288,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     }
 
     @Override
-    public void removeOnActionResultListener(String serviceName) {
+    public void clearOnActionResultListener(String serviceName) {
         mActionResultListeners.removeIf(l -> l.serviceName().equals(serviceName));
     }
 
