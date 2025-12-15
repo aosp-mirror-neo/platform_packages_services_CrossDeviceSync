@@ -17,13 +17,16 @@
     package="com.android.crossdevicesync"
     coreApp="true">
 
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.USE_COMPANION_TRANSPORTS" />
-    <uses-permission android:name="android.permission.MANAGE_COMPANION_DEVICES" />
+    <!-- go/keep-sorted start -->
     <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
-    <uses-permission android:name="android.permission.NETWORK_AIRPLANE_MODE" />
+    <uses-permission android:name="android.permission.MANAGE_COMPANION_DEVICES" />
     <uses-permission android:name="android.permission.MANAGE_CONTEXTUAL_MODES" />
     <uses-permission android:name="android.permission.MANAGE_USERS" />
+    <uses-permission android:name="android.permission.NETWORK_AIRPLANE_MODE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_COMPANION_TRANSPORTS" />
+    <!-- go/keep-sorted end -->
 
     <application
         android:name=".CrossDeviceSyncApplication"

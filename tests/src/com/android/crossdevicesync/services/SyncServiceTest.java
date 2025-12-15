@@ -29,6 +29,7 @@ import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
+import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
 import org.junit.Rule;
@@ -64,6 +65,7 @@ public final class SyncServiceTest {
                         networkManager,
                         metadataPublisher,
                         storage,
+                        new SyncServiceShellCommand(mock(NotificationHelper.class)),
                         Map.of(FeatureManager.class, () -> featureManager));
         InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager, storage);
 
