@@ -1071,32 +1071,25 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         transactDataStore(this, doc -> doc.putData("/root/register", "val2"));
         flushNetworks(this, mRemoteDevice1);
 
-        // Remote device has the change first, while the other local data store doesn't have the
-        // change yet.
-        transactDataStore(
-                mRemoteDevice1,
-                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val2"));
-        transactDataStore(
-                newDataStore,
-                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val"));
+        // Both the remote device and the other local data store have the change.
+        verifier = doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val2");
+        transactDataStore(mRemoteDevice1, verifier);
+        transactDataStore(newDataStore, verifier);
 
         // The other local data store changes.
         transactDataStore(newDataStore, doc -> doc.putData("/root/register", "val3"));
         flushNetworks(this, mRemoteDevice1);
 
-        // Remote device has the change first, while the other local data store doesn't have the
-        // change yet.
-        transactDataStore(
-                mRemoteDevice1,
-                doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val3"));
-        transactDataStore(
-                this, doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val2"));
+        // Both the remote device and the local data store have the change.
+        verifier = doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("val3");
+        transactDataStore(mRemoteDevice1, verifier);
+        transactDataStore(this, verifier);
 
         // Remote device has a change.
         transactDataStore(mRemoteDevice1, doc -> doc.addDataToSet("/root/set", "val"));
         flushNetworks(this, mRemoteDevice1);
 
-        // Now all 3 data stores are on the same page.
+        // Both data store receive the update.
         verifier =
                 doc -> {
                     assertThat(doc.getRecord("/root/register").get()).isEqualTo("val3");
@@ -1104,7 +1097,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 };
         transactDataStore(this, verifier);
         transactDataStore(newDataStore, verifier);
-        transactDataStore(mRemoteDevice1, verifier);
     }
 
     @Test
@@ -1151,6 +1143,39 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         verify(listener).onRemoteChange(captor.capture());
         List<String> paths = captor.getValue();
         assertThat(paths).containsExactly("/root/register", "/root/set");
+    }
+
+    @Test
+    public void testSyncWithIndirectlyConnectedDevices() throws Exception {
+        // Connect (this, device1) and (this, device2). (device1, device2) is not connected.
+        connectNetworks(this, mRemoteDevice1);
+        connectNetworks(this, mRemoteDevice2);
+        flushNetworks(this, mRemoteDevice1, mRemoteDevice2);
+
+        // Change happens on remote device 1 and remote device 2 for different paths.
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "aaa"));
+        transactDataStore(mRemoteDevice2, doc -> doc.addDataToSet("/root/set", "bbb"));
+        flushNetworks(this, mRemoteDevice1, mRemoteDevice2);
+
+        // Assert that all devices are synced with all changes.
+        ThrowingConsumer<MutableDocument<String>> verifier =
+                doc -> {
+                    assertThat(doc.getRecord("/root/register").get()).isEqualTo("aaa");
+                    assertThat(doc.getRecord("/root/set").get()).isEqualTo("bbb");
+                };
+        transactDataStore(this, verifier);
+        transactDataStore(mRemoteDevice1, verifier);
+        transactDataStore(mRemoteDevice2, verifier);
+
+        // Another change happens on remote device 1.
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "ccc"));
+        flushNetworks(this, mRemoteDevice1, mRemoteDevice2);
+
+        // Assert that all devices are synced with all changes.
+        verifier = doc -> assertThat(doc.getRecord("/root/register").get()).isEqualTo("ccc");
+        transactDataStore(this, verifier);
+        transactDataStore(mRemoteDevice1, verifier);
+        transactDataStore(mRemoteDevice2, verifier);
     }
 
     private static void connectNetworks(SharedDataStoreComponentTestBase... testContexts) {
