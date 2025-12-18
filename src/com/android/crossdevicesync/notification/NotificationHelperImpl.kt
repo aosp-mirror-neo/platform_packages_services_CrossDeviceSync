@@ -204,7 +204,23 @@ constructor(
                                     timesToRepeat = FOREVER,
                                 ),
                             ),
-                    )
+                    ),
+                NotificationReason.DO_NOT_DISTURB_SYNCED to
+                    Notification(
+                        id = 2,
+                        channelId = "dnd_sync_channel",
+                        channelName = R.string.do_not_disturb_sync_notification_channel_name,
+                        title = R.string.do_not_disturb_sync_notification_title,
+                        message = R.string.do_not_disturb_sync_notification_content,
+                        icon = com.android.internal.R.drawable.ic_settings,
+                        rateLimiters =
+                            listOf(
+                                RateLimiter(
+                                    minimumWaitPeriod = Period.ZERO,
+                                    timesToRepeat = FOREVER,
+                                )
+                            ),
+                    ),
             )
 
         /**

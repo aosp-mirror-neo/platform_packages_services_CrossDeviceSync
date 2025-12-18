@@ -39,6 +39,7 @@ import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice;
+import com.android.crossdevicesync.notification.NotificationReason;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import com.google.android.submerge.StorageInterface.StorageException;
@@ -122,6 +123,39 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
         assertThat(mFakeContextualModeManager.getModes(mUser))
                 .contains(deactivated(mDoNotDisturbMode));
+    }
+
+    @Test
+    public void testRemoteDndEnabled_showNotification() throws Exception {
+        // Remote turn on DND.
+        remotePutDndActiveToSharedDataStore(true);
+
+        assertThat(mFakeNotificationHelper.getShownNotifications())
+                .contains(NotificationReason.DO_NOT_DISTURB_SYNCED);
+    }
+
+    @Test
+    public void testRemoteDndDisabled_dismissNotification() throws Exception {
+        // Remote turns on DND.
+        remotePutDndActiveToSharedDataStore(true);
+
+        // Remote turns off DND.
+        remotePutDndActiveToSharedDataStore(false);
+
+        assertThat(mFakeNotificationHelper.getShownNotifications())
+                .doesNotContain(NotificationReason.DO_NOT_DISTURB_SYNCED);
+    }
+
+    @Test
+    public void testLocalDndDisabled_dismissNotification() throws Exception {
+        // Remote turns on DND.
+        remotePutDndActiveToSharedDataStore(true);
+
+        // Local turns off DND.
+        mFakeContextualModeManager.addOrUpdateMode(mUser, deactivated(mDoNotDisturbMode));
+
+        assertThat(mFakeNotificationHelper.getShownNotifications())
+                .doesNotContain(NotificationReason.DO_NOT_DISTURB_SYNCED);
     }
 
     @Test

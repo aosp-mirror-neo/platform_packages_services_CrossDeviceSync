@@ -24,4 +24,11 @@
     <string name="airplane_mode_sync_notification_title">Airplane mode</string>
     <!-- Notification content for Airplane mode sync [CHAR LIMIT=NONE] -->
     <string name="airplane_mode_sync_notification_content">Airplane mode will now sync across your phone and watch.\n\nManage mode sync preferences on your watch and phone settings.</string>
+
+    <!-- Notification channel name for Do not disturb sync [CHAR LIMIT=NONE] -->
+    <string name="do_not_disturb_sync_notification_channel_name">Do not disturb sync</string>
+    <!-- Notification title for Do not disturb sync [CHAR LIMIT=NONE] -->
+    <string name="do_not_disturb_sync_notification_title">Do not disturb</string>
+    <!-- Notification content for Do not disturb sync [CHAR LIMIT=NONE] -->
+    <string name="do_not_disturb_sync_notification_content">Synced from your nearby device</string>
 </resources>
