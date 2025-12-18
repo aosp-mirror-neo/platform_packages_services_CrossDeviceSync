@@ -19,7 +19,9 @@ import android.annotation.Nullable;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Build;
 import android.os.IBinder;
+import android.os.ResultReceiver;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
@@ -56,6 +58,7 @@ public class SyncService extends Service {
     private final NetworkManager mNetworkManager;
     private final MetadataPublisher mMetadataPublisher;
     private final IStorage mGlobalStorage;
+    private final SyncServiceShellCommand mSyncServiceShellCommand;
     private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
     private final Set<FeatureManager> mFeatureManagers = new HashSet<>();
 
@@ -66,10 +69,12 @@ public class SyncService extends Service {
             NetworkManager networkManager,
             MetadataPublisher metadataPublisher,
             @GlobalStorage IStorage globalStorage,
+            SyncServiceShellCommand syncServiceShellCommand,
             Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
         mNetworkManager = networkManager;
         mMetadataPublisher = metadataPublisher;
         mGlobalStorage = globalStorage;
+        mSyncServiceShellCommand = syncServiceShellCommand;
         mFeatureManagerProviders = featureManagerProviders;
     }
 
@@ -118,6 +123,12 @@ public class SyncService extends Service {
 
     @Override
     protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        if (Build.IS_DEBUGGABLE
+                && mSyncServiceShellCommand.exec(
+                                new Binder(), null, fd, null, args, null, new ResultReceiver(null))
+                        == 0) {
+            return;
+        }
         IndentingPrintWriter pw = new IndentingPrintWriter(writer, "  ");
         pw.println("SyncService state:");
         pw.increaseIndent();

@@ -350,12 +350,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private void broadcastAllVersions(DataStore<T> submergeDataStore, String senderNodeId) {
         // Sending version vector to remote device will trigger a delta update.
         for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
-            String docId = schema.getDocId();
-            try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
-                broadcastMessageForDoc(
-                        docId,
-                        encodeVersionVectorMessage(docId, version.toByteArray(), senderNodeId));
-            }
+            broadcastVersion(submergeDataStore, schema.getDocId(), senderNodeId);
+        }
+    }
+
+    private void broadcastVersion(
+            DataStore<T> submergeDataStore, String docId, String senderNodeId) {
+        try (VersionVector version = submergeDataStore.getDocumentVersion(docId)) {
+            broadcastMessageForDoc(
+                    docId, encodeVersionVectorMessage(docId, version.toByteArray(), senderNodeId));
         }
     }
 
@@ -469,6 +472,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         String docId = networkMessage.getDocId();
         byte[] responseUpdate = null;
         byte[] responseVersionVector = null;
+        boolean broadcastedVersion = false;
         if (networkMessage.hasDocUpdate()) {
             Log.d(TAG, "Received network update for " + getDebugDocIdentityString(docId));
             try {
@@ -483,6 +487,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                                                 .toByteArray()));
                 if (!changedPaths.isEmpty()) {
                     mRemoteChangeListeners.forEach(record -> record.onRemoteChange(changedPaths));
+                    // Broadcast latest version.
+                    broadcastVersion(submergeDataStore, docId, myNodeId);
+                    broadcastedVersion = true;
                 }
             } catch (OlderBaseNeededException e) {
                 Log.i(
@@ -510,7 +517,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 if (isPartiallyOlder(otherVersion, myVersion)) {
                     responseUpdate = submergeDataStore.calculateDelta(docId, otherVersion);
                 }
-                if (responseVersionVector == null && isPartiallyOlder(myVersion, otherVersion)) {
+                if (responseVersionVector == null
+                        && isPartiallyOlder(myVersion, otherVersion)
+                        && !broadcastedVersion) {
                     responseVersionVector = myVersion.toByteArray();
                 }
             }
