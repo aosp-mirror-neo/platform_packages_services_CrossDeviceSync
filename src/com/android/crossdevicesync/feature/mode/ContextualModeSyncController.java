@@ -55,6 +55,8 @@ import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
+import com.android.crossdevicesync.notification.NotificationHelper;
+import com.android.crossdevicesync.notification.NotificationReason;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -102,6 +104,7 @@ public class ContextualModeSyncController
     private final ContextualModeManagerProxy mContextualModeManager;
     private final UserHandle mUser;
     private final MetadataPublisher mMetadataPublisher;
+    private final NotificationHelper mNotificationHelper;
     private final Consumer<Boolean> mModeSyncEnabledListener = this::onModeSyncEnabledChanged;
 
     @Nullable
@@ -133,6 +136,7 @@ public class ContextualModeSyncController
             StringConverter converter,
             ContextualModeManagerProxy contextualModeManager,
             MetadataPublisher metadataPublisher,
+            NotificationHelper notificationHelper,
             @Assisted UserHandle user) {
         mNetworkManager = networkManager;
         mSharedDataStoreHandle =
@@ -143,6 +147,7 @@ public class ContextualModeSyncController
         mMainExecutor = mainExecutor;
         mContextualModeManager = contextualModeManager;
         mMetadataPublisher = metadataPublisher;
+        mNotificationHelper = notificationHelper;
         mUser = user;
     }
 
@@ -315,6 +320,7 @@ public class ContextualModeSyncController
     @Override
     public void onModesChanged(@NonNull List<ContextualMode> modes) {
         synchronized (mLock) {
+            maybeDismissDndSyncNotification(modes);
             if (!updateModesCacheLocked(modes)) {
                 // Cache unchanged.
                 return;
@@ -324,6 +330,16 @@ public class ContextualModeSyncController
             } else {
                 // Adding a mode may lead to sync starting.
                 invalidateLocked();
+            }
+        }
+    }
+
+    private void maybeDismissDndSyncNotification(List<ContextualMode> changedModes) {
+        for (ContextualMode mode : changedModes) {
+            if (mode.getType() == TYPE_MANUAL_DO_NOT_DISTURB
+                    && mode.getState() == ContextualMode.STATE_INACTIVE) {
+                mNotificationHelper.dismissNotification(NotificationReason.DO_NOT_DISTURB_SYNCED);
+                break;
             }
         }
     }
@@ -403,24 +419,29 @@ public class ContextualModeSyncController
             boolean changed = false;
             for (Map.Entry<String, ContextualMode> entry : cachedModes.entrySet()) {
                 String path = entry.getKey();
-                ContextualMode mode = entry.getValue();
+                ContextualMode cachedMode = entry.getValue();
                 boolean active = ModeSyncDocs.isModeStateActive(doc, path);
-                int state = active ? ContextualMode.STATE_ACTIVE : ContextualMode.STATE_INACTIVE;
-                if (mode.getState() == state) {
+                int remoteState =
+                        active ? ContextualMode.STATE_ACTIVE : ContextualMode.STATE_INACTIVE;
+                if (cachedMode.getState() == remoteState) {
                     // Unchanged.
                     return;
                 }
                 changed = true;
                 ContextualMode updatedMode =
-                        new ContextualMode.Builder(mode).setState(state).build();
+                        new ContextualMode.Builder(cachedMode).setState(remoteState).build();
                 mutationBuilder.addUpdatedMode(updatedMode);
                 mModesCache.put(updatedMode.getId(), updatedMode);
+                if (cachedMode.getType() == TYPE_MANUAL_DO_NOT_DISTURB && active) {
+                    mNotificationHelper.maybeShowNotification(
+                            NotificationReason.DO_NOT_DISTURB_SYNCED);
+                }
                 Log.i(
                         TAG,
                         "Updating mode "
-                                + mode
+                                + cachedMode
                                 + " state to "
-                                + ContextualMode.modeStateToString(state)
+                                + ContextualMode.modeStateToString(remoteState)
                                 + " due to shared data store change.");
             }
             if (changed) {

@@ -23,15 +23,15 @@ import javax.inject.Singleton
 
 @Singleton
 class FakeNotificationHelper @Inject constructor() : NotificationHelper {
-    val mShownNotifications = mutableListOf<String>()
+    val shownNotifications = mutableListOf<String>()
     var resetCalled = false
 
     override fun maybeShowNotification(@NotificationReason notificationReason: String) {
-        mShownNotifications.add(notificationReason)
+        shownNotifications.add(notificationReason)
     }
 
     override fun dismissNotification(notificationReason: String) {
-        mShownNotifications.remove(notificationReason)
+        shownNotifications.remove(notificationReason)
     }
 
     override fun reset() {
