@@ -107,9 +107,7 @@ public class FakeNetworkManager implements NetworkManager {
         }
         network = new FakeNetwork(userId, networkId, remoteDeviceCondition);
         mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
-        for (RemoteDevice device : mRemoteDevices.values()) {
-            network.maybeAddDevice(device);
-        }
+        network.invalidate();
         return network;
     }
 
@@ -136,7 +134,7 @@ public class FakeNetworkManager implements NetworkManager {
     @Override
     public void invalidateNetworks() {
         throwIfUninitialized();
-        // No-op in fake
+        forEachNetwork(FakeNetwork::invalidate);
     }
 
     @Override
@@ -615,6 +613,19 @@ public class FakeNetworkManager implements NetworkManager {
         /** Returns whether the given remote device is eligible for this network. */
         public boolean isDeviceEligibleForNetwork(RemoteDevice remoteDevice) {
             return !mIsDestroyed && mDevicePredicate.test(remoteDevice);
+        }
+
+        /** Re-evaluate device congditions. */
+        public void invalidate() {
+            for (RemoteDevice device : mRemoteDevices.values()) {
+                maybeAddDevice(device);
+            }
+            for (int associationId : new ArrayList<>(mAssociationIds)) {
+                if (!mRemoteDevices.containsKey(associationId)
+                        || !mDevicePredicate.test(mRemoteDevices.get(associationId))) {
+                    removeDevice(associationId);
+                }
+            }
         }
     }
 
