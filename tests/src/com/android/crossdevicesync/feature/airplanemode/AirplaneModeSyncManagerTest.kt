@@ -303,7 +303,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         flushNetworks()
 
         // Verify notification is shown.
-        assertThat(mFakeNotificationHelper.mShownNotifications).contains(AIRPLANE_MODE_SYNCED)
+        assertThat(mFakeNotificationHelper.shownNotifications).contains(AIRPLANE_MODE_SYNCED)
     }
 
     @Test

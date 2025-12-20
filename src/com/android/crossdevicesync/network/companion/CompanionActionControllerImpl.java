@@ -109,7 +109,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             mAssociationStates.values().forEach(state -> state.destroy(now));
             mAssociationStates.clear();
             mListeningAssociations.clear();
-            mCompanionDeviceManager.removeOnActionResultListener(mPackageName);
+            mCompanionDeviceManager.clearOnActionResultListener(mPackageName);
             mNextInvalidationTime = Long.MAX_VALUE;
             mMainExecutor.cancel(mInvalidateRunnable);
         }
@@ -397,8 +397,8 @@ public class CompanionActionControllerImpl implements CompanionActionController 
         mListeningAssociations.clear();
         mListeningAssociations.addAll(associationIdsToListen);
         if (mListeningAssociations.isEmpty()) {
-            Log.d(TAG, "Removing action result listener.");
-            mCompanionDeviceManager.removeOnActionResultListener(mPackageName);
+            Log.d(TAG, "Clearing action result listener.");
+            mCompanionDeviceManager.clearOnActionResultListener(mPackageName);
         } else {
             Log.d(TAG, "Registering action result listener for " + mListeningAssociations + ".");
             mCompanionDeviceManager.setOnActionResultListener(

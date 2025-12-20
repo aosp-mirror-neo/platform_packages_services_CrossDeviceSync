@@ -34,9 +34,10 @@ interface NotificationHelper {
 }
 
 @Retention(AnnotationRetention.SOURCE)
-@StringDef(NotificationReason.AIRPLANE_MODE_SYNCED)
+@StringDef(NotificationReason.AIRPLANE_MODE_SYNCED, NotificationReason.DO_NOT_DISTURB_SYNCED)
 annotation class NotificationReason {
     companion object {
         const val AIRPLANE_MODE_SYNCED = "apm_sync_notification"
+        const val DO_NOT_DISTURB_SYNCED = "dnd_sync_notification"
     }
 }

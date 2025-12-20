@@ -96,8 +96,8 @@ public interface CompanionDeviceManagerProxy {
             Executor executor,
             BiConsumer<Integer, ActionResult> listener);
 
-    /** See {@link CompanionDeviceManager#removeOnActionResultListener(String)}. */
-    void removeOnActionResultListener(String serviceName);
+    /** See {@link CompanionDeviceManager#clearOnActionResultListener(String)}. */
+    void clearOnActionResultListener(String serviceName);
 
     /**
      * See {@link CompanionDeviceManager#setLocalMetadata(int, java.lang.String,
