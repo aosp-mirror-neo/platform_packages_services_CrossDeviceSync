@@ -486,7 +486,11 @@ public class ContextualModeSyncController
         boolean syncEnabled =
                 metadata.getBoolean(
                         METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, /* defaultValue= */ false);
-        return syncSupported && syncEnabled;
+        boolean hasModeSyncFlag =
+                (associationInfo.getSystemDataSyncFlags()
+                                & CompanionDeviceManager.FLAG_UNIVERSAL_MODES)
+                        != 0;
+        return syncSupported && syncEnabled && hasModeSyncFlag;
     }
 
     private static String stateToString(int state) {

@@ -160,7 +160,11 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
     @Test
     public void modeSyncDisabled_devicesRemovedFromNetwork() {
-        addRemoteDevice(/* associationId= */ 1, /* syncSupported= */ true, /* syncEnabled= */ true);
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
         assertThat(
                         mFakeNetworkManager
                                 .getNetwork(NETWORK_ID, mUser.getIdentifier())
@@ -184,7 +188,11 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
     @Test
     public void modeSyncEnabled_devicesAddedToNetwork() {
-        addRemoteDevice(/* associationId= */ 1, /* syncSupported= */ true, /* syncEnabled= */ true);
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
         mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
         assertThat(
                         mFakeNetworkManager
@@ -346,8 +354,15 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
 
         addRemoteDevice(
-                /* associationId= */ 1, /* syncSupported= */ false, /* syncEnabled= */ true);
-        addRemoteDevice(/* associationId= */ 2, /* syncSupported= */ true, /* syncEnabled= */ true);
+                /* associationId= */ 1,
+                /* syncSupported= */ false,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
 
         assertThat(network.getRemoteDevices().containsKey(1)).isFalse();
         assertThat(network.getRemoteDevices().containsKey(2)).isTrue();
@@ -357,9 +372,35 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     public void testSyncNetwork_remoteDeviceMustEnabledModeSync() {
         Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
 
-        addRemoteDevice(/* associationId= */ 1, /* syncSupported= */ true, /* syncEnabled= */ true);
         addRemoteDevice(
-                /* associationId= */ 2, /* syncSupported= */ true, /* syncEnabled= */ false);
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ false,
+                /* hasModeSyncFlag= */ true);
+
+        assertThat(network.getRemoteDevices().containsKey(1)).isTrue();
+        assertThat(network.getRemoteDevices().containsKey(2)).isFalse();
+    }
+
+    @Test
+    public void testSyncNetwork_companionMustAddModeSyncFlag() {
+        Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
+
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ false);
 
         assertThat(network.getRemoteDevices().containsKey(1)).isTrue();
         assertThat(network.getRemoteDevices().containsKey(2)).isFalse();
@@ -384,7 +425,10 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     }
 
     private FakeRemoteDevice addRemoteDevice(
-            int associationId, boolean syncSupported, boolean syncEnabled) {
+            int associationId,
+            boolean syncSupported,
+            boolean syncEnabled,
+            boolean hasModeSyncFlag) {
         PersistableBundle metadata = new PersistableBundle();
         metadata.putPersistableBundle(
                 CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, new PersistableBundle());
@@ -392,10 +436,15 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED, syncSupported);
         metadata.getPersistableBundle(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC)
                 .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, syncEnabled);
+        int flags = 0;
+        if (hasModeSyncFlag) {
+            flags |= CompanionDeviceManager.FLAG_UNIVERSAL_MODES;
+        }
         return mFakeNetworkManager.addRemoteDevice(
                 new AssociationInfo.Builder(associationId, mContext.getUserId(), "package")
                         .setMetadata(metadata)
                         .setDisplayName("test")
+                        .setSystemDataSyncFlags(flags)
                         .build());
     }
 
