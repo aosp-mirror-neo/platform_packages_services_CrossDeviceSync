@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
  */
 public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkListener {
     private static final String TAG = "SubmergeSharedDataStore";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     // The data store is not initialized.
     private static final int STATE_UNINITIALIZED = 0;
@@ -393,7 +394,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         synchronized (mLock) {
             try {
                 requireStateLocked(STATE_UPGRADING, STATE_OPEN);
-                Log.d(TAG, "Starting a transaction on " + getDebugDocIdentityString(docId));
+                if (DEBUG) {
+                    Log.d(TAG, "Starting a transaction on " + getDebugDocIdentityString(docId));
+                }
                 return mStorage.submitToIoThread(() -> doTransact(docId, applier));
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
@@ -420,7 +423,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                         s.persistMetadata(docId, document.getMetaData().toByteArray());
                         document.commitTransaction();
                     });
-            Log.d(TAG, "Transaction committed for " + getDebugDocIdentityString(docId));
+            if (DEBUG) {
+                Log.d(TAG, "Transaction committed for " + getDebugDocIdentityString(docId));
+            }
             return result;
         } catch (Exception e) {
             Log.e(TAG, "Failed to commit transaction for " + getDebugDocIdentityString(docId), e);
