@@ -15,18 +15,11 @@
  */
 package com.android.crossdevicesync.dagger;
 
-import static android.provider.Settings.Global.Wearable.TETHERED_CONFIG_RESTRICTED;
-import static android.provider.Settings.Global.Wearable.TETHERED_CONFIG_STANDALONE;
-import static android.provider.Settings.Global.Wearable.TETHERED_CONFIG_UNKNOWN;
-import static android.provider.Settings.Global.Wearable.TETHER_CONFIG_STATE;
-
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.ClockImpl;
@@ -38,9 +31,9 @@ import com.android.crossdevicesync.common.DefaultThreadChecker;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.common.ThreadChecker;
+import com.android.crossdevicesync.common.WatchChecker;
+import com.android.crossdevicesync.common.WatchCheckerImpl;
 import com.android.crossdevicesync.dagger.qualifier.Background;
-import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
-import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.notification.dagger.NotificationModule;
 import com.android.crossdevicesync.user.UserHelper;
@@ -124,12 +117,9 @@ public abstract class ApplicationModule {
     @Binds
     abstract Clock bindsClock(ClockImpl clock);
 
-    @Provides
-    @IsWatch
+    @Binds
     @Singleton
-    static boolean providesIsWatch(Context context) {
-        return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
-    }
+    abstract WatchChecker bindsWatchChecker(WatchCheckerImpl watchChecker);
 
     @Binds
     @Singleton
@@ -138,17 +128,4 @@ public abstract class ApplicationModule {
     @Binds
     @Singleton
     abstract ThreadChecker bindsThreadChecker(DefaultThreadChecker checker);
-
-    @Provides
-    @IsKidsWatch
-    @Singleton
-    static boolean providesIsKidsWatch(Context context, @IsWatch boolean isWatch) {
-        if (!isWatch) {
-            return false;
-        }
-        int config =
-                Settings.Global.getInt(
-                        context.getContentResolver(), TETHER_CONFIG_STATE, TETHERED_CONFIG_UNKNOWN);
-        return config == TETHERED_CONFIG_RESTRICTED || config == TETHERED_CONFIG_STANDALONE;
-    }
 }

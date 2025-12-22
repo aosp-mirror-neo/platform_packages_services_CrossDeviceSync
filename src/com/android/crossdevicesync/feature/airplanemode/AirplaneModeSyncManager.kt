@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.feature.airplanemode
 
-import android.companion.AssociationRequest
+import android.companion.AssociationRequest.DEVICE_PROFILE_WATCH
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
 import android.content.Context
 import android.os.UserHandle.USER_ALL
@@ -24,8 +24,7 @@ import android.util.IndentingPrintWriter
 import android.util.Log
 import androidx.annotation.GuardedBy
 import androidx.annotation.VisibleForTesting
-import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch
-import com.android.crossdevicesync.dagger.qualifier.IsWatch
+import com.android.crossdevicesync.common.WatchChecker
 import com.android.crossdevicesync.dagger.qualifier.Main
 import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.RecordType.TYPE_REGISTER
@@ -47,25 +46,26 @@ import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import java.util.concurrent.Executor
 import javax.inject.Inject
-import javax.inject.Provider
 
 /** Airplane mode sync feature manager. */
 @SyncServiceSingleton
 class AirplaneModeSyncManager
 @Inject
 internal constructor(
-    private val mContext: Context,
+    context: Context,
     private val mNetworkManager: NetworkManager,
     private val mAirplaneModeController: AirplaneModeController,
     private val mMetadataPublisher: MetadataPublisher,
     private val mNotificationHelper: NotificationHelper,
-    @param:IsKidsWatch private val mIsKidsWatch: Provider<Boolean>,
-    @param:IsWatch private val mIsWatch: Provider<Boolean>,
+    private val mWatchChecker: WatchChecker,
     @param:Main private val mExecutor: Executor,
     stringConverter: StringConverter,
     sharedDataStoreHandleFactory: SharedDataStoreHandleFactory,
-) : FeatureManager, OnRemoteChangeListener, AirplaneModeController.Listener {
+) : FeatureManager, OnRemoteChangeListener, AirplaneModeController.Listener, WatchChecker.Listener {
     private val mLock = Any()
+    private val mSupportedRes: Boolean by lazy {
+        context.resources.getBoolean(R.bool.config_supportAirplaneModeSync)
+    }
     private val mSharedDataStoreHandle =
         sharedDataStoreHandleFactory.create(DATA_STORE_NAME, stringConverter, getSchemaProvider())
     @GuardedBy("mLock") private var mDataStore: SharedDataStore<String>? = null
@@ -74,6 +74,7 @@ internal constructor(
     @GuardedBy("mLock") private var mStarted = false
     @GuardedBy("mLock") private var mAirplaneModeState = false
     @GuardedBy("mLock") private var mSyncEnabled = false
+    @GuardedBy("mLock") private var mIsKidsWatch = false
 
     override fun init() {
         if (!Flags.syncAirplaneModeWithWatches()) {
@@ -81,19 +82,16 @@ internal constructor(
         }
         val apmEnabled = mAirplaneModeController.isAirplaneModeEnabled()
         val syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled()
-        Log.d(TAG, "Initializing with apm state: $apmEnabled and sync enabled: $syncEnabled")
-
-        val apmSyncSupported = mContext.resources.getBoolean(R.bool.config_supportAirplaneModeSync)
-        mMetadataPublisher.putBooleanMetaData(
-            USER_ALL,
-            APM_SYNC_SUPPORTED,
-            apmSyncSupported && !mIsKidsWatch.get(),
-        )
+        val isKidsWatch = mWatchChecker.isKidsWatch()
+        logD("Init : apmEnabled=$apmEnabled, syncEnabled=$syncEnabled, isKidsWatch=$isKidsWatch")
 
         synchronized(mLock) {
             mAirplaneModeState = apmEnabled
+            mIsKidsWatch = isKidsWatch
             mStarted = true
+            setApmSyncSupportedMetadataLocked()
             mAirplaneModeController.registerAirplaneModeChangedListener(this)
+            mWatchChecker.registerKidsWatchChangeListener(this)
             onAirplaneModeSyncEnabledStateChanged(syncEnabled)
         }
     }
@@ -104,12 +102,12 @@ internal constructor(
             if (
                 mState == STATE_ACTIVE && paths.contains(APM_ENABLED_PATH) && localDataStore != null
             ) {
-                Log.d(TAG, "Remote APM changed")
+                logD("Remote APM changed")
                 localDataStore.transactLocked("Get remote state") { doc ->
                     synchronized(mLock) {
                         doc.getRecord(APM_ENABLED_PATH)?.let { record ->
                             val apmEnabled = record.get() == AIRPLANE_MODE_ON
-                            Log.d(TAG, "Remote APM state = $apmEnabled. Updating local setting")
+                            logD("Remote APM state = $apmEnabled. Updating local setting")
                             mAirplaneModeState = apmEnabled
                             mAirplaneModeController.updateAirplaneModeState(apmEnabled)
                             if (apmEnabled) {
@@ -123,13 +121,13 @@ internal constructor(
     }
 
     override fun onAirplaneModeChanged(enabled: Boolean) {
-        Log.d(TAG, "Local APM state changed to $enabled")
+        logD("Local APM state changed to $enabled")
         synchronized(mLock) {
             val localDataStore = mDataStore
             if (mAirplaneModeState != enabled) {
                 mAirplaneModeState = enabled
                 if (mState == STATE_ACTIVE && localDataStore != null) {
-                    Log.d(TAG, "Setting APM state to SharedDataStore")
+                    logD("Setting APM state to SharedDataStore")
                     localDataStore.transactLocked("Update local state") { doc ->
                         doc.putData(APM_ENABLED_PATH, enabled.toAirplaneModeState())
                     }
@@ -137,6 +135,21 @@ internal constructor(
             }
         }
     }
+
+    override fun onKidsWatchChanged(isKidsWatch: Boolean) {
+        synchronized(mLock) {
+            mIsKidsWatch = isKidsWatch
+            setApmSyncSupportedMetadataLocked()
+            invalidateLocked()
+        }
+    }
+
+    @GuardedBy("mLock")
+    private fun setApmSyncSupportedMetadataLocked() {
+        mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, isSyncSupportedLocked())
+    }
+
+    @GuardedBy("mLock") private fun isSyncSupportedLocked() = mSupportedRes && !mIsKidsWatch
 
     private fun SharedDataStore<String>.transactLocked(
         name: String,
@@ -146,7 +159,7 @@ internal constructor(
             transact(DOC_ID, transaction),
             object : FutureCallback<Unit> {
                 override fun onSuccess(result: Unit?) {
-                    Log.d(TAG, "Transaction[$name] successful")
+                    logD("Transaction[$name] successful")
                 }
 
                 override fun onFailure(t: Throwable) {
@@ -158,7 +171,7 @@ internal constructor(
     }
 
     override fun onAirplaneModeSyncEnabledStateChanged(enabled: Boolean) {
-        Log.d(TAG, "Local APM sync enabled state changed to $enabled")
+        logD("Local APM sync enabled state changed to $enabled")
         mMetadataPublisher.putBooleanMetaData(USER_ALL, AIRPLANE_MODE_SYNC, enabled)
         synchronized(mLock) {
             if (mStarted && mSyncEnabled != enabled) {
@@ -170,7 +183,7 @@ internal constructor(
 
     @GuardedBy("mLock")
     private fun invalidateLocked() {
-        if (!mSyncEnabled || !mStarted) {
+        if (!mSyncEnabled || !mStarted || !isSyncSupportedLocked()) {
             maybeDisableSyncLocked()
         } else {
             maybeEnableSyncLocked()
@@ -180,7 +193,7 @@ internal constructor(
     @GuardedBy("mLock")
     private fun maybeEnableSyncLocked() {
         if (mState != STATE_INACTIVE) {
-            Log.v(TAG, "maybeEnableSync: ignored. Current state is " + stateToString(mState))
+            logD("maybeEnableSync: ignored. Current state is " + stateToString(mState))
             return
         }
 
@@ -189,7 +202,7 @@ internal constructor(
             mNetworkManager.createNetwork(NETWORK_ID)
             /* remoteDeviceCondition= */ {
                 // Whether this device is a watch, or the remote device is a watch.
-                (mIsWatch.get() || it.deviceProfile == AssociationRequest.DEVICE_PROFILE_WATCH) &&
+                (mWatchChecker.isWatch || it.deviceProfile == DEVICE_PROFILE_WATCH) &&
                     // Whether the remote device supports sync and has the sync toggle enabled.
                     it.associationInfoCache.getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
                         getBoolean(APM_SYNC_SUPPORTED) && getBoolean(AIRPLANE_MODE_SYNC)
@@ -217,7 +230,7 @@ internal constructor(
             if (mState != STATE_OPENING_DATA_STORE) {
                 return
             }
-            Log.i(TAG, "APM Data Store init success")
+            logD("APM Data Store init success")
             mState = STATE_ACTIVE
             mDataStore = dataStore
             dataStore.registerOnRemoteChangeListener(mExecutor, this)
@@ -240,7 +253,7 @@ internal constructor(
     @GuardedBy("mLock")
     private fun maybeDisableSyncLocked() {
         if (mState != STATE_ACTIVE) {
-            Log.v(TAG, "maybeDisableSync: ignored. Current state is " + stateToString(mState))
+            logD("maybeDisableSync: ignored. Current state is " + stateToString(mState))
             return
         }
         mState = STATE_CLOSING_DATA_STORE
@@ -274,6 +287,7 @@ internal constructor(
             mStarted = false
             mState = STATE_INACTIVE
             mAirplaneModeController.unregisterAirplaneModeChangedListener(this)
+            mWatchChecker.unregisterKidsWatchChangeListener(this)
             mDataStore?.unregisterOnRemoteChangeListener(this)
             mDataStore = null
             mNetwork?.destroy()
@@ -309,6 +323,7 @@ internal constructor(
             pw.println("State = " + stateToString(mState))
             pw.println("Airplane Mode State = $mAirplaneModeState")
             pw.println("Airplane Mode Sync State = $mSyncEnabled")
+            pw.println("Is Kids Watch = $mIsKidsWatch")
             mNetwork?.let { pw.println("Network : $it") }
             mDataStore?.let { pw.println("Data Store : $it") }
             pw.decreaseIndent()
@@ -327,14 +342,22 @@ internal constructor(
 
     @VisibleForTesting
     internal companion object {
-        const val TAG = "AirplaneModeSyncManager"
-        const val DATA_STORE_NAME = "apm_sync_data_store" // DO NOT CHANGE!
+        private const val TAG = "AirplaneModeSyncManager"
+        private val DEBUG = Log.isLoggable(TAG, Log.DEBUG)
+
+        private fun logD(log: String) {
+            if (DEBUG) {
+                Log.d(TAG, log)
+            }
+        }
+
+        private const val DATA_STORE_NAME = "apm_sync_data_store" // DO NOT CHANGE!
         const val DOC_ID = "apm_sync_doc"
-        const val DOC_VERSION = 1
+        private const val DOC_VERSION = 1
         const val APM_ENABLED_PATH = "/apm/enabled"
-        const val APM_ENABLED_VERSION = 1
-        const val AIRPLANE_MODE_ON = "1"
-        const val AIRPLANE_MODE_OFF = "0"
+        private const val APM_ENABLED_VERSION = 1
+        private const val AIRPLANE_MODE_ON = "1"
+        private const val AIRPLANE_MODE_OFF = "0"
         const val NETWORK_ID = "apm_sync_network"
 
         private const val STATE_INACTIVE = 0

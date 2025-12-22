@@ -37,7 +37,7 @@ internal constructor(private val context: Context, @param:Main private val execu
         object : ContentObserver(executor, /* unused= */ 0) {
             override fun onChange(selfChange: Boolean) {
                 val apmEnabled = isAirplaneModeEnabled()
-                Log.d(TAG, "Local APM state changed to $apmEnabled")
+                logD("Local APM state changed to $apmEnabled")
                 listeners.forEach { it.onAirplaneModeChanged(apmEnabled) }
             }
         }
@@ -46,7 +46,7 @@ internal constructor(private val context: Context, @param:Main private val execu
         object : ContentObserver(executor, /* unused= */ 0) {
             override fun onChange(selfChange: Boolean) {
                 val apmSyncEnabled = isAirplaneModeSyncEnabled()
-                Log.d(TAG, "Local APM sync enabled state changed to $apmSyncEnabled")
+                logD("Local APM sync enabled state changed to $apmSyncEnabled")
                 listeners.forEach { it.onAirplaneModeSyncEnabledStateChanged(apmSyncEnabled) }
             }
         }
@@ -85,7 +85,14 @@ internal constructor(private val context: Context, @param:Main private val execu
         }
     }
 
-    companion object {
-        private const val TAG = "AirplaneModeController"
+    private companion object {
+        const val TAG = "AirplaneModeController"
+        val DEBUG = Log.isLoggable(TAG, Log.DEBUG)
+
+        fun logD(log: String) {
+            if (DEBUG) {
+                Log.d(TAG, log)
+            }
+        }
     }
 }
