@@ -23,16 +23,15 @@ import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.ThreadChecker;
+import com.android.crossdevicesync.common.WatchChecker;
 import com.android.crossdevicesync.common.fake.ClockBasedExecutor;
 import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.FakeContextWrapper;
 import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
-import com.android.crossdevicesync.common.fake.IsWatchProvider;
+import com.android.crossdevicesync.common.fake.FakeWatchChecker;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.dagger.qualifier.Background;
-import com.android.crossdevicesync.dagger.qualifier.IsKidsWatch;
-import com.android.crossdevicesync.dagger.qualifier.IsWatch;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.notification.dagger.TestNotificationModule;
 import com.android.crossdevicesync.user.UserHelper;
@@ -84,19 +83,9 @@ public abstract class TestApplicationModule {
     @Singleton
     abstract Clock bindClock(FakeClock fake);
 
-    @Provides
-    @IsWatch
+    @Binds
     @Singleton
-    static boolean providesIsWatch(IsWatchProvider isWatchProvider) {
-        return isWatchProvider.isWatch;
-    }
-
-    @Provides
-    @IsKidsWatch
-    @Singleton
-    static boolean providesIsKidsWatch(IsWatchProvider isWatchProvider) {
-        return isWatchProvider.isKidsWatch;
-    }
+    abstract WatchChecker bindWatchChecker(FakeWatchChecker fake);
 
     @Singleton
     @Provides

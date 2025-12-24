@@ -25,7 +25,7 @@ import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.FakeResources;
-import com.android.crossdevicesync.common.fake.IsWatchProvider;
+import com.android.crossdevicesync.common.fake.FakeWatchChecker;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.notification.NotificationHelperImpl;
@@ -51,7 +51,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject @Main protected Executor mMainExecutor;
     @Inject protected FakeClock mFakeClock;
     @Inject @Main protected DelayedExecutor mDelayedExecutor;
-    @Inject protected IsWatchProvider mIsWatchProvider;
+    @Inject protected FakeWatchChecker mFakeWatchChecker;
     @Inject protected SharedPreferences mSharedPreferences;
     @Inject protected FakeUserHelper mFakeUserHelper;
     @Inject protected FakeContextualModeManager mFakeContextualModeManager;
