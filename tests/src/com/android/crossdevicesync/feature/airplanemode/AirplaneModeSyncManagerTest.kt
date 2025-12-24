@@ -293,6 +293,31 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testLocalChange_syncDisabled_thenEnabled_syncsToRemote() {
+        // Disable airplane mode sync initially.
+        setAirplaneModeSyncEnabled(false)
+
+        // Initialize the manager.
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        // Enable airplane mode locally.
+        setAirplaneMode(true)
+        flushNetworks()
+
+        // Verify remote device has NOT received the update.
+        verifyRemoteAirplaneModeEnabled(null)
+
+        // Enable airplane mode sync.
+        setAirplaneModeSyncEnabled(true)
+        flushNetworks()
+
+        // Verify remote device receives the update.
+        verifyRemoteAirplaneModeEnabled(true)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testRemoteChange_syncEnabled_showsNotification() {
         // Initialize the manager.
         mAirplaneModeSyncManager.init()
@@ -477,8 +502,9 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         var dumpString = stringWriter.toString()
         assertThat(dumpString).contains("AirplaneModeSyncManager:")
         assertThat(dumpString).contains("Airplane Mode State = true")
-        assertThat(dumpString).doesNotContain("Network :")
-        assertThat(dumpString).doesNotContain("Data Store :")
+        // Network and Data store are now open even if sync is disabled
+        assertThat(dumpString).contains("Network :")
+        assertThat(dumpString).contains("Data Store :")
 
         // 2. Enable sync
         stringWriter.buffer.setLength(0)
@@ -491,17 +517,6 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         assertThat(dumpString).contains("Airplane Mode State = true")
         assertThat(dumpString).contains("Network :")
         assertThat(dumpString).contains("Data Store :")
-
-        // 3. Disable sync again
-        stringWriter.buffer.setLength(0)
-        setAirplaneModeSyncEnabled(false)
-        flushNetworks()
-        mAirplaneModeSyncManager.dump(pw)
-        dumpString = stringWriter.toString()
-        assertThat(dumpString).contains("AirplaneModeSyncManager:")
-        assertThat(dumpString).contains("Airplane Mode State = true")
-        assertThat(dumpString).doesNotContain("Network :")
-        assertThat(dumpString).doesNotContain("Data Store :")
     }
 
     @Test
@@ -532,7 +547,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
-    fun testDisableSync_cleansUpNetworkAndState() {
+    fun testDisableSync_doesNotDestroyNetwork() {
         setAirplaneModeSyncEnabled(true)
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
@@ -547,13 +562,30 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
         setAirplaneModeSyncEnabled(false)
 
+        // Network and Data store are NOT cleaned up anymore when sync is disabled
         assertThat(
                 mFakeNetworkManager.getNetwork(
                     AirplaneModeSyncManager.NETWORK_ID,
                     UserHandle.USER_ALL,
                 )
             )
-            .isNull()
+            .isNotNull()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDisableSync_removesDevicesFromNetwork() {
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        val network =
+            mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, UserHandle.USER_ALL)
+        assertThat(network.remoteDevices).isNotEmpty()
+
+        setAirplaneModeSyncEnabled(false)
+
+        assertThat(network.remoteDevices).isEmpty()
     }
 
     private fun createAssociationWitApmSyncEnabled(syncEnabled: Boolean = true): AssociationInfo {

@@ -45,6 +45,7 @@ import com.android.server.connectivity.Flags
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import java.util.concurrent.Executor
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 /** Airplane mode sync feature manager. */
@@ -73,8 +74,8 @@ internal constructor(
     @GuardedBy("mLock") private var mState = STATE_INACTIVE
     @GuardedBy("mLock") private var mStarted = false
     @GuardedBy("mLock") private var mAirplaneModeState = false
-    @GuardedBy("mLock") private var mSyncEnabled = false
     @GuardedBy("mLock") private var mIsKidsWatch = false
+    private val mSyncEnabled = AtomicBoolean(false)
 
     override fun init() {
         if (!Flags.syncAirplaneModeWithWatches()) {
@@ -93,6 +94,7 @@ internal constructor(
             mAirplaneModeController.registerAirplaneModeChangedListener(this)
             mWatchChecker.registerKidsWatchChangeListener(this)
             onAirplaneModeSyncEnabledStateChanged(syncEnabled)
+            maybeUpdateDataStoreLocked()
         }
     }
 
@@ -140,12 +142,13 @@ internal constructor(
         synchronized(mLock) {
             mIsKidsWatch = isKidsWatch
             setApmSyncSupportedMetadataLocked()
-            invalidateLocked()
+            maybeUpdateDataStoreLocked()
         }
     }
 
     @GuardedBy("mLock")
     private fun setApmSyncSupportedMetadataLocked() {
+        // TODO(b/469447704): Check if companion apps support APM Sync
         mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, isSyncSupportedLocked())
     }
 
@@ -174,24 +177,23 @@ internal constructor(
         logD("Local APM sync enabled state changed to $enabled")
         mMetadataPublisher.putBooleanMetaData(USER_ALL, AIRPLANE_MODE_SYNC, enabled)
         synchronized(mLock) {
-            if (mStarted && mSyncEnabled != enabled) {
-                mSyncEnabled = enabled
-                invalidateLocked()
+            if (mStarted && mSyncEnabled.compareAndSet(!enabled, enabled)) {
+                mNetworkManager.invalidateNetworks()
             }
         }
     }
 
     @GuardedBy("mLock")
-    private fun invalidateLocked() {
-        if (!mSyncEnabled || !mStarted || !isSyncSupportedLocked()) {
-            maybeDisableSyncLocked()
+    private fun maybeUpdateDataStoreLocked() {
+        if (!mStarted || !isSyncSupportedLocked()) {
+            maybeCloseDataStoreLocked()
         } else {
-            maybeEnableSyncLocked()
+            maybeOpenDataStoreLocked()
         }
     }
 
     @GuardedBy("mLock")
-    private fun maybeEnableSyncLocked() {
+    private fun maybeOpenDataStoreLocked() {
         if (mState != STATE_INACTIVE) {
             logD("maybeEnableSync: ignored. Current state is " + stateToString(mState))
             return
@@ -206,7 +208,10 @@ internal constructor(
                     // Whether the remote device supports sync and has the sync toggle enabled.
                     it.associationInfoCache.getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
                         getBoolean(APM_SYNC_SUPPORTED) && getBoolean(AIRPLANE_MODE_SYNC)
-                    }
+                    } &&
+                    // Whether the sync toggle is enabled in this device
+                    mSyncEnabled.get()
+                // TODO(b/469447704): Check if companion apps support APM Sync
             }
         mNetwork = network
 
@@ -234,7 +239,7 @@ internal constructor(
             mState = STATE_ACTIVE
             mDataStore = dataStore
             dataStore.registerOnRemoteChangeListener(mExecutor, this)
-            invalidateLocked()
+            maybeUpdateDataStoreLocked()
         }
     }
 
@@ -251,7 +256,7 @@ internal constructor(
     }
 
     @GuardedBy("mLock")
-    private fun maybeDisableSyncLocked() {
+    private fun maybeCloseDataStoreLocked() {
         if (mState != STATE_ACTIVE) {
             logD("maybeDisableSync: ignored. Current state is " + stateToString(mState))
             return
@@ -272,7 +277,7 @@ internal constructor(
             mDataStore = null
             mNetwork?.destroy()
             mNetwork = null
-            invalidateLocked()
+            maybeUpdateDataStoreLocked()
         }
     }
 
@@ -322,7 +327,7 @@ internal constructor(
             pw.increaseIndent()
             pw.println("State = " + stateToString(mState))
             pw.println("Airplane Mode State = $mAirplaneModeState")
-            pw.println("Airplane Mode Sync State = $mSyncEnabled")
+            pw.println("Airplane Mode Sync State = ${mSyncEnabled.get()}")
             pw.println("Is Kids Watch = $mIsKidsWatch")
             mNetwork?.let { pw.println("Network : $it") }
             mDataStore?.let { pw.println("Data Store : $it") }
