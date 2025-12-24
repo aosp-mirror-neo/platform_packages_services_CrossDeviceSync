@@ -159,16 +159,60 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     }
 
     @Test
-    public void modeSyncDisabled_resourcesAreCleanedUp() {
+    public void modeSyncDisabled_devicesRemovedFromNetwork() {
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        assertThat(
+                        mFakeNetworkManager
+                                .getNetwork(NETWORK_ID, mUser.getIdentifier())
+                                .getRemoteDevices())
+                .containsKey(1);
+
         mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
 
-        assertThat(mSharedDataStore.isOpen()).isFalse();
-        assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
+        assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(
                         mFakeMetadataPublisher
                                 .getMetadata(mUser.getIdentifier())
                                 .getBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED))
                 .isFalse();
+        assertThat(
+                        mFakeNetworkManager
+                                .getNetwork(NETWORK_ID, mUser.getIdentifier())
+                                .getRemoteDevices())
+                .isEmpty();
+    }
+
+    @Test
+    public void modeSyncEnabled_devicesAddedToNetwork() {
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
+        assertThat(
+                        mFakeNetworkManager
+                                .getNetwork(NETWORK_ID, mUser.getIdentifier())
+                                .getRemoteDevices())
+                .isEmpty();
+
+        mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
+
+        assertThat(mSharedDataStore.isOpen()).isTrue();
+        assertThat(
+                        mFakeMetadataPublisher
+                                .getMetadata(mUser.getIdentifier())
+                                .getBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED))
+                .isTrue();
+        assertThat(
+                        mFakeNetworkManager
+                                .getNetwork(NETWORK_ID, mUser.getIdentifier())
+                                .getRemoteDevices())
+                .containsKey(1);
     }
 
     @Test
@@ -195,15 +239,15 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
     @SuppressWarnings("unchecked")
     @Test
-    public void modeSyncDisabledAndEnabled_dataStoreOpenAfterClose() {
+    public void dndRemovedAndAdded_dataStoreOpenAfterClose() {
         // Make close async.
         mSharedDataStore.setAsync(true);
 
-        // Quickly toggle mode sync to off and on multiple times.
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
+        // Quickly remove and add DND mode multiple times.
+        mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
+        mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
+        mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
+        mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
 
         // Verify that data store is being closed.
         assertThat(mSharedDataStore.isOpen()).isFalse();
@@ -238,28 +282,23 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
 
     @SuppressWarnings("unchecked")
     @Test
-    public void modeSyncEnabledAndDisabled_dataStoreCloseAfterOpen() {
-        // Turn off mode sync.
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
+    public void dndAddedAndRemoved_dataStoreCloseAfterOpen() {
+        // Remove DND mode.
+        mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
         // Make init async.
         mDataStoreFactory.setDataStoresAsync(true);
 
-        // Quickly toggle mode sync to on and off multiple times.
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
-        mFakeContextualModeManager.setModeSyncEnabled(mUser, false);
+        // Quickly add and remove DND multiple times.
+        mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
+        mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
+        mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
+        mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
 
         // Verify that data store is being initialized.
         assertThat(mDataStoreFactory.lastDataStore()).isNotSameInstanceAs(mSharedDataStore);
         mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
         assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNotNull();
-
-        // Verify that mode change during this time will be ignored.
-        mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
-        assertThat(mSharedDataStore.isOpen()).isTrue();
-        assertThat(isDndActiveInSharedDataStore()).isFalse();
 
         // Finish init.
         mSharedDataStore.setAsync(false);
@@ -269,19 +308,12 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         assertThat(mSharedDataStore.isOpen()).isFalse();
         assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
 
-        // Verify that mode change is ignored.
-        mFakeContextualModeManager.addOrUpdateMode(mUser, deactivated(mDoNotDisturbMode));
-        mFakeContextualModeManager.addOrUpdateMode(mUser, activated(mDoNotDisturbMode));
-        assertThat(mDataStoreFactory.lastDataStore()).isSameInstanceAs(mSharedDataStore);
-        assertThat(mSharedDataStore.isOpen()).isFalse();
-        assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNull();
-
         // Verify that metadata is correct.
         assertThat(
                         mFakeMetadataPublisher
                                 .getMetadata(mUser.getIdentifier())
                                 .getBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED))
-                .isFalse();
+                .isTrue();
     }
 
     @Test
@@ -322,8 +354,15 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
 
         addRemoteDevice(
-                /* associationId= */ 1, /* syncSupported= */ false, /* syncEnabled= */ true);
-        addRemoteDevice(/* associationId= */ 2, /* syncSupported= */ true, /* syncEnabled= */ true);
+                /* associationId= */ 1,
+                /* syncSupported= */ false,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
 
         assertThat(network.getRemoteDevices().containsKey(1)).isFalse();
         assertThat(network.getRemoteDevices().containsKey(2)).isTrue();
@@ -333,9 +372,35 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     public void testSyncNetwork_remoteDeviceMustEnabledModeSync() {
         Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
 
-        addRemoteDevice(/* associationId= */ 1, /* syncSupported= */ true, /* syncEnabled= */ true);
         addRemoteDevice(
-                /* associationId= */ 2, /* syncSupported= */ true, /* syncEnabled= */ false);
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ false,
+                /* hasModeSyncFlag= */ true);
+
+        assertThat(network.getRemoteDevices().containsKey(1)).isTrue();
+        assertThat(network.getRemoteDevices().containsKey(2)).isFalse();
+    }
+
+    @Test
+    public void testSyncNetwork_companionMustAddModeSyncFlag() {
+        Network network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
+
+        addRemoteDevice(
+                /* associationId= */ 1,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ true);
+        addRemoteDevice(
+                /* associationId= */ 2,
+                /* syncSupported= */ true,
+                /* syncEnabled= */ true,
+                /* hasModeSyncFlag= */ false);
 
         assertThat(network.getRemoteDevices().containsKey(1)).isTrue();
         assertThat(network.getRemoteDevices().containsKey(2)).isFalse();
@@ -360,7 +425,10 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     }
 
     private FakeRemoteDevice addRemoteDevice(
-            int associationId, boolean syncSupported, boolean syncEnabled) {
+            int associationId,
+            boolean syncSupported,
+            boolean syncEnabled,
+            boolean hasModeSyncFlag) {
         PersistableBundle metadata = new PersistableBundle();
         metadata.putPersistableBundle(
                 CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, new PersistableBundle());
@@ -368,10 +436,15 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED, syncSupported);
         metadata.getPersistableBundle(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC)
                 .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, syncEnabled);
+        int flags = 0;
+        if (hasModeSyncFlag) {
+            flags |= CompanionDeviceManager.FLAG_UNIVERSAL_MODES;
+        }
         return mFakeNetworkManager.addRemoteDevice(
                 new AssociationInfo.Builder(associationId, mContext.getUserId(), "package")
                         .setMetadata(metadata)
                         .setDisplayName("test")
+                        .setSystemDataSyncFlags(flags)
                         .build());
     }
 

@@ -54,6 +54,7 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class CompanionActionControllerImpl implements CompanionActionController {
     private static final String TAG = "CompanionActionCtrl";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
     @VisibleForTesting static final long WAITING_TIMEOUT_MS = 2000;
 
     private final Object mLock;
@@ -280,7 +281,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 return;
             }
             mNextInvalidationTime = scheduleTime;
-            if (delay > 0) {
+            if (DEBUG && delay > 0) {
                 Log.d(TAG, "Invalidating in " + delay + " ms");
             }
             mMainExecutor.cancel(mInvalidateRunnable);
@@ -297,7 +298,9 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             if (now < mNextInvalidationTime) {
                 return;
             }
-            Log.d(TAG, "doInvalidation: now=" + now);
+            if (DEBUG) {
+                Log.d(TAG, "doInvalidation: now=" + now);
+            }
             mNextInvalidationTime = Long.MAX_VALUE;
             maybeTimeoutRequestsLocked(now);
             mAssociationStates.values().removeIf(AssociationState::allDeactivated);
@@ -331,13 +334,15 @@ public class CompanionActionControllerImpl implements CompanionActionController 
         if (now >= s.getFutureExpirationTimestamp()) {
             boolean requestedActivation = s.hasRequestedActivation();
             if (s.noteCancellation(now, "timeout")) {
-                Log.w(
-                        TAG,
-                        "Timeout waiting for "
-                                + (requestedActivation ? "activating " : "deactivating ")
-                                + actionName
-                                + " for association "
-                                + associationId);
+                if (DEBUG) {
+                    Log.w(
+                            TAG,
+                            "Timeout waiting for "
+                                    + (requestedActivation ? "activating " : "deactivating ")
+                                    + actionName
+                                    + " for association "
+                                    + associationId);
+                }
             }
         }
     }
@@ -358,7 +363,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             }
         }
         if (!associationIdsToActivate.isEmpty()) {
-            Log.i(
+            Log.d(
                     TAG,
                     "Requesting activation for "
                             + actionToString(action)
@@ -370,7 +375,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                     toIntArray(associationIdsToActivate));
         }
         if (!associationIdsToDeactivate.isEmpty()) {
-            Log.i(
+            Log.d(
                     TAG,
                     "Requesting deactivation for "
                             + actionToString(action)
@@ -397,10 +402,16 @@ public class CompanionActionControllerImpl implements CompanionActionController 
         mListeningAssociations.clear();
         mListeningAssociations.addAll(associationIdsToListen);
         if (mListeningAssociations.isEmpty()) {
-            Log.d(TAG, "Clearing action result listener.");
+            if (DEBUG) {
+                Log.d(TAG, "Clearing action result listener.");
+            }
             mCompanionDeviceManager.clearOnActionResultListener(mPackageName);
         } else {
-            Log.d(TAG, "Registering action result listener for " + mListeningAssociations + ".");
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "Registering action result listener for " + mListeningAssociations + ".");
+            }
             mCompanionDeviceManager.setOnActionResultListener(
                     toIntArray(mListeningAssociations),
                     mPackageName,
@@ -634,7 +645,11 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             if (mState == state) {
                 return false;
             }
-            Log.d(TAG, "setState: state=" + stateToString(state) + ", reason=\"" + reason + "\"");
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "setState: state=" + stateToString(state) + ", reason=\"" + reason + "\"");
+            }
             boolean prevRequestedActivation = hasRequestedActivation();
             boolean prevWaitingWithTimeout = isWaitingWithTimeout();
             mState = state;

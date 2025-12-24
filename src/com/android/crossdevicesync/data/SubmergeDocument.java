@@ -59,8 +59,8 @@ import java.util.Set;
  * @param <T> the data type that this document manages.
  */
 class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoCloseable {
-    private static final boolean DEBUG = true;
     private static final String TAG = "SubmergeDocument";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private final String mDataStoreName;
     private final String mDocId;

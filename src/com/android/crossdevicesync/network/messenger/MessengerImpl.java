@@ -63,6 +63,7 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class MessengerImpl implements Messenger {
     private static final String TAG = "Messenger";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
     @VisibleForTesting static final long RETRY_DELAY_MS = 5000;
     @VisibleForTesting static final long WAITING_FOR_TRANSPORT_TIMEOUT = 2000;
     @VisibleForTesting static final long WAITING_FOR_ACK_TIMEOUT = 2000;
@@ -175,7 +176,7 @@ public class MessengerImpl implements Messenger {
                 return;
             }
             mNextInvalidationTime = scheduleTime;
-            if (delay > 0) {
+            if (DEBUG && delay > 0) {
                 Log.d(TAG, "Invalidating in " + delay + " ms");
             }
             mMainExecutor.cancel(mInvalidateRunnable);
@@ -192,7 +193,9 @@ public class MessengerImpl implements Messenger {
             if (now < mNextInvalidationTime) {
                 return;
             }
-            Log.d(TAG, "doInvalidation: now=" + now);
+            if (DEBUG) {
+                Log.d(TAG, "doInvalidation: now=" + now);
+            }
             mNextInvalidationTime = Long.MAX_VALUE;
             long nextInvalidation = Long.MAX_VALUE;
             for (AssociationMessageState state : mAssociationStates.values()) {
@@ -427,7 +430,9 @@ public class MessengerImpl implements Messenger {
             }
             boolean shouldNoteTransportFailure = false;
             if (mState == STATE_ATTACHING_TRANSPORT) {
-                Log.d(TAG, "Requesting transport attachment for association " + associationId);
+                if (DEBUG) {
+                    Log.d(TAG, "Requesting transport attachment for association " + associationId);
+                }
                 mAttachTransportFuture = mCompanionActionController.attachTransport(associationId);
                 mAttachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
             } else if (mState != STATE_SENDING && mAttachTransportFuture != null) {
@@ -438,7 +443,9 @@ public class MessengerImpl implements Messenger {
                 mAttachTransportFuture = null;
             }
             if (mState == STATE_DETACHING_TRANSPORT) {
-                Log.d(TAG, "Requesting transport detachment for association " + associationId);
+                if (DEBUG) {
+                    Log.d(TAG, "Requesting transport detachment for association " + associationId);
+                }
                 mCompanionActionController.detachTransport(associationId);
                 // For any pending messages, detaching is considered transport failure.
                 shouldNoteTransportFailure = true;
@@ -619,16 +626,18 @@ public class MessengerImpl implements Messenger {
             if (this.mState == state) {
                 return false;
             }
-            Log.d(
-                    TAG,
-                    "Association "
-                            + associationId
-                            + " message state changed: "
-                            + stateToString(this.mState)
-                            + " -> "
-                            + stateToString(state)
-                            + ", reason: "
-                            + changeReason);
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "Association "
+                                + associationId
+                                + " message state changed: "
+                                + stateToString(this.mState)
+                                + " -> "
+                                + stateToString(state)
+                                + ", reason: "
+                                + changeReason);
+            }
             this.mState = state;
             this.mChangeReason = changeReason;
             this.mLastChangeTimestamp = now;

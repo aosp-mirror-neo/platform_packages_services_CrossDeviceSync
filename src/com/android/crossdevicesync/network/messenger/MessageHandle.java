@@ -39,6 +39,7 @@ import java.util.concurrent.TimeoutException;
 /** A handle containing a message and its control state. */
 class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     private static final String TAG = "MessageHandle";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     public static final int STATE_WAITING_FOR_TRANSPORT = 0;
     public static final int STATE_SENDING = 1;
@@ -186,14 +187,16 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
         if (mState == state) {
             return;
         }
-        Log.d(
-                TAG,
-                "Message handle \""
-                        + mName
-                        + "\" has changed its state: "
-                        + stateToString(mState)
-                        + " -> "
-                        + stateToString(state));
+        if (DEBUG) {
+            Log.d(
+                    TAG,
+                    "Message handle \""
+                            + mName
+                            + "\" has changed its state: "
+                            + stateToString(mState)
+                            + " -> "
+                            + stateToString(state));
+        }
         mState = state;
         mLastChangeTimestamp = now;
     }

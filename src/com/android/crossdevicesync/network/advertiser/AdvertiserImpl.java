@@ -36,6 +36,7 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class AdvertiserImpl implements Advertiser {
     private static final String TAG = "Advertiser";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock;
     private final CompanionActionController mCompanionActionController;
@@ -65,7 +66,9 @@ public class AdvertiserImpl implements Advertiser {
             AdvertisingSessionImpl session = new AdvertisingSessionImpl(associationId, requestName);
             mSessions.add(session);
             invalidateLocked();
-            Log.d(TAG, "Started advertising session " + session);
+            if (DEBUG) {
+                Log.d(TAG, "Started advertising session " + session);
+            }
             return session;
         }
     }
@@ -164,7 +167,9 @@ public class AdvertiserImpl implements Advertiser {
             synchronized (mLock) {
                 if (mSessions.remove(this)) {
                     invalidateLocked();
-                    Log.d(TAG, "Closed advertising session " + this);
+                    if (DEBUG) {
+                        Log.d(TAG, "Closed advertising session " + this);
+                    }
                 }
             }
         }

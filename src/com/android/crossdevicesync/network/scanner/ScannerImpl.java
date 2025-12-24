@@ -36,6 +36,7 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class ScannerImpl implements Scanner {
     private static final String TAG = "Scanner";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock;
     private final CompanionActionController mCompanionActionController;
@@ -65,7 +66,9 @@ public class ScannerImpl implements Scanner {
             ScanningSessionImpl session = new ScanningSessionImpl(associationId, requestName);
             mSessions.add(session);
             invalidateLocked();
-            Log.d(TAG, "Started scanning session " + session);
+            if (DEBUG) {
+                Log.d(TAG, "Started scanning session " + session);
+            }
             return session;
         }
     }
@@ -164,7 +167,9 @@ public class ScannerImpl implements Scanner {
             synchronized (mLock) {
                 if (mSessions.remove(this)) {
                     invalidateLocked();
-                    Log.d(TAG, "Closed scanning session " + this);
+                    if (DEBUG) {
+                        Log.d(TAG, "Closed scanning session " + this);
+                    }
                 }
             }
         }

@@ -67,6 +67,7 @@ import javax.inject.Inject;
 @SyncServiceSingleton
 public class NetworkManagerImpl implements NetworkManager {
     private static final String TAG = "NetworkManager";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock;
     private final Executor mMainExecutor;
@@ -317,7 +318,9 @@ public class NetworkManagerImpl implements NetworkManager {
             mCompanionDeviceManager.removeOnDevicePresenceEventListener(mContext.getPackageName());
             return;
         }
-        Log.d(TAG, "Update device presence listener for " + Arrays.toString(associationIds));
+        if (DEBUG) {
+            Log.d(TAG, "Update device presence listener for " + Arrays.toString(associationIds));
+        }
         mCompanionDeviceManager.setOnDevicePresenceEventListener(
                 associationIds, mContext.getPackageName(), mMainExecutor, mOnDevicePresenceEvent);
     }
@@ -510,13 +513,17 @@ public class NetworkManagerImpl implements NetworkManager {
                         mClock.elapsedRealtime());
         mMessageRecords.put(id, record);
         invalidate(/* async= */ true);
-        Log.d(TAG, "enqueueMessage: queued message " + id + ".");
+        if (DEBUG) {
+            Log.d(TAG, "enqueueMessage: queued message " + id + ".");
+        }
         return id;
     }
 
     @GuardedBy("mLock")
     private void processMessagesLocked() {
-        Log.d(TAG, "Processing messages ...");
+        if (DEBUG) {
+            Log.d(TAG, "Processing messages ...");
+        }
         Iterator<MessageRecord> iterator = mMessageRecords.values().iterator();
         final long now = mClock.elapsedRealtime();
         while (iterator.hasNext()) {
@@ -524,7 +531,9 @@ public class NetworkManagerImpl implements NetworkManager {
             processMessageLocked(r, now);
             if (r.isDone()) {
                 iterator.remove();
-                Log.d(TAG, "processMessage: message " + r.id + " is done.");
+                if (DEBUG) {
+                    Log.d(TAG, "processMessage: message " + r.id + " is done.");
+                }
             }
         }
     }
@@ -573,13 +582,15 @@ public class NetworkManagerImpl implements NetworkManager {
                                     + "\"");
 
                     if (nextDeliveryState == DeliveryState.SENDING) {
-                        Log.d(
-                                TAG,
-                                "processMessage: sending message "
-                                        + record.id
-                                        + " to "
-                                        + getAddressString(record.networkId, associationId)
-                                        + ".");
+                        if (DEBUG) {
+                            Log.d(
+                                    TAG,
+                                    "processMessage: sending message "
+                                            + record.id
+                                            + " to "
+                                            + getAddressString(record.networkId, associationId)
+                                            + ".");
+                        }
                         deliveryState.messageSendingFuture =
                                 mMessenger.sendMessage(
                                         record.networkId,
@@ -592,13 +603,15 @@ public class NetworkManagerImpl implements NetworkManager {
                         // State is not SENDING. Cancel the message request.
                         if (deliveryState.messageSendingFuture != null
                                 && !deliveryState.messageSendingFuture.isDone()) {
-                            Log.d(
-                                    TAG,
-                                    "processMessage: cancelling message request for "
-                                            + record.id
-                                            + " to "
-                                            + getAddressString(record.networkId, associationId)
-                                            + ".");
+                            if (DEBUG) {
+                                Log.d(
+                                        TAG,
+                                        "processMessage: cancelling message request for "
+                                                + record.id
+                                                + " to "
+                                                + getAddressString(record.networkId, associationId)
+                                                + ".");
+                            }
                             deliveryState.messageSendingFuture.cancel(true);
                         }
                         deliveryState.messageSendingFuture = null;
@@ -606,11 +619,13 @@ public class NetworkManagerImpl implements NetworkManager {
 
                     if (nextDeliveryState == DeliveryState.WAITING_FOR_PRESENCE) {
                         if (record.shouldScanIfNotPresent()) {
-                            Log.d(
-                                    TAG,
-                                    "processMessage: scanning for "
-                                            + getAddressString(record.networkId, associationId)
-                                            + ".");
+                            if (DEBUG) {
+                                Log.d(
+                                        TAG,
+                                        "processMessage: scanning for "
+                                                + getAddressString(record.networkId, associationId)
+                                                + ".");
+                            }
                             deliveryState.scanningSession =
                                     mScanner.startScanning(
                                             associationId,
@@ -625,10 +640,12 @@ public class NetworkManagerImpl implements NetworkManager {
                         // No need to scanning. Close scanning session.
                         if (deliveryState.scanningSession != null
                                 && deliveryState.scanningSession.isActive()) {
-                            Log.d(
-                                    TAG,
-                                    "processMessage: closing scanning session "
-                                            + deliveryState.scanningSession);
+                            if (DEBUG) {
+                                Log.d(
+                                        TAG,
+                                        "processMessage: closing scanning session "
+                                                + deliveryState.scanningSession);
+                            }
                             deliveryState.scanningSession.close();
                         }
                         deliveryState.scanningSession = null;
@@ -822,7 +839,7 @@ public class NetworkManagerImpl implements NetworkManager {
         public long broadcastMessage(byte[] message, int flags) {
             synchronized (mLock) {
                 if (mDestroyed) {
-                    Log.w(TAG, "broadcastMessage: network " + mId + " is already destroyed");
+                    Log.w(TAG, "broadcastMessage: network " + this + " is already destroyed");
                     return -1;
                 }
                 return enqueueMessageLocked(
@@ -834,7 +851,7 @@ public class NetworkManagerImpl implements NetworkManager {
         public long multicastMessage(List<Integer> associationIds, byte[] message, int flags) {
             synchronized (mLock) {
                 if (mDestroyed) {
-                    Log.w(TAG, "multicastMessage: network " + mId + " is already destroyed");
+                    Log.w(TAG, "multicastMessage: network " + this + " is already destroyed");
                     return -1;
                 }
                 return enqueueMessageLocked(
@@ -857,7 +874,7 @@ public class NetworkManagerImpl implements NetworkManager {
         public void cancelMessage(long id) {
             synchronized (mLock) {
                 if (mDestroyed) {
-                    Log.w(TAG, "cancelMessage: network " + mId + " is already destroyed");
+                    Log.w(TAG, "cancelMessage: network " + this + " is already destroyed");
                     return;
                 }
                 MessageRecord r = mMessageRecords.get(id);
@@ -875,7 +892,7 @@ public class NetworkManagerImpl implements NetworkManager {
         public void registerListener(Executor executor, NetworkListener listener) {
             synchronized (mLock) {
                 if (mDestroyed) {
-                    Log.w(TAG, "registerListener: network " + mId + " is already destroyed");
+                    Log.w(TAG, "registerListener: network " + this + " is already destroyed");
                     return;
                 }
                 mListeners.add(Pair.create(executor, listener));
@@ -887,7 +904,7 @@ public class NetworkManagerImpl implements NetworkManager {
         public void unregisterListener(NetworkListener listener) {
             synchronized (mLock) {
                 if (mDestroyed) {
-                    Log.w(TAG, "unregisterListener: network " + mId + " is already destroyed");
+                    Log.w(TAG, "unregisterListener: network " + this + " is already destroyed");
                     return;
                 }
                 mListeners.removeIf(pair -> pair.second == listener);
@@ -903,7 +920,7 @@ public class NetworkManagerImpl implements NetworkManager {
                         && mDeviceCondition.test(device)
                         && !device.isAssociationRemoved()) {
                     if (mAssociationIds.add(associationId)) {
-                        Log.i(TAG, "Device " + device + " joined network " + mId);
+                        Log.i(TAG, "Device " + device + " joined network " + this);
                         notifyListenersLocked(l -> l.onDeviceChanged(device));
                         mAdvertisingSessions.put(
                                 associationId,
@@ -912,14 +929,14 @@ public class NetworkManagerImpl implements NetworkManager {
                 } else if (mAssociationIds.remove(associationId)) {
                     notifyListenersLocked(l -> l.onDeviceRemoved(associationId));
                     stopAdvertisingLocked(associationId);
-                    Log.i(TAG, "Device " + device + " left network " + mId);
+                    Log.i(TAG, "Device " + device + " left network " + this);
                 }
             }
             Set<Integer> set = new ArraySet<>(mAssociationIds);
             mAssociationIds.retainAll(mRemoteDevices.keySet());
             set.removeAll(mAssociationIds);
             for (Integer removedId : set) {
-                Log.i(TAG, "Device with id " + removedId + " left network " + mId);
+                Log.i(TAG, "Device with id " + removedId + " left network " + this);
                 notifyListenersLocked(l -> l.onDeviceRemoved(removedId));
                 stopAdvertisingLocked(removedId);
             }
@@ -980,7 +997,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 mAdvertisingSessions.values().forEach(AdvertisingSession::close);
                 mAdvertisingSessions.clear();
                 maybeInvalidateMessagesLocked();
-                Log.i(TAG, "Destroyed network " + mId);
+                Log.i(TAG, "Destroyed network " + this);
             }
         }
 
@@ -1016,7 +1033,11 @@ public class NetworkManagerImpl implements NetworkManager {
 
         @Override
         public String toString() {
-            return "Network{id=" + mId + ", userId=" + mUserId + "}";
+            return "Network{id="
+                    + mId
+                    + ", userId="
+                    + (mUserId == UserHandle.USER_ALL ? "USER_ALL" : mUserId)
+                    + "}";
         }
     }
 }
