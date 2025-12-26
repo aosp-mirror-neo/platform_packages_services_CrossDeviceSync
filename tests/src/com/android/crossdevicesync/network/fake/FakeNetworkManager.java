@@ -615,7 +615,7 @@ public class FakeNetworkManager implements NetworkManager {
             return !mIsDestroyed && mDevicePredicate.test(remoteDevice);
         }
 
-        /** Re-evaluate device congditions. */
+        /** Re-evaluate device conditions. */
         public void invalidate() {
             for (RemoteDevice device : mRemoteDevices.values()) {
                 maybeAddDevice(device);

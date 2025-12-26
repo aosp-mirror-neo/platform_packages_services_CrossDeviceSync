@@ -29,7 +29,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.SchemaProvider
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument
-import com.android.crossdevicesync.data.SharedDataStore.Record
 import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.APM_ENABLED_PATH
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.APM_SYNC_SUPPORTED
@@ -59,6 +58,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Before
     override fun setUp() {
         super.setUp()
+        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, true)
         mFakeNetworkManager.init()
         mFakeMetadataPublisher.init()
         mRemoteDeviceContext = RemoteDeviceContext()
@@ -114,7 +114,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isWatch_allRemoteDevicesEligibleForAirplaneModeSync() {
-        mIsWatchProvider.isWatch = true
+        mFakeWatchChecker.isWatch = true
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
 
@@ -130,7 +130,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isNotWatch_onlyAllowsRemoteWatchesWithSyncEnabledForAirplaneModeSyncNetwork() {
-        mIsWatchProvider.isWatch = false
+        mFakeWatchChecker.isWatch = false
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
 
@@ -293,6 +293,31 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testLocalChange_syncDisabled_thenEnabled_syncsToRemote() {
+        // Disable airplane mode sync initially.
+        setAirplaneModeSyncEnabled(false)
+
+        // Initialize the manager.
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        // Enable airplane mode locally.
+        setAirplaneMode(true)
+        flushNetworks()
+
+        // Verify remote device has NOT received the update.
+        verifyRemoteAirplaneModeEnabled(null)
+
+        // Enable airplane mode sync.
+        setAirplaneModeSyncEnabled(true)
+        flushNetworks()
+
+        // Verify remote device receives the update.
+        verifyRemoteAirplaneModeEnabled(true)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testRemoteChange_syncEnabled_showsNotification() {
         // Initialize the manager.
         mAirplaneModeSyncManager.init()
@@ -309,7 +334,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isKidsWatch_publishesNotSupported() {
-        mIsWatchProvider.isKidsWatch = true
+        mFakeWatchChecker.setKidsWatch(true)
         mAirplaneModeSyncManager.init()
         assertThat(
                 mFakeMetadataPublisher
@@ -317,6 +342,93 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
                     .getBoolean(APM_SYNC_SUPPORTED)
             )
             .isFalse()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testIsKidsWatchChangedToTrue_updatesMetadataAndClosesNetworkAndDataStore() {
+        mFakeWatchChecker.setKidsWatch(false)
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        setAirplaneMode(true)
+        flushNetworks()
+
+        // Initially supported
+        assertThat(
+                mFakeMetadataPublisher
+                    .getMetadata(UserHandle.USER_ALL)
+                    .getBoolean(APM_SYNC_SUPPORTED)
+            )
+            .isTrue()
+        // Verify network was initialized.
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNotNull()
+        // Verify remote device is set.
+        verifyRemoteAirplaneModeEnabled(true)
+
+        // Change to kids watch and disable airplane mode
+        mFakeWatchChecker.setKidsWatch(true)
+        setAirplaneMode(false)
+        flushNetworks()
+
+        // Should be unsupported
+        assertThat(
+                mFakeMetadataPublisher
+                    .getMetadata(UserHandle.USER_ALL)
+                    .getBoolean(APM_SYNC_SUPPORTED)
+            )
+            .isFalse()
+        // Verify network was not initialized.
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNull()
+        // Verify remote device stays enabled.
+        verifyRemoteAirplaneModeEnabled(true)
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testIsKidsWatchChangedToFalse_updatesMetadataAndReopensNetworkAndDataStore() {
+        mFakeWatchChecker.setKidsWatch(false)
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+        // Change to kids watch
+        mFakeWatchChecker.setKidsWatch(true)
+
+        // Change back to regular watch
+        mFakeWatchChecker.setKidsWatch(false)
+        setAirplaneMode(true)
+        flushNetworks()
+
+        // Should be supported again and syncs current state
+        assertThat(
+                mFakeMetadataPublisher
+                    .getMetadata(UserHandle.USER_ALL)
+                    .getBoolean(APM_SYNC_SUPPORTED)
+            )
+            .isTrue()
+        // Verify network was initialized.
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNotNull()
+        // Verify remote device is set.
+        verifyRemoteAirplaneModeEnabled(true)
     }
 
     @Test
@@ -390,8 +502,9 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         var dumpString = stringWriter.toString()
         assertThat(dumpString).contains("AirplaneModeSyncManager:")
         assertThat(dumpString).contains("Airplane Mode State = true")
-        assertThat(dumpString).doesNotContain("Network :")
-        assertThat(dumpString).doesNotContain("Data Store :")
+        // Network and Data store are now open even if sync is disabled
+        assertThat(dumpString).contains("Network :")
+        assertThat(dumpString).contains("Data Store :")
 
         // 2. Enable sync
         stringWriter.buffer.setLength(0)
@@ -404,17 +517,75 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         assertThat(dumpString).contains("Airplane Mode State = true")
         assertThat(dumpString).contains("Network :")
         assertThat(dumpString).contains("Data Store :")
+    }
 
-        // 3. Disable sync again
-        stringWriter.buffer.setLength(0)
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDestroy_cleansUpNetworkAndState() {
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNotNull()
+
+        mAirplaneModeSyncManager.destroy()
+
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNull()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDisableSync_doesNotDestroyNetwork() {
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNotNull()
+
         setAirplaneModeSyncEnabled(false)
-        flushNetworks()
-        mAirplaneModeSyncManager.dump(pw)
-        dumpString = stringWriter.toString()
-        assertThat(dumpString).contains("AirplaneModeSyncManager:")
-        assertThat(dumpString).contains("Airplane Mode State = true")
-        assertThat(dumpString).doesNotContain("Network :")
-        assertThat(dumpString).doesNotContain("Data Store :")
+
+        // Network and Data store are NOT cleaned up anymore when sync is disabled
+        assertThat(
+                mFakeNetworkManager.getNetwork(
+                    AirplaneModeSyncManager.NETWORK_ID,
+                    UserHandle.USER_ALL,
+                )
+            )
+            .isNotNull()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDisableSync_removesDevicesFromNetwork() {
+        setAirplaneModeSyncEnabled(true)
+        mAirplaneModeSyncManager.init()
+        connectDevicesToNetwork()
+
+        val network =
+            mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, UserHandle.USER_ALL)
+        assertThat(network.remoteDevices).isNotEmpty()
+
+        setAirplaneModeSyncEnabled(false)
+
+        assertThat(network.remoteDevices).isEmpty()
     }
 
     private fun createAssociationWitApmSyncEnabled(syncEnabled: Boolean = true): AssociationInfo {
@@ -454,7 +625,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     private fun verifyRemoteAirplaneModeEnabled(enabled: Boolean?) {
         transactRemoteDataStore { doc ->
-            val record = doc.getRecord(APM_ENABLED_PATH) as Record<String>
+            val record = doc.getRecord(APM_ENABLED_PATH)!!
             assertThat(record.get()).isEqualTo(enabled?.toAirplaneModeState())
         }
     }
@@ -497,10 +668,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
             init {
                 super.setUp()
                 mSharedDataStore.init(
-                    networkManager.createNetwork(
-                        AirplaneModeSyncManager.NETWORK_ID,
-                        { device -> true },
-                    )
+                    networkManager.createNetwork(AirplaneModeSyncManager.NETWORK_ID) { true }
                 )
             }
 
@@ -514,7 +682,9 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
             override fun useRealSharedDataStoreImpl(): Boolean = true
 
-            fun close() = mSharedDataStore.close()
+            fun close() {
+                mSharedDataStore.close().get()
+            }
         }
     }
 }
