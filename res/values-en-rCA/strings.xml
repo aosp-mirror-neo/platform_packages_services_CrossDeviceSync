@@ -20,10 +20,7 @@
     <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Airplane Mode"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Airplane mode"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Airplane mode will now sync across your phone and watch.\n\nManage mode sync preferences on your watch and phone settings."</string>
-    <!-- no translation found for do_not_disturb_sync_notification_channel_name (2633023256459106594) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_title (6289972027187909815) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_content (3277535522068446603) -->
-    <skip />
+    <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Do not disturb sync"</string>
+    <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Do not disturb"</string>
+    <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Synced from your nearby device"</string>
 </resources>

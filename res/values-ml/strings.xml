@@ -20,10 +20,7 @@
     <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"ഫ്ലൈറ്റ് മോഡ്"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"ഫ്ലൈറ്റ് മോഡ്"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"ഫ്ലൈറ്റ് മോഡ് ഇപ്പോൾ നിങ്ങളുടെ ഫോണിലും വാച്ചിലും ഉടനീളം സമന്വയിപ്പിക്കും.\n\nനിങ്ങളുടെ വാച്ചിലും ഫോൺ ക്രമീകരണത്തിലും മോഡ് സമന്വയിപ്പിക്കൽ മുൻഗണനകൾ മാനേജ് ചെയ്യുക."</string>
-    <!-- no translation found for do_not_disturb_sync_notification_channel_name (2633023256459106594) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_title (6289972027187909815) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_content (3277535522068446603) -->
-    <skip />
+    <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"\'ശല്യപ്പെടുത്തരുത്\' സമന്വയിപ്പിക്കൽ"</string>
+    <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"ശല്യപ്പെടുത്തരുത്"</string>
+    <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"സമീപമുള്ള ഉപകരണത്തിൽ നിന്ന് സമന്വയിപ്പിച്ചത്"</string>
 </resources>

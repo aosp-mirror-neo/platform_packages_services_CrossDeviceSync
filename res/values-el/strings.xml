@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--  Copyright (C) 2025 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          https://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+ -->
+
+<resources xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_label" msgid="8317618268687481611">"Συγχρονισμός μεταξύ συσκευών"</string>
+    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Λειτουργία πτήσης"</string>
+    <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Λειτουργία πτήσης"</string>
+    <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Η λειτουργία πτήσης θα συγχρονίζεται πλέον μεταξύ του τηλεφώνου και του ρολογιού σας.\n\nΔιαχειριστείτε τις προτιμήσεις συγχρονισμού λειτουργιών στις ρυθμίσεις του ρολογιού και του τηλεφώνου σας."</string>
+    <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Συγχρονισμός της λειτουργίας Μην ενοχλείτε"</string>
+    <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Μην ενοχλείτε"</string>
+    <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Συγχρονίστηκε από τη συσκευή σας που βρίσκεται σε κοντινή απόσταση"</string>
+</resources>
