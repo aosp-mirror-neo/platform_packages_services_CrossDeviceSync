@@ -20,10 +20,7 @@
     <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Lennukirežiim"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Lennukirežiim"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Lennukirežiim sünkroonitakse nüüd teie telefoni ja kella vahel.\n\nHallake režiimi sünkroonimise eelistusi oma kella ja telefoni seadetes."</string>
-    <!-- no translation found for do_not_disturb_sync_notification_channel_name (2633023256459106594) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_title (6289972027187909815) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_content (3277535522068446603) -->
-    <skip />
+    <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Funktsiooni Mitte segada sünkroonimine"</string>
+    <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Mitte segada"</string>
+    <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Sünkroonitud teie läheduses olevast seadmest."</string>
 </resources>
