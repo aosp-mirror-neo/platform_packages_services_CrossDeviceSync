@@ -20,10 +20,7 @@
     <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Modo avião"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Modo avião"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"O modo avião agora será sincronizado entre o smartphone e o relógio.\n\nGerencie as preferências de sincronização de modo nas configurações dos dois dispositivos."</string>
-    <!-- no translation found for do_not_disturb_sync_notification_channel_name (2633023256459106594) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_title (6289972027187909815) -->
-    <skip />
-    <!-- no translation found for do_not_disturb_sync_notification_content (3277535522068446603) -->
-    <skip />
+    <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Sincronização do modo Não Perturbe"</string>
+    <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Não perturbe"</string>
+    <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Sincronizado com seu dispositivo por perto"</string>
 </resources>
