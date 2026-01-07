@@ -17,6 +17,7 @@ package com.android.crossdevicesync.feature.airplanemode
 
 import android.companion.AssociationRequest.DEVICE_PROFILE_WATCH
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
+import android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE
 import android.content.Context
 import android.os.UserHandle.USER_ALL
 import android.provider.Settings.Global.AIRPLANE_MODE_SYNC
@@ -206,12 +207,13 @@ internal constructor(
                 // Whether this device is a watch, or the remote device is a watch.
                 (mWatchChecker.isWatch || it.deviceProfile == DEVICE_PROFILE_WATCH) &&
                     // Whether the remote device supports sync and has the sync toggle enabled.
-                    it.associationInfoCache.getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
-                        getBoolean(APM_SYNC_SUPPORTED) && getBoolean(AIRPLANE_MODE_SYNC)
+                    it.associationInfoCache.run {
+                        getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
+                            getBoolean(APM_SYNC_SUPPORTED) && getBoolean(AIRPLANE_MODE_SYNC)
+                        } && (systemDataSyncFlags and FLAG_AIRPLANE_MODE) != 0
                     } &&
                     // Whether the sync toggle is enabled in this device
                     mSyncEnabled.get()
-                // TODO(b/469447704): Check if companion apps support APM Sync
             }
         mNetwork = network
 

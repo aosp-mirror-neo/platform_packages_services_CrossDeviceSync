@@ -18,8 +18,9 @@ package com.android.crossdevicesync.feature.airplanemode
 import android.companion.AssociationInfo
 import android.companion.AssociationRequest
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
+import android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE
 import android.os.PersistableBundle
-import android.os.UserHandle
+import android.os.UserHandle.USER_ALL
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
 import android.platform.test.flag.junit.SetFlagsRule
@@ -77,15 +78,11 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         setAirplaneModeSyncEnabled(true)
         mAirplaneModeSyncManager.init()
 
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isTrue()
         assertThat(
                 mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
+                    .getMetadata(USER_ALL)
                     .getBoolean(Settings.Global.AIRPLANE_MODE_SYNC)
             )
             .isTrue()
@@ -97,15 +94,11 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         setAirplaneModeSyncEnabled(false)
         mAirplaneModeSyncManager.init()
 
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isTrue()
         assertThat(
                 mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
+                    .getMetadata(USER_ALL)
                     .getBoolean(Settings.Global.AIRPLANE_MODE_SYNC)
             )
             .isFalse()
@@ -116,15 +109,12 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     fun testInit_isWatch_allRemoteDevicesEligibleForAirplaneModeSync() {
         mFakeWatchChecker.isWatch = true
         mAirplaneModeSyncManager.init()
-        connectDevicesToNetwork()
 
-        val fakeNetwork =
-            mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, UserHandle.USER_ALL)
+        val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
 
         val remoteDevice =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
-                .setAssociationInfoCache(createAssociationWitApmSyncEnabled(true))
-        assertThat(fakeNetwork.isDeviceEligibleForNetwork(remoteDevice)).isTrue()
+            FakeRemoteDevice(1, USER_ALL).setAssociationInfoCache(createAssociation())
+        assertThat(network.isDeviceEligibleForNetwork(remoteDevice)).isTrue()
     }
 
     @Test
@@ -132,27 +122,33 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     fun testInit_isNotWatch_onlyAllowsRemoteWatchesWithSyncEnabledForAirplaneModeSyncNetwork() {
         mFakeWatchChecker.isWatch = false
         mAirplaneModeSyncManager.init()
-        connectDevicesToNetwork()
 
-        val fakeNetwork =
-            mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, UserHandle.USER_ALL)
+        val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
 
         val remoteDevice =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
-                .setAssociationInfoCache(createAssociationWitApmSyncEnabled(true))
-        assertThat(fakeNetwork.isDeviceEligibleForNetwork(remoteDevice)).isFalse()
-
-        val watchDeviceWithSyncDisabled =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
+            FakeRemoteDevice(1, USER_ALL).setAssociationInfoCache(createAssociation())
+        val watchWithSyncNotSupported =
+            FakeRemoteDevice(1, USER_ALL)
                 .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH)
-                .setAssociationInfoCache(createAssociationWitApmSyncEnabled(false))
-        assertThat(fakeNetwork.isDeviceEligibleForNetwork(watchDeviceWithSyncDisabled)).isFalse()
-
+                .setAssociationInfoCache(createAssociation(apmSyncSupportedMetadata = false))
+        val watchWithSyncDisabled =
+            FakeRemoteDevice(1, USER_ALL)
+                .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH)
+                .setAssociationInfoCache(createAssociation(apmSyncEnabledMetadata = false))
+        val watchWithSystemDataSyncDisabled =
+            FakeRemoteDevice(1, USER_ALL)
+                .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH)
+                .setAssociationInfoCache(createAssociation(apmSystemDataSyncFlagEnabled = false))
         val watchDevice =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
+            FakeRemoteDevice(1, USER_ALL)
                 .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH)
-                .setAssociationInfoCache(createAssociationWitApmSyncEnabled(true))
-        assertThat(fakeNetwork.isDeviceEligibleForNetwork(watchDevice)).isTrue()
+                .setAssociationInfoCache(createAssociation())
+
+        assertThat(network.isDeviceEligibleForNetwork(remoteDevice)).isFalse()
+        assertThat(network.isDeviceEligibleForNetwork(watchWithSyncNotSupported)).isFalse()
+        assertThat(network.isDeviceEligibleForNetwork(watchWithSyncDisabled)).isFalse()
+        assertThat(network.isDeviceEligibleForNetwork(watchWithSystemDataSyncDisabled)).isFalse()
+        assertThat(network.isDeviceEligibleForNetwork(watchDevice)).isTrue()
     }
 
     @Test
@@ -234,7 +230,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @DisableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_flagDisabled_doesNothing() {
         mAirplaneModeSyncManager.init()
-        assertThat(mFakeMetadataPublisher.getMetadata(UserHandle.USER_ALL).isEmpty).isTrue()
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).isEmpty).isTrue()
     }
 
     @Test
@@ -336,11 +332,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     fun testInit_isKidsWatch_publishesNotSupported() {
         mFakeWatchChecker.setKidsWatch(true)
         mAirplaneModeSyncManager.init()
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isFalse()
     }
 
@@ -356,19 +348,10 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         flushNetworks()
 
         // Initially supported
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isTrue()
         // Verify network was initialized.
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNotNull()
         // Verify remote device is set.
         verifyRemoteAirplaneModeEnabled(true)
@@ -379,19 +362,10 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         flushNetworks()
 
         // Should be unsupported
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isFalse()
         // Verify network was not initialized.
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNull()
         // Verify remote device stays enabled.
         verifyRemoteAirplaneModeEnabled(true)
@@ -413,19 +387,10 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         flushNetworks()
 
         // Should be supported again and syncs current state
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isTrue()
         // Verify network was initialized.
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNotNull()
         // Verify remote device is set.
         verifyRemoteAirplaneModeEnabled(true)
@@ -436,11 +401,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     fun testInit_configIsNotSupported_publishesNotSupported() {
         mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
         mAirplaneModeSyncManager.init()
-        assertThat(
-                mFakeMetadataPublisher
-                    .getMetadata(UserHandle.USER_ALL)
-                    .getBoolean(APM_SYNC_SUPPORTED)
-            )
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isFalse()
     }
 
@@ -526,22 +487,12 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
 
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNotNull()
 
         mAirplaneModeSyncManager.destroy()
 
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNull()
     }
 
@@ -552,23 +503,13 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
 
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNotNull()
 
         setAirplaneModeSyncEnabled(false)
 
         // Network and Data store are NOT cleaned up anymore when sync is disabled
-        assertThat(
-                mFakeNetworkManager.getNetwork(
-                    AirplaneModeSyncManager.NETWORK_ID,
-                    UserHandle.USER_ALL,
-                )
-            )
+        assertThat(mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL))
             .isNotNull()
     }
 
@@ -579,8 +520,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
 
-        val network =
-            mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, UserHandle.USER_ALL)
+        val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
         assertThat(network.remoteDevices).isNotEmpty()
 
         setAirplaneModeSyncEnabled(false)
@@ -588,22 +528,26 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         assertThat(network.remoteDevices).isEmpty()
     }
 
-    private fun createAssociationWitApmSyncEnabled(syncEnabled: Boolean = true): AssociationInfo {
-        return AssociationInfo.Builder(1, UserHandle.USER_ALL, "packageName")
+    private fun createAssociation(
+        apmSyncSupportedMetadata: Boolean = true,
+        apmSyncEnabledMetadata: Boolean = true,
+        apmSystemDataSyncFlagEnabled: Boolean = true,
+    ) =
+        AssociationInfo.Builder(1, USER_ALL, "packageName")
             .setDisplayName("test_device")
             .setMetadata(
                 PersistableBundle().apply {
                     putPersistableBundle(
                         FEATURE_CROSS_DEVICE_SYNC,
                         PersistableBundle().apply {
-                            putBoolean(APM_SYNC_SUPPORTED, syncEnabled)
-                            putBoolean(Settings.Global.AIRPLANE_MODE_SYNC, syncEnabled)
+                            putBoolean(APM_SYNC_SUPPORTED, apmSyncSupportedMetadata)
+                            putBoolean(Settings.Global.AIRPLANE_MODE_SYNC, apmSyncEnabledMetadata)
                         },
                     )
                 }
             )
+            .setSystemDataSyncFlags(if (apmSystemDataSyncFlagEnabled) FLAG_AIRPLANE_MODE else 0)
             .build()
-    }
 
     private fun setAirplaneMode(enabled: Boolean) {
         mFakeAirplaneModeController.updateAirplaneModeState(enabled)
@@ -642,15 +586,14 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     private fun connectDevicesToNetwork() {
         val remoteDevice =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
+            FakeRemoteDevice(1, USER_ALL)
                 .setDeviceProfile(AssociationRequest.DEVICE_PROFILE_WATCH)
                 .setRemoteNetworkManager(mRemoteDeviceContext.networkManager)
-                .setAssociationInfoCache(createAssociationWitApmSyncEnabled(true))
+                .setAssociationInfoCache(createAssociation())
         this.mFakeNetworkManager.addRemoteDevice(remoteDevice)
 
         val localDevice =
-            FakeRemoteDevice(1, UserHandle.USER_ALL)
-                .setRemoteNetworkManager(this.mFakeNetworkManager)
+            FakeRemoteDevice(1, USER_ALL).setRemoteNetworkManager(this.mFakeNetworkManager)
         mRemoteDeviceContext.networkManager.addRemoteDevice(localDevice)
     }
 
