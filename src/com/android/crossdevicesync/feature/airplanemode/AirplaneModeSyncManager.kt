@@ -25,7 +25,7 @@ import android.util.IndentingPrintWriter
 import android.util.Log
 import androidx.annotation.GuardedBy
 import androidx.annotation.VisibleForTesting
-import com.android.crossdevicesync.common.WatchChecker
+import com.android.crossdevicesync.common.DeviceUtils
 import com.android.crossdevicesync.dagger.qualifier.Main
 import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.RecordType.TYPE_REGISTER
@@ -59,11 +59,11 @@ internal constructor(
     private val mAirplaneModeController: AirplaneModeController,
     private val mMetadataPublisher: MetadataPublisher,
     private val mNotificationHelper: NotificationHelper,
-    private val mWatchChecker: WatchChecker,
+    private val mDeviceUtils: DeviceUtils,
     @param:Main private val mExecutor: Executor,
     stringConverter: StringConverter,
     sharedDataStoreHandleFactory: SharedDataStoreHandleFactory,
-) : FeatureManager, OnRemoteChangeListener, AirplaneModeController.Listener, WatchChecker.Listener {
+) : FeatureManager, OnRemoteChangeListener, AirplaneModeController.Listener, DeviceUtils.Listener {
     private val mLock = Any()
     private val mSupportedRes: Boolean by lazy {
         context.resources.getBoolean(R.bool.config_supportAirplaneModeSync)
@@ -84,7 +84,7 @@ internal constructor(
         }
         val apmEnabled = mAirplaneModeController.isAirplaneModeEnabled()
         val syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled()
-        val isKidsWatch = mWatchChecker.isKidsWatch()
+        val isKidsWatch = mDeviceUtils.isKidsWatch()
         logD("Init : apmEnabled=$apmEnabled, syncEnabled=$syncEnabled, isKidsWatch=$isKidsWatch")
 
         synchronized(mLock) {
@@ -93,7 +93,7 @@ internal constructor(
             mStarted = true
             setApmSyncSupportedMetadataLocked()
             mAirplaneModeController.registerAirplaneModeChangedListener(this)
-            mWatchChecker.registerKidsWatchChangeListener(this)
+            mDeviceUtils.registerKidsWatchChangeListener(this)
             onAirplaneModeSyncEnabledStateChanged(syncEnabled)
             maybeUpdateDataStoreLocked()
         }
@@ -205,7 +205,7 @@ internal constructor(
             mNetworkManager.createNetwork(NETWORK_ID)
             /* remoteDeviceCondition= */ {
                 // Whether this device is a watch, or the remote device is a watch.
-                (mWatchChecker.isWatch || it.deviceProfile == DEVICE_PROFILE_WATCH) &&
+                (mDeviceUtils.isWatch || it.deviceProfile == DEVICE_PROFILE_WATCH) &&
                     // Whether the remote device supports sync and has the sync toggle enabled.
                     it.associationInfoCache.run {
                         getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
@@ -294,7 +294,7 @@ internal constructor(
             mStarted = false
             mState = STATE_INACTIVE
             mAirplaneModeController.unregisterAirplaneModeChangedListener(this)
-            mWatchChecker.unregisterKidsWatchChangeListener(this)
+            mDeviceUtils.unregisterKidsWatchChangeListener(this)
             mDataStore?.unregisterOnRemoteChangeListener(this)
             mDataStore = null
             mNetwork?.destroy()

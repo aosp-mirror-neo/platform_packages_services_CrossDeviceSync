@@ -29,13 +29,13 @@ import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Implementation of [WatchChecker]. */
+/** Implementation of [DeviceUtils]. */
 @Singleton
-class WatchCheckerImpl
+class DeviceUtilsImpl
 @Inject
-internal constructor(private val mContext: Context, @Main executor: Executor) : WatchChecker {
+internal constructor(private val mContext: Context, @Main executor: Executor) : DeviceUtils {
 
-    private val listeners = mutableListOf<WatchChecker.Listener>()
+    private val listeners = mutableListOf<DeviceUtils.Listener>()
     private val contentObserver =
         object : ContentObserver(executor, /* unused= */ 0) {
             override fun onChange(selfChange: Boolean) {
@@ -63,7 +63,7 @@ internal constructor(private val mContext: Context, @Main executor: Executor) : 
         return config == TETHERED_CONFIG_RESTRICTED || config == TETHERED_CONFIG_STANDALONE
     }
 
-    override fun registerKidsWatchChangeListener(listener: WatchChecker.Listener) {
+    override fun registerKidsWatchChangeListener(listener: DeviceUtils.Listener) {
         if (!isWatch) {
             return
         }
@@ -77,7 +77,7 @@ internal constructor(private val mContext: Context, @Main executor: Executor) : 
         listeners.add(listener)
     }
 
-    override fun unregisterKidsWatchChangeListener(listener: WatchChecker.Listener) {
+    override fun unregisterKidsWatchChangeListener(listener: DeviceUtils.Listener) {
         if (!isWatch) {
             return
         }

@@ -107,7 +107,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isWatch_allRemoteDevicesEligibleForAirplaneModeSync() {
-        mFakeWatchChecker.isWatch = true
+        mFakeDeviceUtil.isWatch = true
         mAirplaneModeSyncManager.init()
 
         val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
@@ -120,7 +120,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isNotWatch_onlyAllowsRemoteWatchesWithSyncEnabledForAirplaneModeSyncNetwork() {
-        mFakeWatchChecker.isWatch = false
+        mFakeDeviceUtil.isWatch = false
         mAirplaneModeSyncManager.init()
 
         val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
@@ -330,7 +330,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_isKidsWatch_publishesNotSupported() {
-        mFakeWatchChecker.setKidsWatch(true)
+        mFakeDeviceUtil.setKidsWatch(true)
         mAirplaneModeSyncManager.init()
         assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
             .isFalse()
@@ -339,7 +339,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testIsKidsWatchChangedToTrue_updatesMetadataAndClosesNetworkAndDataStore() {
-        mFakeWatchChecker.setKidsWatch(false)
+        mFakeDeviceUtil.setKidsWatch(false)
         setAirplaneModeSyncEnabled(true)
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
@@ -357,7 +357,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         verifyRemoteAirplaneModeEnabled(true)
 
         // Change to kids watch and disable airplane mode
-        mFakeWatchChecker.setKidsWatch(true)
+        mFakeDeviceUtil.setKidsWatch(true)
         setAirplaneMode(false)
         flushNetworks()
 
@@ -374,15 +374,15 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     @Test
     @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testIsKidsWatchChangedToFalse_updatesMetadataAndReopensNetworkAndDataStore() {
-        mFakeWatchChecker.setKidsWatch(false)
+        mFakeDeviceUtil.setKidsWatch(false)
         setAirplaneModeSyncEnabled(true)
         mAirplaneModeSyncManager.init()
         connectDevicesToNetwork()
         // Change to kids watch
-        mFakeWatchChecker.setKidsWatch(true)
+        mFakeDeviceUtil.setKidsWatch(true)
 
         // Change back to regular watch
-        mFakeWatchChecker.setKidsWatch(false)
+        mFakeDeviceUtil.setKidsWatch(false)
         setAirplaneMode(true)
         flushNetworks()
 
