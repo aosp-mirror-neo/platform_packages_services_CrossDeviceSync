@@ -349,7 +349,8 @@ public class ContextualModeSyncController
         for (ContextualMode mode : changedModes) {
             if (mode.getType() == TYPE_MANUAL_DO_NOT_DISTURB
                     && mode.getState() == ContextualMode.STATE_INACTIVE) {
-                mNotificationHelper.dismissNotification(NotificationReason.DO_NOT_DISTURB_SYNCED);
+                mNotificationHelper.dismissNotification(
+                        NotificationReason.DO_NOT_DISTURB_SYNCED, mUser);
                 break;
             }
         }
@@ -450,7 +451,7 @@ public class ContextualModeSyncController
                 mModesCache.put(updatedMode.getId(), updatedMode);
                 if (cachedMode.getType() == TYPE_MANUAL_DO_NOT_DISTURB && active) {
                     mNotificationHelper.maybeShowNotification(
-                            NotificationReason.DO_NOT_DISTURB_SYNCED);
+                            NotificationReason.DO_NOT_DISTURB_SYNCED, mUser);
                 }
                 Log.i(
                         TAG,

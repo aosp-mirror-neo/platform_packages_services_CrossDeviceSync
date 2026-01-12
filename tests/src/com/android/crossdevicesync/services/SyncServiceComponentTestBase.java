@@ -35,6 +35,8 @@ import com.android.crossdevicesync.network.messenger.MessengerImpl;
 import com.android.crossdevicesync.network.messenger.fake.FakeMessenger;
 import com.android.crossdevicesync.network.scanner.ScannerImpl;
 import com.android.crossdevicesync.network.scanner.fake.FakeScanner;
+import com.android.crossdevicesync.notification.NotificationHelperImpl;
+import com.android.crossdevicesync.notification.fake.FakeNotificationHelper;
 import com.android.crossdevicesync.services.dagger.TestSyncServiceComponent;
 
 import javax.inject.Inject;
@@ -61,6 +63,9 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
     @Inject protected MetadataPublisherImpl mMetadataPublisher;
     @Inject protected FakeMetadataPublisher mFakeMetadataPublisher;
     @Inject protected ContextualModeSyncController.Factory mContextualModeSyncControllerFactory;
+    @Inject protected FakeNotificationHelper mFakeNotificationHelper;
+    @Inject protected NotificationHelperImpl mNotificationHelperImpl;
+    @Inject protected SyncServiceShellCommand mSyncServiceShellCommand;
 
     @Inject
     protected TestSharedDataStoreComponentBuilderWrapper mSharedDataStoreComponentBuilderWrapper;
@@ -70,6 +75,7 @@ public abstract class SyncServiceComponentTestBase extends ApplicationComponentT
         super.setUp();
         mSyncServiceComponent = newSyncServiceComponent();
         mSyncServiceComponent.inject(this);
+        mFakeNotificationHelper.init();
     }
 
     protected TestSyncServiceComponent newSyncServiceComponent() {

@@ -33,7 +33,8 @@ import com.android.crossdevicesync.common.fake.FakeDeviceUtils;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.notification.dagger.TestNotificationModule;
+import com.android.crossdevicesync.notification.NotificationManagerProxy;
+import com.android.crossdevicesync.notification.fake.FakeNotificationManagerProxy;
 import com.android.crossdevicesync.user.UserHelper;
 import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
@@ -46,7 +47,7 @@ import java.util.concurrent.Executor;
 import javax.inject.Singleton;
 
 /** Test-only dagger module for the {@link TestApplicationComponent}. */
-@Module(includes = {TestNotificationModule.class})
+@Module
 public abstract class TestApplicationModule {
     private static final String SHARED_PREFS_FILE_NAME = "test_shared_prefs";
 
@@ -108,4 +109,8 @@ public abstract class TestApplicationModule {
         // Ignore.
         return () -> {};
     }
+
+    @Binds
+    @Singleton
+    abstract NotificationManagerProxy bindNotificationManager(FakeNotificationManagerProxy fake);
 }

@@ -36,7 +36,7 @@ public interface UserHelper {
     /** Listener interface for monitoring user changes. */
     interface UserListener {
         /** Called when a user is added. */
-        void onUserAdded(UserHandle user);
+        default void onUserAdded(UserHandle user) {}
 
         /** Called when a user is removed. */
         void onUserRemoved(UserHandle user);

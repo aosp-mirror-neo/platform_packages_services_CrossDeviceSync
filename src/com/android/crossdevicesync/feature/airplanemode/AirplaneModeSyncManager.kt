@@ -19,6 +19,7 @@ import android.companion.AssociationRequest.DEVICE_PROFILE_WATCH
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
 import android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE
 import android.content.Context
+import android.os.UserHandle
 import android.os.UserHandle.USER_ALL
 import android.provider.Settings.Global.AIRPLANE_MODE_SYNC
 import android.util.IndentingPrintWriter
@@ -114,7 +115,10 @@ internal constructor(
                             mAirplaneModeState = apmEnabled
                             mAirplaneModeController.updateAirplaneModeState(apmEnabled)
                             if (apmEnabled) {
-                                mNotificationHelper.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+                                mNotificationHelper.maybeShowNotification(
+                                    AIRPLANE_MODE_SYNCED,
+                                    UserHandle.ALL,
+                                )
                             }
                         }
                     }

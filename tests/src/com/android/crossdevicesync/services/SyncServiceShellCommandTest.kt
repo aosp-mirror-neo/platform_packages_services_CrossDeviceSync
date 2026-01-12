@@ -20,7 +20,6 @@ import android.os.Binder
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.crossdevicesync.notification.fake.FakeNotificationHelper
 import com.google.common.truth.Truth.assertThat
 import java.io.FileInputStream
 import java.nio.charset.StandardCharsets
@@ -29,15 +28,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SyncServiceShellCommandTest {
-
-    private lateinit var mFakeNotificationHelper: FakeNotificationHelper
-    private lateinit var mSyncServiceShellCommand: SyncServiceShellCommand
+class SyncServiceShellCommandTest : SyncServiceComponentTestBase() {
 
     @Before
-    fun setUp() {
-        mFakeNotificationHelper = FakeNotificationHelper()
-        mSyncServiceShellCommand = SyncServiceShellCommand(mFakeNotificationHelper)
+    override fun setUp() {
+        super.setUp()
     }
 
     @Test

@@ -20,6 +20,7 @@ import android.companion.AssociationRequest
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
 import android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE
 import android.os.PersistableBundle
+import android.os.UserHandle
 import android.os.UserHandle.USER_ALL
 import android.platform.test.annotations.DisableFlags
 import android.platform.test.annotations.EnableFlags
@@ -324,7 +325,8 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
         flushNetworks()
 
         // Verify notification is shown.
-        assertThat(mFakeNotificationHelper.shownNotifications).contains(AIRPLANE_MODE_SYNCED)
+        assertThat(mFakeNotificationHelper.shownUserNotifications)
+            .contains(AIRPLANE_MODE_SYNCED to UserHandle.ALL)
     }
 
     @Test

@@ -58,22 +58,31 @@ public final class SyncServiceTest {
         // Create a new service with mock feature manager.
         NetworkManager networkManager = mock(NetworkManager.class);
         MetadataPublisher metadataPublisher = mock(MetadataPublisher.class);
+        NotificationHelper notificationHelper = mock(NotificationHelper.class);
         IStorage storage = mock(IStorage.class);
         FeatureManager featureManager = mock(FeatureManager.class);
         SyncService service =
                 new SyncService(
                         networkManager,
                         metadataPublisher,
+                        notificationHelper,
                         storage,
                         new SyncServiceShellCommand(mock(NotificationHelper.class)),
                         Map.of(FeatureManager.class, () -> featureManager));
-        InOrder inOrder = inOrder(networkManager, metadataPublisher, featureManager, storage);
+        InOrder inOrder =
+                inOrder(
+                        networkManager,
+                        metadataPublisher,
+                        notificationHelper,
+                        featureManager,
+                        storage);
 
         // Service created.
         service.onCreate();
 
         inOrder.verify(networkManager).init();
         inOrder.verify(metadataPublisher).init();
+        inOrder.verify(notificationHelper).init();
         inOrder.verify(featureManager).init();
 
         // Service destroyed.
@@ -82,6 +91,7 @@ public final class SyncServiceTest {
         // Verify destroying each feature before destroying the metadata publisher and the
         // networkManager.
         inOrder.verify(featureManager).destroy();
+        inOrder.verify(notificationHelper).destroy();
         inOrder.verify(metadataPublisher).destroy();
         inOrder.verify(networkManager).destroy();
         ArgumentCaptor<ThrowingRunnable> captor = ArgumentCaptor.forClass(ThrowingRunnable.class);

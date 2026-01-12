@@ -44,6 +44,8 @@ import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 
 import com.google.android.submerge.StorageInterface.StorageException;
 
+import kotlin.Pair;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -130,8 +132,8 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         // Remote turn on DND.
         remotePutDndActiveToSharedDataStore(true);
 
-        assertThat(mFakeNotificationHelper.getShownNotifications())
-                .contains(NotificationReason.DO_NOT_DISTURB_SYNCED);
+        assertThat(mFakeNotificationHelper.getShownUserNotifications())
+                .contains(new Pair<>(NotificationReason.DO_NOT_DISTURB_SYNCED, mUser));
     }
 
     @Test
@@ -142,8 +144,8 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         // Remote turns off DND.
         remotePutDndActiveToSharedDataStore(false);
 
-        assertThat(mFakeNotificationHelper.getShownNotifications())
-                .doesNotContain(NotificationReason.DO_NOT_DISTURB_SYNCED);
+        assertThat(mFakeNotificationHelper.getShownUserNotifications())
+                .doesNotContain(new Pair<>(NotificationReason.DO_NOT_DISTURB_SYNCED, mUser));
     }
 
     @Test
@@ -154,8 +156,8 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         // Local turns off DND.
         mFakeContextualModeManager.addOrUpdateMode(mUser, deactivated(mDoNotDisturbMode));
 
-        assertThat(mFakeNotificationHelper.getShownNotifications())
-                .doesNotContain(NotificationReason.DO_NOT_DISTURB_SYNCED);
+        assertThat(mFakeNotificationHelper.getShownUserNotifications())
+                .doesNotContain(new Pair<>(NotificationReason.DO_NOT_DISTURB_SYNCED, mUser));
     }
 
     @Test

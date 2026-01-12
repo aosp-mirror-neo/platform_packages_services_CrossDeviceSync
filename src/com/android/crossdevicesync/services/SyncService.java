@@ -32,6 +32,7 @@ import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
+import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.io.FileDescriptor;
@@ -57,6 +58,7 @@ public class SyncService extends Service {
 
     private final NetworkManager mNetworkManager;
     private final MetadataPublisher mMetadataPublisher;
+    private final NotificationHelper mNotificationHelper;
     private final IStorage mGlobalStorage;
     private final SyncServiceShellCommand mSyncServiceShellCommand;
     private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
@@ -68,11 +70,13 @@ public class SyncService extends Service {
     public SyncService(
             NetworkManager networkManager,
             MetadataPublisher metadataPublisher,
+            NotificationHelper notificationHelper,
             @GlobalStorage IStorage globalStorage,
             SyncServiceShellCommand syncServiceShellCommand,
             Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
         mNetworkManager = networkManager;
         mMetadataPublisher = metadataPublisher;
+        mNotificationHelper = notificationHelper;
         mGlobalStorage = globalStorage;
         mSyncServiceShellCommand = syncServiceShellCommand;
         mFeatureManagerProviders = featureManagerProviders;
@@ -84,6 +88,7 @@ public class SyncService extends Service {
         Log.i(TAG, "onCreate()");
         mNetworkManager.init();
         mMetadataPublisher.init();
+        mNotificationHelper.init();
         for (var entry : mFeatureManagerProviders.entrySet()) {
             try {
                 Log.i(TAG, "Initializing " + entry.getKey().getSimpleName() + "...");
@@ -102,6 +107,7 @@ public class SyncService extends Service {
         Log.i(TAG, "onDestroy()");
         mFeatureManagers.forEach(FeatureManager::destroy);
         mFeatureManagers.clear();
+        mNotificationHelper.destroy();
         mMetadataPublisher.destroy();
         mNetworkManager.destroy();
         mGlobalStorage.runInIoThread(mGlobalStorage::close);

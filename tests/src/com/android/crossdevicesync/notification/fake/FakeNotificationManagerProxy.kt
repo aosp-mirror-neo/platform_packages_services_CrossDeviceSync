@@ -18,6 +18,7 @@ package com.android.crossdevicesync.notification.fake
 
 import android.app.Notification
 import android.app.NotificationChannel
+import android.os.UserHandle
 import com.android.crossdevicesync.notification.NotificationManagerProxy
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,25 +27,23 @@ import javax.inject.Singleton
 @Singleton
 class FakeNotificationManagerProxy @Inject constructor() : NotificationManagerProxy {
 
-    private val mNotifications = mutableMapOf<Int, Notification>()
+    private val mNotifications = mutableMapOf<Pair<Int, UserHandle>, Notification>()
     private val mChannels = mutableMapOf<String, NotificationChannel>()
-
-    override fun maybeCancel(id: Int) {
-        if (mNotifications.containsKey(id)) {
-            mNotifications.remove(id)
-        }
-    }
 
     override fun createNotificationChannel(channel: NotificationChannel) {
         mChannels[channel.id] = channel
     }
 
-    override fun notify(id: Int, notification: Notification) {
-        mNotifications[id] = notification
+    override fun notify(id: Int, notification: Notification, user: UserHandle) {
+        mNotifications[id to user] = notification
+    }
+
+    override fun cancel(id: Int, user: UserHandle) {
+        mNotifications.remove(id to user)
     }
 
     /** Returns the map of active notifications keyed by ID. */
-    fun getNotifications(): Map<Int, Notification> {
+    fun getUserNotifications(): Map<Pair<Int, UserHandle>, Notification> {
         return mNotifications
     }
 

@@ -17,6 +17,8 @@ package com.android.crossdevicesync.services.dagger;
 
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.metadata.MetadataPublisherImpl;
+import com.android.crossdevicesync.notification.NotificationHelper;
+import com.android.crossdevicesync.notification.NotificationHelperImpl;
 
 import dagger.Binds;
 import dagger.Module;
@@ -27,4 +29,8 @@ public abstract class SyncServiceModule {
     @Binds
     @SyncServiceSingleton
     abstract MetadataPublisher bindsMetadataPublisher(MetadataPublisherImpl impl);
+
+    @Binds
+    @SyncServiceSingleton
+    abstract NotificationHelper bindsNotificationHelper(NotificationHelperImpl impl);
 }

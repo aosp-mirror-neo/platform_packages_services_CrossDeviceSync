@@ -35,7 +35,8 @@ import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.notification.dagger.NotificationModule;
+import com.android.crossdevicesync.notification.NotificationManagerProxy;
+import com.android.crossdevicesync.notification.NotificationManagerProxyImpl;
 import com.android.crossdevicesync.user.UserHelper;
 import com.android.crossdevicesync.user.UserHelperImpl;
 
@@ -49,7 +50,7 @@ import java.util.concurrent.Executors;
 import javax.inject.Singleton;
 
 /** Dagger module for the {@link ApplicationComponent}. */
-@Module(includes = {NotificationModule.class})
+@Module
 public abstract class ApplicationModule {
     private static final String DEFAULT_SHARED_PREFS_FILE_NAME = "cross_device_sync_prefs";
 
@@ -128,4 +129,9 @@ public abstract class ApplicationModule {
     @Binds
     @Singleton
     abstract ThreadChecker bindsThreadChecker(DefaultThreadChecker checker);
+
+    @Binds
+    @Singleton
+    abstract NotificationManagerProxy bindsNotificationManagerProxy(
+            NotificationManagerProxyImpl impl);
 }
