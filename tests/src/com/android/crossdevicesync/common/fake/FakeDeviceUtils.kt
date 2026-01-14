@@ -15,20 +15,20 @@
  */
 package com.android.crossdevicesync.common.fake
 
-import com.android.crossdevicesync.common.WatchChecker
+import com.android.crossdevicesync.common.DeviceUtils
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Fake implementation of [WatchChecker]. */
+/** Fake implementation of [DeviceUtils]. */
 @Singleton
-class FakeWatchChecker @Inject constructor() : WatchChecker {
+class FakeDeviceUtils @Inject constructor() : DeviceUtils {
     /** Whether the device is a watch or not. */
     override var isWatch: Boolean = false
 
     /** Whether the device is a kids watch or not. */
     private var isKidsWatch: Boolean = false
 
-    private val listeners = mutableListOf<WatchChecker.Listener>()
+    private val listeners = mutableListOf<DeviceUtils.Listener>()
 
     fun setKidsWatch(isKidsWatch: Boolean) {
         this.isKidsWatch = isKidsWatch
@@ -37,11 +37,11 @@ class FakeWatchChecker @Inject constructor() : WatchChecker {
 
     override fun isKidsWatch(): Boolean = isKidsWatch
 
-    override fun registerKidsWatchChangeListener(listener: WatchChecker.Listener) {
+    override fun registerKidsWatchChangeListener(listener: DeviceUtils.Listener) {
         listeners.add(listener)
     }
 
-    override fun unregisterKidsWatchChangeListener(listener: WatchChecker.Listener) {
+    override fun unregisterKidsWatchChangeListener(listener: DeviceUtils.Listener) {
         listeners.remove(listener)
     }
 }

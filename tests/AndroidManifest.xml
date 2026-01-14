@@ -17,6 +17,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.android.crossdevicesync.tests">
 
+    <uses-permission android:name="android.permission.GET_INTENT_SENDER_INTENT" />
     <application
         android:name="com.android.crossdevicesync.TestApplication"
         android:debuggable="true"
