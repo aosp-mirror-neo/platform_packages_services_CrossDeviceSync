@@ -23,6 +23,7 @@ import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.content.Context;
+import android.os.Trace;
 import android.os.UserHandle;
 import android.util.ArraySet;
 import android.util.IndentingPrintWriter;
@@ -275,31 +276,36 @@ public class NetworkManagerImpl implements NetworkManager {
     @SuppressWarnings("GuardedBy")
     @GuardedBy("mLock")
     private void processAssociationsAndMessagesLocked(List<AssociationInfo> allInfo) {
-        mPendingInvalidation = false;
-        // Add new info if not existing.
-        Set<Integer> allInfoIds = new HashSet<>(allInfo.size());
-        boolean deviceChanged = false;
-        for (AssociationInfo info : allInfo) {
-            int id = info.getId();
-            allInfoIds.add(id);
-            RemoteDeviceImpl device = mRemoteDevices.get(id);
-            if (device != null) {
-                device.setAssociationInfoCache(info);
-            } else {
-                device = new RemoteDeviceImpl(info);
-                mRemoteDevices.put(id, device);
-                deviceChanged = true;
-                Log.d(TAG, "Added remote device " + device);
+        Trace.beginSection("NetworkManagerImpl.processAssociationsAndMessages");
+        try {
+            mPendingInvalidation = false;
+            // Add new info if not existing.
+            Set<Integer> allInfoIds = new HashSet<>(allInfo.size());
+            boolean deviceChanged = false;
+            for (AssociationInfo info : allInfo) {
+                int id = info.getId();
+                allInfoIds.add(id);
+                RemoteDeviceImpl device = mRemoteDevices.get(id);
+                if (device != null) {
+                    device.setAssociationInfoCache(info);
+                } else {
+                    device = new RemoteDeviceImpl(info);
+                    mRemoteDevices.put(id, device);
+                    deviceChanged = true;
+                    Log.d(TAG, "Added remote device " + device);
+                }
             }
+            // Remove old info if not existing.
+            deviceChanged |= mRemoteDevices.keySet().retainAll(allInfoIds);
+            if (deviceChanged) {
+                updateDevicePresenceListenerLocked();
+            }
+            forEachNetworkLocked(NetworkImpl::invalidateLocked);
+            // Process messages.
+            processMessagesLocked();
+        } finally {
+            Trace.endSection();
         }
-        // Remove old info if not existing.
-        deviceChanged |= mRemoteDevices.keySet().retainAll(allInfoIds);
-        if (deviceChanged) {
-            updateDevicePresenceListenerLocked();
-        }
-        forEachNetworkLocked(NetworkImpl::invalidateLocked);
-        // Process messages.
-        processMessagesLocked();
     }
 
     @GuardedBy("mLock")

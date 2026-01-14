@@ -31,6 +31,7 @@ import android.app.modes.ContextualModesMutation;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.os.PersistableBundle;
+import android.os.Trace;
 import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.IndentingPrintWriter;
@@ -153,18 +154,23 @@ public class ContextualModeSyncController
 
     /** Start this controller. */
     public void start() {
-        synchronized (mLock) {
-            if (mStarted) {
-                // Duplicate start();
-                return;
+        Trace.beginSection("ContextualModeSyncController.start");
+        try {
+            synchronized (mLock) {
+                if (mStarted) {
+                    // Duplicate start();
+                    return;
+                }
+                mStarted = true;
+                updateModesCacheLocked();
+                mContextualModeManager.registerModeListener(mUser, mMainExecutor, this);
+                mContextualModeManager.registerModeSyncEnabledListener(
+                        mUser, mMainExecutor, mModeSyncEnabledListener);
+                onModeSyncEnabledChanged(mContextualModeManager.isModeSyncEnabled(mUser));
+                maybeUpdateDataStoreLocked();
             }
-            mStarted = true;
-            updateModesCacheLocked();
-            mContextualModeManager.registerModeListener(mUser, mMainExecutor, this);
-            mContextualModeManager.registerModeSyncEnabledListener(
-                    mUser, mMainExecutor, mModeSyncEnabledListener);
-            onModeSyncEnabledChanged(mContextualModeManager.isModeSyncEnabled(mUser));
-            maybeUpdateDataStoreLocked();
+        } finally {
+            Trace.endSection();
         }
     }
 
@@ -290,41 +296,52 @@ public class ContextualModeSyncController
 
     @Override
     public void onRemoteChange(List<String> paths) {
-        synchronized (mLock) {
-            if (mState != STATE_ACTIVE) {
-                return;
-            }
-            Map<String, ContextualMode> modes = new ArrayMap<>();
-            for (String path : paths) {
-                for (ContextualMode m : mModesCache.values()) {
-                    if (path.equals(getModeStatePath(m))) {
-                        modes.put(path, m);
-                        break;
+        Trace.beginSection("ContextualModeSyncController.onRemoteChange");
+        try {
+            synchronized (mLock) {
+                if (mState != STATE_ACTIVE) {
+                    return;
+                }
+                Map<String, ContextualMode> modes = new ArrayMap<>();
+                for (String path : paths) {
+                    for (ContextualMode m : mModesCache.values()) {
+                        if (path.equals(getModeStatePath(m))) {
+                            modes.put(path, m);
+                            break;
+                        }
                     }
                 }
+                if (modes.isEmpty()) {
+                    // No mode matches the paths.
+                    return;
+                }
+                transactDataStoreLocked(doc -> syncFromDocument(doc, modes));
             }
-            if (modes.isEmpty()) {
-                // No mode matches the paths.
-                return;
-            }
-            transactDataStoreLocked(doc -> syncFromDocument(doc, modes));
+        } finally {
+            Trace.endSection();
         }
     }
 
     @Override
     public void onModesChanged(@NonNull List<ContextualMode> modes) {
-        synchronized (mLock) {
-            maybeDismissDndSyncNotification(modes);
-            if (!updateModesCacheLocked(modes)) {
-                // Cache unchanged.
-                return;
+        Trace.beginSection("ContextualModeSyncController.onModesChanged");
+        try {
+            synchronized (mLock) {
+                maybeDismissDndSyncNotification(modes);
+                if (!updateModesCacheLocked(modes)) {
+                    // Cache unchanged.
+                    return;
+                }
+                if (mState == STATE_ACTIVE) {
+                    transactDataStoreLocked(
+                            doc -> syncToDocument(doc, /* overrideExisting= */ true));
+                } else {
+                    // Adding a mode may lead to data store open.
+                    maybeUpdateDataStoreLocked();
+                }
             }
-            if (mState == STATE_ACTIVE) {
-                transactDataStoreLocked(doc -> syncToDocument(doc, /* overrideExisting= */ true));
-            } else {
-                // Adding a mode may lead to data store open.
-                maybeUpdateDataStoreLocked();
-            }
+        } finally {
+            Trace.endSection();
         }
     }
 
@@ -340,15 +357,20 @@ public class ContextualModeSyncController
 
     @Override
     public void onModeRemoved(@NonNull String modeId) {
-        synchronized (mLock) {
-            if (mModesCache.remove(modeId) == null) {
-                // Unchanged.
-                return;
+        Trace.beginSection("ContextualModeSyncController.onModeRemoved");
+        try {
+            synchronized (mLock) {
+                if (mModesCache.remove(modeId) == null) {
+                    // Unchanged.
+                    return;
+                }
+                if (mState == STATE_ACTIVE) {
+                    // Removal of a mode in sync may lead to data store closed.
+                    maybeUpdateDataStoreLocked();
+                }
             }
-            if (mState == STATE_ACTIVE) {
-                // Removal of a mode in sync may lead to data store closed.
-                maybeUpdateDataStoreLocked();
-            }
+        } finally {
+            Trace.endSection();
         }
     }
 
@@ -514,23 +536,28 @@ public class ContextualModeSyncController
      * @param deleteDataStore whether to delete the data store after closing
      */
     public void stop(boolean deleteDataStore) {
-        synchronized (mLock) {
-            if (!mStarted) {
-                // Already closed or not started.
-                return;
+        Trace.beginSection("ContextualModeSyncController.stop");
+        try {
+            synchronized (mLock) {
+                if (!mStarted) {
+                    // Already closed or not started.
+                    return;
+                }
+                mStarted = false;
+                mContextualModeManager.unregisterModeListener(this);
+                mContextualModeManager.unregisterModeSyncEnabledListener(mModeSyncEnabledListener);
+                if (mSharedDataStore != null) {
+                    mSharedDataStore.unregisterOnRemoteChangeListener(this);
+                    mSharedDataStore = null;
+                }
+                if (mNetwork != null) {
+                    mNetwork.destroy();
+                    mNetwork = null;
+                }
+                mSharedDataStoreHandle.destroy(deleteDataStore);
             }
-            mStarted = false;
-            mContextualModeManager.unregisterModeListener(this);
-            mContextualModeManager.unregisterModeSyncEnabledListener(mModeSyncEnabledListener);
-            if (mSharedDataStore != null) {
-                mSharedDataStore.unregisterOnRemoteChangeListener(this);
-                mSharedDataStore = null;
-            }
-            if (mNetwork != null) {
-                mNetwork.destroy();
-                mNetwork = null;
-            }
-            mSharedDataStoreHandle.destroy(deleteDataStore);
+        } finally {
+            Trace.endSection();
         }
     }
 
