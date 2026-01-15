@@ -16,8 +16,11 @@
 package com.android.crossdevicesync;
 
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.UserHandle;
 import android.util.Log;
 
 import com.android.crossdevicesync.flags.Flags;
@@ -37,8 +40,20 @@ public class BootReceiver extends BroadcastReceiver {
         Log.d(TAG, "onReceive: " + intent);
         if (Flags.startSyncServiceOnBoot()
                 && Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
-            Log.d(TAG, "Starting SyncService.");
-            context.startService(new Intent(context, SyncService.class));
+            if (context.getUser().equals(UserHandle.SYSTEM)) {
+                Log.d(TAG, "Starting SyncService.");
+                context.startService(new Intent(context, SyncService.class));
+            } else {
+                Log.d(
+                        TAG,
+                        "Disabling boot receiver for non-system user "
+                                + context.getUser().getIdentifier());
+                context.getPackageManager()
+                        .setComponentEnabledSetting(
+                                new ComponentName(context, BootReceiver.class),
+                                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                                0);
+            }
         }
     }
 }

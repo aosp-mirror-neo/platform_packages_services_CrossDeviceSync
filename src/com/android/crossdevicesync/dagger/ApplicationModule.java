@@ -29,10 +29,10 @@ import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.ContextualModeManagerProxyImpl;
 import com.android.crossdevicesync.common.DefaultThreadChecker;
 import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.DeviceUtils;
+import com.android.crossdevicesync.common.DeviceUtilsImpl;
 import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.common.ThreadChecker;
-import com.android.crossdevicesync.common.WatchChecker;
-import com.android.crossdevicesync.common.WatchCheckerImpl;
 import com.android.crossdevicesync.dagger.qualifier.Background;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.notification.dagger.NotificationModule;
@@ -119,7 +119,7 @@ public abstract class ApplicationModule {
 
     @Binds
     @Singleton
-    abstract WatchChecker bindsWatchChecker(WatchCheckerImpl watchChecker);
+    abstract DeviceUtils bindsWatchChecker(DeviceUtilsImpl watchChecker);
 
     @Binds
     @Singleton

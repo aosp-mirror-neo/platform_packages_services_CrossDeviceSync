@@ -16,7 +16,7 @@
 package com.android.crossdevicesync.common
 
 /** Utility to check if the current device is a watch and its specific type. */
-interface WatchChecker {
+interface DeviceUtils {
     /** Returns true if the device is a watch. */
     val isWatch: Boolean
 

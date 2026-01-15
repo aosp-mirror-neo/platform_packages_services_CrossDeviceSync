@@ -18,12 +18,14 @@
     <!-- App title of CrossDeviceSync -->
     <string name="app_label">Cross Device Sync</string>
 
-    <!-- Notification channel name for Airplane Mode sync [CHAR LIMIT=NONE] -->
-    <string name="airplane_mode_sync_notification_channel_name">Airplane Mode</string>
+    <!-- Notification channel name for Airplane mode sync [CHAR LIMIT=NONE] -->
+    <string name="airplane_mode_sync_notification_channel_name">Airplane mode sync</string>
     <!-- Notification title for Airplane mode sync [CHAR LIMIT=NONE] -->
     <string name="airplane_mode_sync_notification_title">Airplane mode</string>
     <!-- Notification content for Airplane mode sync [CHAR LIMIT=NONE] -->
     <string name="airplane_mode_sync_notification_content">Airplane mode will now sync across your phone and watch.\n\nManage mode sync preferences on your watch and phone settings.</string>
+    <!-- Action label on the Notification for Airplane mode sync that opens the Airplane mode Settings Page [CHAR LIMIT=35]-->
+    <string name="apm_sync_notification_settings_action">Manage Settings</string>
 
     <!-- Notification channel name for Do not disturb sync [CHAR LIMIT=NONE] -->
     <string name="do_not_disturb_sync_notification_channel_name">Do not disturb sync</string>

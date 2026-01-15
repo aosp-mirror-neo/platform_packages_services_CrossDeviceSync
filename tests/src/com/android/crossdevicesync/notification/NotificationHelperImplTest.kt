@@ -17,6 +17,7 @@ package com.android.crossdevicesync.notification
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.crossdevicesync.ApplicationComponentTestBase
 import com.android.crossdevicesync.R
@@ -64,8 +65,30 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
         assertThat(extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString())
             .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_content))
 
+        assertThat(notification.contentIntent.intent.action)
+            .isEqualTo(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
+        assertThat(notification.actions).isNull()
+
         // Verify SharedPrefs
         assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(1)
+    }
+
+    @Test
+    fun testMaybeShowNotification_onWatch_showsNotificationWithAction() {
+        mFakeDeviceUtil.isWatch = true
+
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+
+        // Verify Notification
+        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
+        val notification = mFakeNotificationManagerProxy.getNotifications()[1]!!
+
+        assertThat(notification.contentIntent).isNull()
+        assertThat(notification.actions).hasLength(1)
+        assertThat(notification.actions[0].title)
+            .isEqualTo(mContext.getString(R.string.apm_sync_notification_settings_action))
+        assertThat(notification.actions[0].actionIntent.intent.action)
+            .isEqualTo(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
     }
 
     @Test
