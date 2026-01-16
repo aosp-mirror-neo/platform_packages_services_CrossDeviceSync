@@ -216,7 +216,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     }
 
     private boolean doInit() throws Exception {
-        Trace.beginSection("SharedDataStore.doInit");
+        Trace.beginSection("SubmergeSharedDataStore.doInit");
         try {
             synchronized (mLock) {
                 requireStateLocked(STATE_UPGRADING);
