@@ -31,6 +31,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
+import com.android.crossdevicesync.network.proto.CdmMessage;
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
 import com.android.internal.util.ArrayUtils;
 
@@ -852,6 +853,113 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
 
         // Verify we didn't send message
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).isEmpty();
+    }
+
+
+    @Test
+    public void cancel_whileWaitingForAck_preventsRetry() {
+        // Send a message with 2 delivery attempts.
+        ListenableFuture<Boolean> future =
+                mMessengerImpl.sendMessage(
+                        TEST_NETWORK,
+                        /* associationId= */ 1,
+                        new byte[] {1},
+                        /* maxDeliveryAttempts= */ 2);
+        assertThat(future.isDone()).isFalse();
+
+        // Allow transport to connect and the message to be sent once.
+        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
+        assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
+
+        // Cancel the future while it's waiting for an ACK.
+        future.cancel(true);
+        assertThat(future.isCancelled()).isTrue();
+
+        // Advance the clock past the ACK timeout and retry delay to trigger a potential retry.
+        mFakeClock.advanceTime(WAITING_FOR_ACK_TIMEOUT);
+        mFakeClock.advanceTime(RETRY_DELAY_MS);
+
+        // Assert that the message was not sent a second time.
+        assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
+    }
+
+    @Test
+    public void onMessage_invalidProto_ignoresMessage() {
+        // Register a listener that will fail the test if called.
+        List<Pair<String, byte[]>> incomingMessages = new ArrayList<>();
+        mMessengerImpl.registerMessageListener(
+                Runnable::run,
+                (networkId, associationId, msg) -> {
+                    incomingMessages.add(Pair.create(networkId, msg));
+                });
+
+        // Simulate receiving a malformed message that cannot be parsed as a proto.
+        mFakeCompanionDeviceManagerProxy.simulateMessageReceived(
+                CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
+                /* associationId= */ 1,
+                new byte[] {1, 2, 3}); // Junk data
+
+        // Assert that the listener was not called and no crash occurred.
+        assertThat(incomingMessages).isEmpty();
+    }
+
+    @Test
+    public void receiveMessages_outOfOrder_ignoresOlderMessage() {
+        mAllowInboundMessages = true;
+        List<Pair<String, byte[]>> incomingMessages = new ArrayList<>();
+        mMessengerImpl.registerMessageListener(
+                Runnable::run,
+                (networkId, associationId, msg) -> {
+                    incomingMessages.add(Pair.create(networkId, msg));
+                });
+
+        // Manually create a message with a higher handleId (e.g., 2).
+        CdmMessage.Message message2 =
+                CdmMessage.Message.newBuilder()
+                        .setHandleId(2)
+                        .setNetworkId(TEST_NETWORK)
+                        .setPayload(com.google.protobuf.ByteString.copyFrom(new byte[] {2}))
+                        .build();
+        byte[] batchedMessage2 =
+                CdmMessage.BatchedMessage.newBuilder()
+                        .addMessages(message2)
+                        .setSenderInstanceId(mRemoteMessenger1.hashCode())
+                        .build()
+                        .toByteArray();
+
+        // Simulate receiving the newer message first.
+        mFakeCompanionDeviceManagerProxy.simulateMessageReceived(
+                CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
+                /* associationId= */ 1,
+                batchedMessage2);
+
+        // Verify the listener was called for the first message.
+        assertThat(incomingMessages).hasSize(1);
+        assertMessagesEqual(incomingMessages.get(0), Pair.create(TEST_NETWORK, new byte[] {2}));
+
+        // Manually create a message with a lower handleId (e.g., 1).
+        CdmMessage.Message message1 =
+                CdmMessage.Message.newBuilder()
+                        .setHandleId(1)
+                        .setNetworkId(TEST_NETWORK)
+                        .setPayload(com.google.protobuf.ByteString.copyFrom(new byte[] {1}))
+                        .build();
+        byte[] batchedMessage1 =
+                CdmMessage.BatchedMessage.newBuilder()
+                        .addMessages(message1)
+                        .setSenderInstanceId(mRemoteMessenger1.hashCode())
+                        .build()
+                        .toByteArray();
+
+        // Simulate receiving the older message second.
+        mFakeCompanionDeviceManagerProxy.simulateMessageReceived(
+                CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
+                /* associationId= */ 1,
+                batchedMessage1);
+
+        // Assert that the listener was not called again for the older, out-of-order message.
+        assertThat(incomingMessages).hasSize(1);
     }
 
     private RemoteDeviceContext simulateConnectedRemoteDevice(int associationId) {
