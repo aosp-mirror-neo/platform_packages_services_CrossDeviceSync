@@ -21,6 +21,7 @@ import static com.android.crossdevicesync.common.Utils.isFutureFailed;
 import static java.util.Objects.requireNonNull;
 
 import android.companion.CompanionDeviceManager;
+import android.os.Trace;
 import android.util.ArrayMap;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -185,27 +186,32 @@ public class MessengerImpl implements Messenger {
     }
 
     private void doInvalidation() {
-        synchronized (mLock) {
-            if (!mInitialized) {
-                return;
+        Trace.beginSection("MessengerImpl.doInvalidation");
+        try {
+            synchronized (mLock) {
+                if (!mInitialized) {
+                    return;
+                }
+                final long now = mClock.elapsedRealtime();
+                if (now < mNextInvalidationTime) {
+                    return;
+                }
+                if (DEBUG) {
+                    Log.d(TAG, "doInvalidation: now=" + now);
+                }
+                mNextInvalidationTime = Long.MAX_VALUE;
+                long nextInvalidation = Long.MAX_VALUE;
+                for (AssociationMessageState state : mAssociationStates.values()) {
+                    state.invalidateLocked(now);
+                    nextInvalidation =
+                            Math.min(nextInvalidation, state.getNextInvalidationTimeLocked(now));
+                }
+                if (nextInvalidation != Long.MAX_VALUE) {
+                    invalidate(nextInvalidation - now);
+                }
             }
-            final long now = mClock.elapsedRealtime();
-            if (now < mNextInvalidationTime) {
-                return;
-            }
-            if (DEBUG) {
-                Log.d(TAG, "doInvalidation: now=" + now);
-            }
-            mNextInvalidationTime = Long.MAX_VALUE;
-            long nextInvalidation = Long.MAX_VALUE;
-            for (AssociationMessageState state : mAssociationStates.values()) {
-                state.invalidateLocked(now);
-                nextInvalidation =
-                        Math.min(nextInvalidation, state.getNextInvalidationTimeLocked(now));
-            }
-            if (nextInvalidation != Long.MAX_VALUE) {
-                invalidate(nextInvalidation - now);
-            }
+        } finally {
+            Trace.endSection();
         }
     }
 
@@ -248,48 +254,54 @@ public class MessengerImpl implements Messenger {
     }
 
     private void onMessage(int associationId, byte[] message) {
-        synchronized (mLock) {
-            if (!mInitialized) {
-                Log.w(TAG, "onMessage: ignore since not initialized");
-                return;
-            }
-            BatchedMessage batchedMessage;
-            try {
-                batchedMessage = BatchedMessage.parseFrom(message);
-            } catch (InvalidProtocolBufferException e) {
-                Log.e(TAG, "onMessage: failed to parse incoming message!", e);
-                return;
-            }
-            List<Message> messages = new ArrayList(batchedMessage.getMessagesList());
-            messages.sort(Comparator.comparingLong(Message::getHandleId));
-            List<Long> ackIds = batchedMessage.getAckIdsList();
-            Log.d(
-                    TAG,
-                    "onMessage: received "
-                            + message.length
-                            + " bytes from association "
-                            + associationId
-                            + " containing "
-                            + messages.size()
-                            + " messages and "
-                            + ackIds.size()
-                            + " ACKs");
-            if (messages.isEmpty() && ackIds.isEmpty()) {
-                return;
-            }
-            AssociationMessageState state =
-                    mAssociationStates.computeIfAbsent(associationId, AssociationMessageState::new);
-            if (!messages.isEmpty()) {
-                for (Message m : messages) {
-                    if (state.noteReceivedMessageLocked(
-                            m.getHandleId(), batchedMessage.getSenderInstanceId())) {
-                        notifyMessageLocked(associationId, m);
-                    }
+        Trace.beginSection("MessengerImpl.onMessage");
+        try {
+            synchronized (mLock) {
+                if (!mInitialized) {
+                    Log.w(TAG, "onMessage: ignore since not initialized");
+                    return;
                 }
-                // Send the ACK in next invalidation.
-                invalidate();
+                BatchedMessage batchedMessage;
+                try {
+                    batchedMessage = BatchedMessage.parseFrom(message);
+                } catch (InvalidProtocolBufferException e) {
+                    Log.e(TAG, "onMessage: failed to parse incoming message!", e);
+                    return;
+                }
+                List<Message> messages = new ArrayList(batchedMessage.getMessagesList());
+                messages.sort(Comparator.comparingLong(Message::getHandleId));
+                List<Long> ackIds = batchedMessage.getAckIdsList();
+                Log.d(
+                        TAG,
+                        "onMessage: received "
+                                + message.length
+                                + " bytes from association "
+                                + associationId
+                                + " containing "
+                                + messages.size()
+                                + " messages and "
+                                + ackIds.size()
+                                + " ACKs");
+                if (messages.isEmpty() && ackIds.isEmpty()) {
+                    return;
+                }
+                AssociationMessageState state =
+                        mAssociationStates.computeIfAbsent(
+                                associationId, AssociationMessageState::new);
+                if (!messages.isEmpty()) {
+                    for (Message m : messages) {
+                        if (state.noteReceivedMessageLocked(
+                                m.getHandleId(), batchedMessage.getSenderInstanceId())) {
+                            notifyMessageLocked(associationId, m);
+                        }
+                    }
+                    // Send the ACK in next invalidation.
+                    invalidate();
+                }
+                state.noteReceivedAcksLocked(ackIds);
             }
-            state.noteReceivedAcksLocked(ackIds);
+        } finally {
+            Trace.endSection();
         }
     }
 

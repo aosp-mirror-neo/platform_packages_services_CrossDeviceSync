@@ -17,18 +17,19 @@ package com.android.crossdevicesync.notification
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.os.UserHandle
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.android.crossdevicesync.ApplicationComponentTestBase
 import com.android.crossdevicesync.R
 import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
+import com.android.crossdevicesync.services.SyncServiceComponentTestBase
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class NotificationHelperImplTest : ApplicationComponentTestBase() {
+class NotificationHelperImplTest : SyncServiceComponentTestBase() {
 
     @Before
     override fun setUp() {
@@ -36,8 +37,47 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
     }
 
     @Test
+    fun testInit_registersUserListener() {
+        mNotificationHelperImpl.init()
+        assertThat(mFakeUserHelper.registeredListeners).contains(mNotificationHelperImpl)
+    }
+
+    @Test
+    fun testDestroy_unregistersUserListener() {
+        mNotificationHelperImpl.init()
+        mNotificationHelperImpl.destroy()
+        assertThat(mFakeUserHelper.registeredListeners).doesNotContain(mNotificationHelperImpl)
+    }
+
+    @Test
+    fun testMethodsDoNothingBeforeInit() {
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications()).isEmpty()
+
+        mNotificationHelperImpl.dismissNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        // No crash/exception means pass, plus we verify no interactions if we could (mocking).
+        // Since it's state-based verification:
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications()).isEmpty()
+    }
+
+    @Test
+    fun testMethodsDoNothingAfterDestroy() {
+        mNotificationHelperImpl.init()
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications()).isNotEmpty()
+
+        mNotificationHelperImpl.destroy()
+
+        // Clear existing to verify new ones aren't added
+        mFakeNotificationManagerProxy.clear()
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications()).isEmpty()
+    }
+
+    @Test
     fun testMaybeShowNotification_firstTime_showsNotificationWithCorrectParams() {
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.init()
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
         // Verify Channel
         assertThat(mFakeNotificationManagerProxy.getChannels().containsKey("apm_sync_channel"))
@@ -48,9 +88,10 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
         assertThat(channel.importance).isEqualTo(NotificationManager.IMPORTANCE_LOW)
 
         // Verify Notification
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
-        val notification = mFakeNotificationManagerProxy.getNotifications()[1]!!
-
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
+        val notification =
+            mFakeNotificationManagerProxy.getUserNotifications()[1 to UserHandle.ALL]!!
         assertThat(notification.channelId).isEqualTo("apm_sync_channel")
         assertThat(notification.smallIcon.resId).isEqualTo(R.drawable.ic_airplane_mode)
         assertThat(notification.visibility).isEqualTo(Notification.VISIBILITY_PUBLIC)
@@ -70,19 +111,22 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
         assertThat(notification.actions).isNull()
 
         // Verify SharedPrefs
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(1)
+        assertThat(getRecordedCount()).isEqualTo(1)
+        assertThat(mSharedPreferences.contains(getDateKey())).isTrue()
     }
 
     @Test
     fun testMaybeShowNotification_onWatch_showsNotificationWithAction() {
+        mNotificationHelperImpl.init()
         mFakeDeviceUtil.isWatch = true
 
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
         // Verify Notification
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
-        val notification = mFakeNotificationManagerProxy.getNotifications()[1]!!
-
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
+        val notification =
+            mFakeNotificationManagerProxy.getUserNotifications()[1 to UserHandle.ALL]!!
         assertThat(notification.contentIntent).isNull()
         assertThat(notification.actions).hasLength(1)
         assertThat(notification.actions[0].title)
@@ -93,43 +137,48 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
 
     @Test
     fun testMaybeShowNotification_secondTimeWithinWeek_doesNotShowNotification() {
+        mNotificationHelperImpl.init()
         // First time
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // Advance clock by 1 day
         mFakeClock.advanceTime(24 * 60 * 60 * 1000)
 
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isFalse()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(1)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .doesNotContainKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(1)
     }
 
     @Test
     fun testMaybeShowNotification_secondTimeAfterWeek_showsNotification() {
+        mNotificationHelperImpl.init()
         // First time
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // Advance clock by 8 days
         mFakeClock.advanceTime(8L * 24 * 60 * 60 * 1000)
 
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(2)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(2)
     }
 
     @Test
     fun testMaybeShowNotification_thirdTimeWithin6Months_doesNotShowNotification() {
+        mNotificationHelperImpl.init()
         // 1st time
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 2nd time (after 8 days)
         mFakeClock.advanceTime(8L * 24 * 60 * 60 * 1000)
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // Advance clock by 1 day (still within 6 months of last display)
@@ -137,106 +186,150 @@ class NotificationHelperImplTest : ApplicationComponentTestBase() {
 
         // Should not show again, as less than 6 months passed from second notification and count is
         // 2
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isFalse()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(2)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .doesNotContainKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(2)
     }
 
     @Test
     fun testMaybeShowNotification_thirdTimeAfter6Months_showsNotification() {
+        mNotificationHelperImpl.init()
         // 1st
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 2nd (after 8 days)
         mFakeClock.advanceTime(8L * 24 * 60 * 60 * 1000)
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(2)
+        assertThat(getRecordedCount()).isEqualTo(2)
 
         // Advance clock by 6 months + 1 day
         mFakeClock.advanceTime(185L * 24 * 60 * 60 * 1000)
 
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(3)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(3)
     }
 
     @Test
     fun testMaybeShowNotification_hundredthTimeBefore6Months_doesNotShowNotification() {
+        mNotificationHelperImpl.init()
         // Show 99 times
         // 1st
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 2nd (after 8 days)
         mFakeClock.advanceTime(8L * 24 * 60 * 60 * 1000)
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 3rd - 99th (after 6 months)
         repeat(97) {
             mFakeClock.advanceTime(185L * 24 * 60 * 60 * 1000) // Advance by ~6 months + 1 day
-            mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+            mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
             mFakeNotificationManagerProxy.clear()
         }
 
         // 100th (before 6 months)
         mFakeClock.advanceTime(1L * 24 * 60 * 60 * 1000) // Advance by 1 day
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isFalse()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(99)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .doesNotContainKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(99)
     }
 
     @Test
     fun testMaybeShowNotification_hundredthTimeAfter6Months_showsNotification() {
+        mNotificationHelperImpl.init()
         // 1st
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 2nd (after 8 days)
         mFakeClock.advanceTime(8L * 24 * 60 * 60 * 1000)
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
         mFakeNotificationManagerProxy.clear()
 
         // 3rd - 99th (after 6 months)
         repeat(97) {
             mFakeClock.advanceTime(185L * 24 * 60 * 60 * 1000)
-            mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+            mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
             mFakeNotificationManagerProxy.clear()
         }
 
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(99)
+        assertThat(getRecordedCount()).isEqualTo(99)
 
         // 100th (after another 6 months)
         mFakeClock.advanceTime(185L * 24 * 60 * 60 * 1000)
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
 
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(100)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(100)
     }
 
     @Test
     fun testClearAllCounters_clearsSharedPrefs() {
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
-        assertThat(mSharedPreferences.getInt(AIRPLANE_MODE_SYNCED, 0)).isEqualTo(1)
+        mNotificationHelperImpl.init()
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(getRecordedCount()).isEqualTo(1)
+        assertThat(mSharedPreferences.contains(getDateKey())).isTrue()
 
         mNotificationHelperImpl.reset()
 
-        assertThat(mSharedPreferences.contains(AIRPLANE_MODE_SYNCED)).isFalse()
-        assertThat(mSharedPreferences.contains(AIRPLANE_MODE_SYNCED + "_date")).isFalse()
+        assertThat(mSharedPreferences.contains(getCountKey())).isFalse()
+        assertThat(mSharedPreferences.contains(getDateKey())).isFalse()
     }
 
     @Test
     fun testDismissNotification_dismissesNotification() {
-        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED)
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isTrue()
+        mNotificationHelperImpl.init()
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .containsKey(1 to UserHandle.ALL)
 
-        mNotificationHelperImpl.dismissNotification(AIRPLANE_MODE_SYNCED)
-        assertThat(mFakeNotificationManagerProxy.getNotifications().containsKey(1)).isFalse()
+        mNotificationHelperImpl.dismissNotification(AIRPLANE_MODE_SYNCED, UserHandle.ALL)
+        assertThat(mFakeNotificationManagerProxy.getUserNotifications())
+            .doesNotContainKey(1 to UserHandle.ALL)
     }
+
+    @Test
+    fun testOnUserRemoved_clearsSharedPrefs() {
+        mNotificationHelperImpl.init()
+        val user = UserHandle.of(10)
+        mFakeUserHelper.addUser(user)
+
+        mNotificationHelperImpl.maybeShowNotification(AIRPLANE_MODE_SYNCED, user)
+
+        assertThat(mSharedPreferences.contains(getCountKey(user = user))).isTrue()
+        assertThat(mSharedPreferences.contains(getDateKey(user = user))).isTrue()
+
+        mFakeUserHelper.removeUser(user)
+
+        assertThat(mSharedPreferences.contains(getCountKey(user = user))).isFalse()
+        assertThat(mSharedPreferences.contains(getDateKey(user = user))).isFalse()
+    }
+
+    private fun getRecordedCount(
+        reason: String = AIRPLANE_MODE_SYNCED,
+        user: UserHandle = UserHandle.ALL,
+    ) = mSharedPreferences.getInt(getCountKey(reason, user), 0)
+
+    private fun getCountKey(
+        reason: String = AIRPLANE_MODE_SYNCED,
+        user: UserHandle = UserHandle.ALL,
+    ) = "${reason}_${user.identifier}"
+
+    private fun getDateKey(
+        reason: String = AIRPLANE_MODE_SYNCED,
+        user: UserHandle = UserHandle.ALL,
+    ) = "${getCountKey(reason, user)}_date"
 }

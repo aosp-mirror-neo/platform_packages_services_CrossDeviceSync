@@ -15,18 +15,25 @@
  */
 package com.android.crossdevicesync.notification
 
+import android.os.UserHandle
 import androidx.annotation.StringDef
 
 /** Helper class to show notifications for Cross Device Sync features. */
 interface NotificationHelper {
-    /**
-     * Potentially shows a notification for the given reason. The display of the notification is
-     * potentially rate-limited to avoid excessive notifications to the user.
-     */
-    fun maybeShowNotification(@NotificationReason notificationReason: String)
+    /** Initializes the [NotificationHelper]. */
+    fun init()
 
-    /** Dismisses the notification for the given reason if it is currently shown. */
-    fun dismissNotification(@NotificationReason notificationReason: String)
+    /** Destroys the [NotificationHelper]. */
+    fun destroy()
+
+    /**
+     * Potentially shows a notification for the given reason and user. The display of the
+     * notification is potentially rate-limited to avoid excessive notifications to the user.
+     */
+    fun maybeShowNotification(@NotificationReason notificationReason: String, user: UserHandle)
+
+    /** Dismisses the notification for the given reason and user. */
+    fun dismissNotification(@NotificationReason notificationReason: String, user: UserHandle)
 
     /** Clears the counters that are present for rate limiting the notifications. */
     fun reset()

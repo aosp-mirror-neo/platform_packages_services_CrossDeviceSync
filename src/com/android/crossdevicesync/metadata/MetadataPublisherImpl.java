@@ -238,11 +238,6 @@ public class MetadataPublisherImpl
     }
 
     @Override
-    public void onUserAdded(UserHandle user) {
-        // Ignore.
-    }
-
-    @Override
     public void onUserRemoved(UserHandle user) {
         synchronized (mLock) {
             if (!mInitialized) {

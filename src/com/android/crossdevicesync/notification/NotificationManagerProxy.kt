@@ -17,20 +17,17 @@ package com.android.crossdevicesync.notification
 
 import android.app.Notification
 import android.app.NotificationChannel
+import android.os.UserHandle
 
 /** A testable interface wrapping [android.app.NotificationManager]. */
 interface NotificationManagerProxy {
 
-    /**
-     * Cancels the notification with the given ID if it is currently active. See
-     * [android.app.NotificationManager.getActiveNotifications] and
-     * [android.app.NotificationManager.cancel]
-     */
-    fun maybeCancel(id: Int)
-
     /** See [android.app.NotificationManager.createNotificationChannel]. */
     fun createNotificationChannel(channel: NotificationChannel)
 
-    /** See [android.app.NotificationManager.notify]. */
-    fun notify(id: Int, notification: Notification)
+    /** See [android.app.NotificationManager.notifyAsUser]. */
+    fun notify(id: Int, notification: Notification, user: UserHandle)
+
+    /** See [android.app.NotificationManager.cancelAsUser]. */
+    fun cancel(id: Int, user: UserHandle)
 }

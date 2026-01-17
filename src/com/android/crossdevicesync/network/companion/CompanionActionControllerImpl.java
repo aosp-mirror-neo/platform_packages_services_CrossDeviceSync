@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import android.companion.ActionRequest;
 import android.companion.ActionResult;
 import android.content.Context;
+import android.os.Trace;
 import android.util.ArraySet;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
@@ -290,31 +291,36 @@ public class CompanionActionControllerImpl implements CompanionActionController 
     }
 
     private void doInvalidation() {
-        synchronized (mLock) {
-            if (!mInitialized) {
-                return;
+        Trace.beginSection("CompanionActionControllerImpl.doInvalidation");
+        try {
+            synchronized (mLock) {
+                if (!mInitialized) {
+                    return;
+                }
+                final long now = mClock.elapsedRealtime();
+                if (now < mNextInvalidationTime) {
+                    return;
+                }
+                if (DEBUG) {
+                    Log.d(TAG, "doInvalidation: now=" + now);
+                }
+                mNextInvalidationTime = Long.MAX_VALUE;
+                maybeTimeoutRequestsLocked(now);
+                mAssociationStates.values().removeIf(AssociationState::allDeactivated);
+                maybeUpdateActionResultListenerLocked();
+                maybeSendActionRequestLocked(
+                        now, s -> s.transportState, ActionRequest.REQUEST_TRANSPORT);
+                maybeSendActionRequestLocked(
+                        now, s -> s.scanningState, ActionRequest.REQUEST_NEARBY_SCANNING);
+                maybeSendActionRequestLocked(
+                        now, s -> s.advertisingState, ActionRequest.REQUEST_NEARBY_ADVERTISING);
+                long nextInvalidation = getNextInvalidationTimeLocked();
+                if (nextInvalidation != Long.MAX_VALUE) {
+                    invalidate(nextInvalidation - now);
+                }
             }
-            final long now = mClock.elapsedRealtime();
-            if (now < mNextInvalidationTime) {
-                return;
-            }
-            if (DEBUG) {
-                Log.d(TAG, "doInvalidation: now=" + now);
-            }
-            mNextInvalidationTime = Long.MAX_VALUE;
-            maybeTimeoutRequestsLocked(now);
-            mAssociationStates.values().removeIf(AssociationState::allDeactivated);
-            maybeUpdateActionResultListenerLocked();
-            maybeSendActionRequestLocked(
-                    now, s -> s.transportState, ActionRequest.REQUEST_TRANSPORT);
-            maybeSendActionRequestLocked(
-                    now, s -> s.scanningState, ActionRequest.REQUEST_NEARBY_SCANNING);
-            maybeSendActionRequestLocked(
-                    now, s -> s.advertisingState, ActionRequest.REQUEST_NEARBY_ADVERTISING);
-            long nextInvalidation = getNextInvalidationTimeLocked();
-            if (nextInvalidation != Long.MAX_VALUE) {
-                invalidate(nextInvalidation - now);
-            }
+        } finally {
+            Trace.endSection();
         }
     }
 

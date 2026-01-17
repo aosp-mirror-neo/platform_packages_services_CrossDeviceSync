@@ -17,17 +17,22 @@ package com.android.crossdevicesync.notification
 
 import android.annotation.SuppressLint
 import android.content.SharedPreferences
+import android.os.UserHandle
 import android.util.Log
+import androidx.annotation.GuardedBy
 import com.android.crossdevicesync.common.Clock
+import com.android.crossdevicesync.dagger.qualifier.Main
+import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
+import com.android.crossdevicesync.user.UserHelper
 import dagger.Lazy
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.concurrent.Executor
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /** Implementation of [NotificationHelper]. */
-@Singleton
+@SyncServiceSingleton
 class NotificationHelperImpl
 @Inject
 constructor(
@@ -35,32 +40,69 @@ constructor(
     private val mClock: Clock,
     private val mNotificationManager: NotificationManagerProxy,
     private val mNotificationConfig: Lazy<NotificationConfig>,
-) : NotificationHelper {
+    @param:Main private val mMainExecutor: Executor,
+    private val mUserHelper: UserHelper,
+) : NotificationHelper, UserHelper.UserListener {
 
-    override fun maybeShowNotification(notificationReason: String) {
-        val notification = mNotificationConfig.get().notificationMap[notificationReason]
-        if (notification == null) {
-            Log.e(TAG, "maybeShowNotification: Unknown Reason ($notificationReason)")
-            return
+    private val mLock = Any()
+
+    @GuardedBy("mLock") private var mInitialized = false
+
+    override fun init() {
+        synchronized(mLock) {
+            if (mInitialized) {
+                return
+            }
+            mInitialized = true
+            mUserHelper.registerUserListener(mMainExecutor, this)
         }
+    }
 
-        if (!checkAndRecordNotificationEligibility(notificationReason, notification.rateLimiters)) {
-            return
+    override fun destroy() {
+        synchronized(mLock) {
+            if (!mInitialized) {
+                return
+            }
+            mInitialized = false
+            mUserHelper.unregisterUserListener(this)
         }
+    }
 
-        // Clear any stale notifications for the same reason.
-        mNotificationManager.maybeCancel(notification.id)
-        // Create a channel and show the notification accordingly for the reason.
-        mNotificationManager.createNotificationChannel(notification.createChannel())
-        mNotificationManager.notify(notification.id, notification.createAndroidNotification())
+    override fun maybeShowNotification(notificationReason: String, user: UserHandle) {
+        synchronized(mLock) {
+            if (!mInitialized) {
+                return
+            }
+
+            val notification = mNotificationConfig.get().notificationMap[notificationReason]
+            if (notification == null) {
+                Log.e(TAG, "maybeShowNotification: Unknown Reason ($notificationReason)")
+                return
+            }
+
+            if (!checkAndRecordEligibility(notificationReason, user, notification.rateLimiters)) {
+                return
+            }
+
+            // Clear any stale notifications for the same reason.
+            mNotificationManager.cancel(notification.id, user)
+            // Create a channel and show the notification accordingly for the reason.
+            mNotificationManager.createNotificationChannel(notification.createChannel())
+            mNotificationManager.notify(
+                notification.id,
+                notification.createAndroidNotification(),
+                user,
+            )
+        }
     }
 
     @SuppressLint("UseKtx")
-    private fun checkAndRecordNotificationEligibility(
+    private fun checkAndRecordEligibility(
         reason: String,
+        user: UserHandle,
         rateLimiters: List<RateLimiter>,
     ): Boolean {
-        val countKey = reason
+        val countKey = "${reason}_${user.identifier}"
         val dateKey = countKey + "_date"
         val countShown = mSharedPreferences.getInt(countKey, 0)
 
@@ -130,22 +172,52 @@ constructor(
         return true
     }
 
-    override fun dismissNotification(notificationReason: String) {
-        val notification = mNotificationConfig.get().notificationMap[notificationReason]
-        if (notification == null) {
-            Log.e(TAG, "dismissNotification: Unknown Reason ($notificationReason)")
-            return
-        }
+    override fun dismissNotification(notificationReason: String, user: UserHandle) {
+        synchronized(mLock) {
+            if (!mInitialized) {
+                return
+            }
 
-        // Clear any stale notifications for the reason.
-        mNotificationManager.maybeCancel(notification.id)
+            val notification = mNotificationConfig.get().notificationMap[notificationReason]
+            if (notification == null) {
+                Log.e(TAG, "dismissNotification: Unknown Reason ($notificationReason)")
+                return
+            }
+
+            // Clear any stale notifications for the reason.
+            mNotificationManager.cancel(notification.id, user)
+        }
+    }
+
+    override fun reset() {
+        synchronized(mLock) {
+            if (!mInitialized) {
+                return
+            }
+
+            clearSharedPrefs { reason -> reason }
+        }
+    }
+
+    override fun onUserRemoved(user: UserHandle) {
+        synchronized(mLock) {
+            if (!mInitialized) {
+                return
+            }
+
+            clearSharedPrefs { reason -> "${reason}_${user.identifier}" }
+        }
     }
 
     @SuppressLint("UseKtx")
-    override fun reset() {
-        mNotificationConfig.get().notificationMap.keys.forEach { reason ->
-            mSharedPreferences.edit().remove(reason).remove("${reason}_date").apply()
+    private fun clearSharedPrefs(getPrefixForReason: (String) -> String) {
+        val editor = mSharedPreferences.edit()
+        val allPrefs = mSharedPreferences.all
+        for (reason in mNotificationConfig.get().notificationMap.keys) {
+            val prefix = getPrefixForReason(reason)
+            allPrefs.keys.filter { it.startsWith(prefix) }.forEach { editor.remove(it) }
         }
+        editor.apply()
     }
 
     companion object {

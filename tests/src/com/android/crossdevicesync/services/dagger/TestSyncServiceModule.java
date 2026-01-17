@@ -17,6 +17,8 @@ package com.android.crossdevicesync.services.dagger;
 
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.metadata.fake.FakeMetadataPublisher;
+import com.android.crossdevicesync.notification.NotificationHelper;
+import com.android.crossdevicesync.notification.fake.FakeNotificationHelper;
 
 import dagger.Binds;
 import dagger.Module;
@@ -27,4 +29,8 @@ public abstract class TestSyncServiceModule {
     @Binds
     @SyncServiceSingleton
     abstract MetadataPublisher bindsMetadataPublisher(FakeMetadataPublisher impl);
+
+    @Binds
+    @SyncServiceSingleton
+    abstract NotificationHelper bindsNotificationHelper(FakeNotificationHelper impl);
 }

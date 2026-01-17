@@ -16,25 +16,41 @@
 
 package com.android.crossdevicesync.notification.fake
 
+import android.os.UserHandle
 import com.android.crossdevicesync.notification.NotificationHelper
 import com.android.crossdevicesync.notification.NotificationReason
+import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
+@SyncServiceSingleton
 class FakeNotificationHelper @Inject constructor() : NotificationHelper {
-    val shownNotifications = mutableListOf<String>()
+    val shownUserNotifications = mutableSetOf<Pair<String, UserHandle>>()
     var resetCalled = false
+    var initialized = false
 
-    override fun maybeShowNotification(@NotificationReason notificationReason: String) {
-        shownNotifications.add(notificationReason)
+    override fun init() {
+        initialized = true
     }
 
-    override fun dismissNotification(notificationReason: String) {
-        shownNotifications.remove(notificationReason)
+    override fun destroy() {
+        initialized = false
+    }
+
+    override fun maybeShowNotification(
+        @NotificationReason notificationReason: String,
+        user: UserHandle,
+    ) {
+        check(initialized) { "Not initialized" }
+        shownUserNotifications.add(notificationReason to user)
+    }
+
+    override fun dismissNotification(notificationReason: String, user: UserHandle) {
+        check(initialized) { "Not initialized" }
+        shownUserNotifications.remove(notificationReason to user)
     }
 
     override fun reset() {
+        check(initialized) { "Not initialized" }
         resetCalled = true
     }
 }

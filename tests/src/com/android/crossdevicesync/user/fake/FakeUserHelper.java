@@ -59,6 +59,11 @@ public class FakeUserHelper implements UserHelper {
         mListeners.removeIf(l -> l.second == listener);
     }
 
+    /** Returns the list of registered listeners. */
+    public List<UserListener> getRegisteredListeners() {
+        return mListeners.stream().map(l -> l.second).toList();
+    }
+
     /** Add a user for testing. */
     public void addUser(UserHandle user) {
         if (mUsers.add(user)) {

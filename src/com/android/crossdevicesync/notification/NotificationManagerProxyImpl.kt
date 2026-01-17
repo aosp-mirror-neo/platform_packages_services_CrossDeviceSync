@@ -19,6 +19,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.os.UserHandle
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,17 +31,15 @@ class NotificationManagerProxyImpl @Inject constructor(mContext: Context) :
     private val mNotificationManager: NotificationManager =
         mContext.getSystemService(NotificationManager::class.java)
 
-    override fun maybeCancel(id: Int) {
-        if (mNotificationManager.activeNotifications.any { it.id == id }) {
-            mNotificationManager.cancel(id)
-        }
-    }
-
     override fun createNotificationChannel(channel: NotificationChannel) {
         mNotificationManager.createNotificationChannel(channel)
     }
 
-    override fun notify(id: Int, notification: Notification) {
-        mNotificationManager.notify(id, notification)
+    override fun notify(id: Int, notification: Notification, user: UserHandle) {
+        mNotificationManager.notifyAsUser(/* tag */ null, id, notification, user)
+    }
+
+    override fun cancel(id: Int, user: UserHandle) {
+        mNotificationManager.cancelAsUser(/* tag */ null, id, user)
     }
 }

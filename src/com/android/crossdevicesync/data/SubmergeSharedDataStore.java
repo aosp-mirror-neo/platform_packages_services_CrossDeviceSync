@@ -20,6 +20,7 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.IntDef;
+import android.os.Trace;
 import android.util.Log;
 
 import androidx.annotation.GuardedBy;
@@ -215,13 +216,18 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     }
 
     private boolean doInit() throws Exception {
-        synchronized (mLock) {
-            requireStateLocked(STATE_UPGRADING);
-            mNetwork.registerListener(mStorage.getIoThreadExecutor(), this);
+        Trace.beginSection("SubmergeSharedDataStore.doInit");
+        try {
+            synchronized (mLock) {
+                requireStateLocked(STATE_UPGRADING);
+                mNetwork.registerListener(mStorage.getIoThreadExecutor(), this);
+            }
+            mStorage.open();
+            upgrade();
+            return true;
+        } finally {
+            Trace.endSection();
         }
-        mStorage.open();
-        upgrade();
-        return true;
     }
 
     private void upgrade() throws Exception {
@@ -406,6 +412,16 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     /** Called on IO thread for transaction. */
     private <U> U doTransact(String docId, TransactionApplier<T, U> applier) throws Exception {
+        Trace.beginSection("SubmergeSharedDataStore.doTransact");
+        try {
+            return doTransactNoTracing(docId, applier);
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    private <U> U doTransactNoTracing(String docId, TransactionApplier<T, U> applier)
+            throws Exception {
         DataStore<T> submergeDataStore;
         String nodeId;
         synchronized (mLock) {
@@ -445,6 +461,15 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     /** Called on IO thread when a network message is received. */
     @Override
     public void onNetworkMessage(int associationId, byte[] message) {
+        Trace.beginSection("SubmergeSharedDataStore.onNetworkMessage");
+        try {
+            onNetworkMessageNoTracing(associationId, message);
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    private void onNetworkMessageNoTracing(int associationId, byte[] message) {
         Log.i(TAG, "onNetworkMessage: associationId = " + associationId);
         DataStore<T> submergeDataStore;
         String myNodeId;

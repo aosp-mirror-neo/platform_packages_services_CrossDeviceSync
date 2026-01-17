@@ -28,8 +28,6 @@ import com.android.crossdevicesync.common.fake.FakeDeviceUtils;
 import com.android.crossdevicesync.common.fake.FakeResources;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.notification.NotificationHelperImpl;
-import com.android.crossdevicesync.notification.fake.FakeNotificationHelper;
 import com.android.crossdevicesync.notification.fake.FakeNotificationManagerProxy;
 import com.android.crossdevicesync.user.fake.FakeUserHelper;
 
@@ -46,8 +44,6 @@ public abstract class ApplicationComponentTestBase {
     @Inject protected BootReceiver mBootReceiver;
     @Inject protected FakeCompanionDeviceManagerProxy mFakeCompanionDeviceManagerProxy;
     @Inject protected FakeNotificationManagerProxy mFakeNotificationManagerProxy;
-    @Inject protected FakeNotificationHelper mFakeNotificationHelper;
-    @Inject protected NotificationHelperImpl mNotificationHelperImpl;
     @Inject @Main protected Executor mMainExecutor;
     @Inject protected FakeClock mFakeClock;
     @Inject @Main protected DelayedExecutor mDelayedExecutor;
