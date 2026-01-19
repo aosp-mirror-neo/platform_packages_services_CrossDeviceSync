@@ -17,9 +17,12 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Sincronització multidispositiu"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Mode d\'avió"</string>
+    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
+    <skip />
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Mode d\'avió"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Ara el mode d\'avió se sincronitzarà entre el telèfon i el rellotge.\n\nGestiona les preferències de sincronització de modes a la configuració del rellotge i del telèfon."</string>
+    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
+    <skip />
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Sincronització de No molestis"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"No molestis"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"S\'ha sincronitzat des del dispositiu proper"</string>

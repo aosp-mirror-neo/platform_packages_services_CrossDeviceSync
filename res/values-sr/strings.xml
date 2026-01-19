@@ -17,9 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Синхронизација на више уређаја"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Режим рада у авиону"</string>
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Синхронизација у режиму рада у авиону"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Режим рада у авиону"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Режим рада у авиону ће се сада синхронизовати на телефону и сату.\n\nУправљајте подешавањима синхронизације режима у подешавањима сата и телефона."</string>
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"Управљај подешавањима"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Синхронизација режима Не узнемиравај"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Не узнемиравај"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Синхронизовано са уређаја у близини"</string>

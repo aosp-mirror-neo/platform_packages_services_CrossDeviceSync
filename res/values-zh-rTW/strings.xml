@@ -17,9 +17,12 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"跨裝置同步"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"飛航模式"</string>
+    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
+    <skip />
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"飛航模式"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"現在起，手機和手錶的飛航模式會保持同步。\n\n如要管理模式同步偏好設定，請前往手錶和手機的設定頁面。"</string>
+    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
+    <skip />
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"零打擾同步"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"零打擾"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"已從鄰近裝置同步處理"</string>

@@ -17,9 +17,12 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Többeszközös szinkronizálás"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"Repülős üzemmód"</string>
+    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
+    <skip />
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Repülős üzemmód"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"A Repülős üzemmód mostantól szinkronizálódik a telefonján és az óráján.\n\nA módszinkronizálási beállításokat az óra és a telefon beállításaiban kezelheti."</string>
+    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
+    <skip />
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Ne zavarjanak mód szinkronizálása"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Ne zavarjanak"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Szinkronizálva a közeli eszközéről"</string>
