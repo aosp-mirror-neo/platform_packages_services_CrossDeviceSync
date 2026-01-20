@@ -93,19 +93,17 @@ public class FakeNetworkManager implements NetworkManager {
     }
 
     @Override
-    public Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
-        return createNetworkForUser(UserHandle.USER_ALL, networkId, remoteDeviceCondition);
-    }
-
-    @Override
     public Network createNetworkForUser(
-            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+            int userId,
+            String networkId,
+            int feature,
+            Predicate<RemoteDevice> remoteDeviceCondition) {
         throwIfUninitialized();
         FakeNetwork network = getNetwork(networkId, userId);
         if (network != null) {
             return network;
         }
-        network = new FakeNetwork(userId, networkId, remoteDeviceCondition);
+        network = new FakeNetwork(userId, networkId, feature, remoteDeviceCondition);
         mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
         network.invalidate();
         return network;
@@ -426,6 +424,7 @@ public class FakeNetworkManager implements NetworkManager {
     public class FakeNetwork implements Network {
         private final int mUserId;
         private final String mNetworkId;
+        private final int mFeature;
         private final Predicate<RemoteDevice> mDevicePredicate;
         private final Set<Integer> mAssociationIds = new HashSet<>();
         private final List<Pair<Executor, NetworkListener>> mListeners = new ArrayList<>();
@@ -435,9 +434,14 @@ public class FakeNetworkManager implements NetworkManager {
         private boolean mIsDestroyed = false;
 
         /** Creates a new FakeNetwork. */
-        FakeNetwork(int userId, String networkId, Predicate<RemoteDevice> devicePredicate) {
+        FakeNetwork(
+                int userId,
+                String networkId,
+                int feature,
+                Predicate<RemoteDevice> devicePredicate) {
             mUserId = userId;
             mNetworkId = networkId;
+            mFeature = feature;
             mDevicePredicate = devicePredicate;
         }
 
@@ -449,6 +453,11 @@ public class FakeNetworkManager implements NetworkManager {
         @Override
         public int getUserId() {
             return mUserId;
+        }
+
+        @Override
+        public int getFeature() {
+            return mFeature;
         }
 
         @Override

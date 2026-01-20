@@ -15,6 +15,8 @@
  */
 package com.android.crossdevicesync.metadata;
 
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_METADATA;
+
 import android.companion.CompanionDeviceManager;
 import android.content.SharedPreferences;
 import android.os.PersistableBundle;
@@ -146,7 +148,12 @@ public class MetadataPublisherImpl
         // Need a different network id for USER_ALL since it cannot share the same id with per-user
         // network.
         String networkId = userId == UserHandle.USER_ALL ? NETWORK_ID_USER_ALL : NETWORK_ID;
-        network = mNetworkManager.createNetworkForUser(userId, networkId, device -> true);
+        network =
+                mNetworkManager.createNetworkForUser(
+                        userId,
+                        networkId,
+                        CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_METADATA,
+                        device -> true);
         mUserNetworks.put(userId, network);
         network.registerListener(mMainExecutor, this);
         return network;

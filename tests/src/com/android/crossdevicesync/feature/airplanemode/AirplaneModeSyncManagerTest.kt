@@ -39,6 +39,7 @@ import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDev
 import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase
 import com.android.internal.R
+import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC
 import com.android.server.connectivity.Flags
 import com.google.common.truth.Truth.assertThat
 import java.io.StringWriter
@@ -103,6 +104,17 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
                     .getBoolean(Settings.Global.AIRPLANE_MODE_SYNC)
             )
             .isFalse()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testInit_initializesNetworkWithFeature() {
+        mAirplaneModeSyncManager.init()
+
+        val network = mFakeNetworkManager.getNetwork(AirplaneModeSyncManager.NETWORK_ID, USER_ALL)
+
+        assertThat(network.feature)
+            .isEqualTo(CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC)
     }
 
     @Test

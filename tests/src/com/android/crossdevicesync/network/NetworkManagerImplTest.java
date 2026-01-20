@@ -57,10 +57,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 @RunWith(AndroidJUnit4.class)
 public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Rule public final MockitoRule mockito = MockitoJUnit.rule();
+
+    private static final Predicate<RemoteDevice> INCLUDE_ALL_DEVICES = device -> true;
+
     @Mock private NetworkListener mListener;
 
     @Before
@@ -335,9 +339,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void createNetwork_success() {
-        Network network =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
 
         assertThat(network).isNotNull();
         assertThat(network.getNetworkId()).isEqualTo("network1");
@@ -346,12 +348,8 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void createNetwork_returnsExisting() {
-        Network network1 =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
-        Network network2 =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
+        Network network1 = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
+        Network network2 = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
 
         assertThat(network1).isSameInstanceAs(network2);
     }
@@ -362,29 +360,23 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         assertThrows(
                 IllegalStateException.class,
-                () ->
-                        mNetworkManagerImpl.createNetwork(
-                                "network1", /* deviceCondition= */ device -> true));
+                () -> mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES));
     }
 
     @Test
     public void createNetwork_throwsWhenUserIdConflicts() {
         mNetworkManagerImpl.createNetworkForUser(
-                UserHandle.USER_SYSTEM, "network1", /* deviceCondition= */ device -> true);
-        mNetworkManagerImpl.createNetwork("network2", /* deviceCondition= */ device -> true);
+                UserHandle.USER_SYSTEM, "network1", INCLUDE_ALL_DEVICES);
+        mNetworkManagerImpl.createNetwork("network2", INCLUDE_ALL_DEVICES);
 
         assertThrows(
                 IllegalArgumentException.class,
-                () ->
-                        mNetworkManagerImpl.createNetwork(
-                                "network1", /* deviceCondition= */ device -> true));
+                () -> mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES));
         assertThrows(
                 IllegalArgumentException.class,
                 () ->
                         mNetworkManagerImpl.createNetworkForUser(
-                                UserHandle.USER_SYSTEM,
-                                "network2",
-                                /* deviceCondition= */ device -> true));
+                                UserHandle.USER_SYSTEM, "network2", INCLUDE_ALL_DEVICES));
     }
 
     @Test
@@ -444,14 +436,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void networkMembership_onlyMatchedUserCanJoin() {
-        Network network1 =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
+        Network network1 = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
         NetworkListener listener1 = mock(NetworkListener.class);
         network1.registerListener(mMainExecutor, listener1);
         Network network2 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        UserHandle.USER_SYSTEM, "network2", /* deviceCondition= */ device -> true);
+                        UserHandle.USER_SYSTEM, "network2", INCLUDE_ALL_DEVICES);
         NetworkListener listener2 = mock(NetworkListener.class);
         network2.registerListener(mMainExecutor, listener2);
         AssociationInfo info1 = createAssociationInfo(/* id= */ 1, UserHandle.USER_SYSTEM);
@@ -512,9 +502,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void network_messagingMethodsDoNotCrashWhenDestroyed() {
-        Network network =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
 
         network.destroy();
 
@@ -606,9 +594,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void registerListener_onDestroyedNetwork_doesNotRegister() {
-        Network network =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
         network.destroy();
 
         network.registerListener(mMainExecutor, mListener);
@@ -623,8 +609,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void broadcastMessage_sendsToAllDevicesInNetwork() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {1, 2, 3}, 0);
 
@@ -644,10 +629,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         // Setup 2 networks with the same network id but owned by different users.
         Network network1 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 1, "network", /* deviceCondition= */ device -> true);
+                        /* userId= */ 1, "network", INCLUDE_ALL_DEVICES);
         Network network2 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 2, "network", /* deviceCondition= */ device -> true);
+                        /* userId= */ 2, "network", INCLUDE_ALL_DEVICES);
 
         network1.broadcastMessage(new byte[] {1, 2, 3}, 0);
         network2.broadcastMessage(new byte[] {4, 5, 6}, 0);
@@ -672,8 +657,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void multicastMessage_sendsToSpecifiedDevices() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.multicastMessage(Collections.singletonList(2), new byte[] {4, 5, 6}, 0);
 
@@ -686,8 +670,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void cancelMessage_preventsMessageFromBeingSent() {
         setupTwoDevices(/* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         long messageId =
                 network.broadcastMessage(new byte[] {7, 8, 9}, Network.MESSAGE_FLAG_STICKY);
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
@@ -702,10 +685,10 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     public void cancelMessage_notCancelingMessageFromAnotherNetwork() {
         Network network1 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        UserHandle.USER_SYSTEM, "network1", /* deviceCondition= */ device -> true);
+                        UserHandle.USER_SYSTEM, "network1", INCLUDE_ALL_DEVICES);
         Network network2 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 10, "network1", /* deviceCondition= */ device -> true);
+                        /* userId= */ 10, "network1", INCLUDE_ALL_DEVICES);
         long msg1 = network1.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
         long msg2 = network2.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
 
@@ -729,8 +712,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageToOfflineDevice_waitsForPresence() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
 
@@ -744,8 +726,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageWithScanFlag_triggersScanner() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {2}, Network.MESSAGE_FLAG_SCANNING_IF_NOT_PRESENT);
 
@@ -757,8 +738,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     public void messageWithNearbyOnlyFlag_notSentToFarDevice() {
         setupTwoDevices(/* present= */ true, /* nearby= */ false);
         makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {3}, Network.MESSAGE_FLAG_NEARBY_ONLY);
 
@@ -770,8 +750,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     public void multicastMessage_sendsToSubsetOfDevicesInNetwork() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
         setupDevice(/* id= */ 3, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         assertThat(network.getRemoteDevices()).hasSize(3);
 
         network.multicastMessage(List.of(1, 3), new byte[] {4, 5, 6}, 0);
@@ -799,8 +778,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void destroy_listenersAreNotNotifiedOfSubsequentChanges() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.registerListener(mMainExecutor, mListener);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
         reset(mListener);
@@ -816,8 +794,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageWithStickyAndNearbyOnlyFlags_sendsWhenDeviceBecomesNearby() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(
                 new byte[] {1}, Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_NEARBY_ONLY);
@@ -833,8 +810,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void destroyNetwork_cancelsPendingMessages() {
         setupTwoDevices(/* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.broadcastMessage(new byte[] {4}, Network.MESSAGE_FLAG_STICKY);
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
@@ -848,8 +824,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void inboundMessage_notifiesListener() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.registerListener(mMainExecutor, mListener);
 
         mFakeMessenger.receiveMessage("test", 2, new byte[] {5, 6});
@@ -860,8 +835,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void inboundMessage_forUnknownNetwork_isDropped() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.registerListener(mMainExecutor, mListener);
 
         mFakeMessenger.receiveMessage("unknown_network", 1, new byte[] {7, 8});
@@ -877,12 +851,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         // Setup 2 networks for 2 users sharing the same network id.
         Network network1 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 1, "network", /* deviceCondition= */ device -> true);
+                        /* userId= */ 1, "network", INCLUDE_ALL_DEVICES);
         NetworkListener listener1 = mock(NetworkListener.class);
         network1.registerListener(mMainExecutor, listener1);
         Network network2 =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 2, "network", /* deviceCondition= */ device -> true);
+                        /* userId= */ 2, "network", INCLUDE_ALL_DEVICES);
         NetworkListener listener2 = mock(NetworkListener.class);
         network2.registerListener(mMainExecutor, listener2);
 
@@ -900,8 +874,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageLifecycle_success() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {1}, 0);
 
@@ -916,8 +889,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageLifecycle_failureAndRetry_passesCorrectAttemptCount() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_RETRY_IF_FAILED);
 
@@ -931,8 +903,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageLifecycle_noRetry_passesCorrectAttemptCount() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         network.broadcastMessage(new byte[] {1}, 0);
 
@@ -944,8 +915,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void cancelMessage_cancelsInFlightMessage() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         long messageId = network.broadcastMessage(new byte[] {1, 2, 3}, 0);
         assertThat(mFakeMessenger.getSentMessages()).hasSize(2);
         SentMessage sentMessage = mFakeMessenger.getSentMessages().get(0);
@@ -960,8 +930,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageLifecycle_failed() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.broadcastMessage(new byte[] {1}, 0);
         assertThat(mFakeMessenger.getSentMessages()).hasSize(2);
         SentMessage sentMessage = mFakeMessenger.getSentMessages().get(0);
@@ -989,8 +958,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void broadcastMessage_deliversToDevicesJoiningNetworkAfterBroadcast() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Broadcast a sticky message while device 1 is online.
         network.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
@@ -1007,13 +975,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void recreatingNetwork_doesNotInheritOldListeners() {
-        Network network1 =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network1 = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network1.registerListener(mMainExecutor, mListener);
 
         network1.destroy();
 
-        mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
 
         // Verify the listener from the old network was not notified.
@@ -1022,16 +989,14 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void recreatingNetwork_doesNotInheritOldMessages() {
-        Network network1 =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network1 = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
         network1.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
 
         network1.destroy();
 
-        Network network2 =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network2 = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
         // Verify the sticky message from the old network was not sent.
@@ -1041,8 +1006,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void cancelStickyBroadcast_isNotDeliveredToNewDevices() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a sticky broadcast to the first device.
         long messageId = network.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
@@ -1061,8 +1025,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void stickyMessageFailed_resendAfterReappearingUntilSuccess() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a sticky message to the first device.
         network.unicastMessage(/* associationId= */ 1, new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
@@ -1111,8 +1074,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void stickyBroadcastDeliveredToNewDevices() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a sticky broadcast.
         long messageId = network.broadcastMessage(new byte[] {1}, Network.MESSAGE_FLAG_STICKY);
@@ -1155,8 +1117,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void nonStickyBroadcastNotDeliveredToNewDevices() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a non-sticky broadcast.
         long messageId = network.broadcastMessage(new byte[] {1}, /* flags= */ 0);
@@ -1172,8 +1133,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void scanMessageTriggersScanningUntilDeviceBecomesPresent() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a message that triggers scanning.
         network.unicastMessage(
@@ -1197,8 +1157,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void scanNearbyMessageTriggersScanningUntilDeviceBecomesNearby() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a message that triggers scanning.
         network.unicastMessage(
@@ -1229,8 +1188,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void nonStickyScanMessageFailed_notRescanOrResentAfterReappear() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a message that triggers scanning.
         network.unicastMessage(
@@ -1260,8 +1218,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void stickyScanMessageFailed_rescanAndResentAfterReappear() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a sticky message that triggers scanning.
         network.unicastMessage(
@@ -1306,8 +1263,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void stickyScanBroadcastTriggerScanForNewDevices() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
 
         // Send a sticky scan broadcast.
         network.broadcastMessage(
@@ -1333,8 +1289,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void stickyMessageDoesNotSurviveNetworkDestroy() {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         // Send a sticky broadcast
         network.broadcastMessage(
                 new byte[] {1}, Network.MESSAGE_FLAG_STICKY | Network.MESSAGE_FLAG_NEARBY_ONLY);
@@ -1342,7 +1297,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
         // Destroy and re-create
         network.destroy();
-        mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         // Make device nearby
         makeDevicePresent(/* associationId= */ 1, /* nearby= */ true);
 
@@ -1373,8 +1328,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void stickyMessageDoesNotStickIfDeviceNotExisting() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         // Send a sticky message to a non-existing device.
         long msgId =
                 network.unicastMessage(
@@ -1396,7 +1350,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
         Network network =
                 mNetworkManagerImpl.createNetworkForUser(
-                        /* userId= */ 10, "test", /* deviceCondition= */ device -> true);
+                        /* userId= */ 10, "test", INCLUDE_ALL_DEVICES);
         // Send a sticky message to an out-of-network device with mismatched user id.
         long msgId =
                 network.unicastMessage(
@@ -1429,8 +1383,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void scanningStoppedWhenMessageCancelled() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         long messageId =
                 network.unicastMessage(
                         /* associationId= */ 1,
@@ -1448,8 +1401,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void scanningStoppedWhenNetworkDestroyed() {
         setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         network.unicastMessage(
                 /* associationId= */ 1,
                 new byte[] {1},
@@ -1465,8 +1417,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void advertisingStartedWhenDeviceJoinsNetwork() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         assertThat(mFakeAdvertiser.getSessions()).isEmpty();
 
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
@@ -1477,8 +1428,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void advertisingStoppedWhenDeviceLeavesNetwork() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
         assertThat(mFakeAdvertiser.getSessions()).hasSize(1);
         AdvertisingSession advertisingSession = mFakeAdvertiser.getAnySession();
@@ -1492,8 +1442,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Test
     public void advertisingStoppedWhenNetworkDestroyed() {
-        Network network =
-                mNetworkManagerImpl.createNetwork("test", /* deviceCondition= */ device -> true);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
         setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
         assertThat(mFakeAdvertiser.getSessions()).hasSize(1);
         AdvertisingSession advertisingSession = mFakeAdvertiser.getAnySession();
@@ -1508,12 +1457,8 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Test
     public void messageSentToMultipleNetworks_allSentInFIFOOrder() {
         setupTwoDevices(/* present= */ true, /* nearby= */ true);
-        Network network1 =
-                mNetworkManagerImpl.createNetwork(
-                        "network1", /* deviceCondition= */ device -> true);
-        Network network2 =
-                mNetworkManagerImpl.createNetwork(
-                        "network2", /* deviceCondition= */ device -> true);
+        Network network1 = mNetworkManagerImpl.createNetwork("network1", INCLUDE_ALL_DEVICES);
+        Network network2 = mNetworkManagerImpl.createNetwork("network2", INCLUDE_ALL_DEVICES);
 
         network1.broadcastMessage(new byte[] {1}, 0);
         network2.unicastMessage(1, new byte[] {2}, 0);

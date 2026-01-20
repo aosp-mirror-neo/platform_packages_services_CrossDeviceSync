@@ -22,6 +22,7 @@ import android.os.UserHandle;
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.Dumpable;
+import com.android.internal.util.FrameworkStatsLog;
 
 import java.util.List;
 import java.util.Map;
@@ -48,23 +49,84 @@ public interface NetworkManager extends Dumpable {
     List<Network> getNetworks();
 
     /**
-     * Creates a new network with the given network ID and predicate for filtering remote devices.
-     * Devices will join or leave the network dynamically based on the evaluation result of
-     * predicate. Predicate will be evaluated dynamically by observing events from {@link
-     * CompanionDeviceManager}.
+     * Creates a new network.
+     *
+     * @param networkId a unique ID for the network. This can't match the networkId used for
+     *     user-restricted networks.
+     * @param remoteDeviceCondition a predicate for filtering remote devices. Devices will join or
+     *     leave the network dynamically based on the evaluation result of predicate. Predicate will
+     *     be evaluated dynamically by observing events from {@link CompanionDeviceManager}.
      */
-    Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition);
+    default Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+        return createNetworkForUser(
+                UserHandle.USER_ALL,
+                networkId,
+                FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED,
+                remoteDeviceCondition);
+    }
 
     /**
-     * Same as {@link #createNetwork(String, Predicate)} but make the network private to a user id.
-     * Only devices owned by the same user can join this network.
+     * Creates a new network.
      *
-     * <p>Note: this method allows each user to have its own network instance under the same network
-     * id. This is useful for multi-user features that want to share the same network id across
-     * users.
+     * @param networkId a unique ID for the network. This can't match the networkId used for
+     *     user-restricted networks.
+     * @param feature the {@code SyncFeature} logging enum to use for logging inbound and outbound
+     *     messages in this network.
+     * @param remoteDeviceCondition a predicate for filtering remote devices. Devices will join or
+     *     leave the network dynamically based on the evaluation result of predicate. Predicate will
+     *     be evaluated dynamically by observing events from {@link CompanionDeviceManager}.
+     */
+    default Network createNetwork(
+            String networkId, int feature, Predicate<RemoteDevice> remoteDeviceCondition) {
+        return createNetworkForUser(UserHandle.USER_ALL, networkId, feature, remoteDeviceCondition);
+    }
+
+    /**
+     * Creates a new network for a user. This allows each user to have their own network instance
+     * under the same network id. This is useful for multi-user features that want to share the same
+     * {@code networkId} across users.
+     *
+     * @param userId the user that this network is restricted to. Only devices owned by the same
+     *     user can join this network. If this is {@link UserHandle#USER_ALL}, all devices are
+     *     allowed to join.
+     * @param networkId a unique ID for the network. This can be reused across different users but
+     *     must differ from the networkId used for non user-restricted networks that use {@link
+     *     UserHandle#USER_ALL}.
+     * @param remoteDeviceCondition a predicate for filtering remote devices. Devices will join or
+     *     leave the network dynamically based on the evaluation result of predicate. Predicate will
+     *     be evaluated dynamically by observing events from {@link CompanionDeviceManager}.
+     */
+    default Network createNetworkForUser(
+            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+        return createNetworkForUser(
+                userId,
+                networkId,
+                FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED,
+                remoteDeviceCondition);
+    }
+
+    /**
+     * Creates a new network for a user. This allows each user to have their own network instance
+     * under the same network id. This is useful for multi-user features that want to share the same
+     * {@code networkId} across users.
+     *
+     * @param userId the user that this network is restricted to. Only devices owned by the same
+     *     user can join this network. If this is {@link UserHandle#USER_ALL}, all devices are
+     *     allowed to join.
+     * @param networkId a unique ID for the network. This can be reused across different users but
+     *     must differ from the networkId used for non user-restricted networks that use {@link
+     *     UserHandle#USER_ALL}.
+     * @param feature the {@code SyncFeature} logging enum to use for logging inbound and outbound
+     *     messages in this network.
+     * @param remoteDeviceCondition a predicate for filtering remote devices. Devices will join or
+     *     leave the network dynamically based on the evaluation result of predicate. Predicate will
+     *     be evaluated dynamically by observing events from {@link CompanionDeviceManager}.
      */
     Network createNetworkForUser(
-            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition);
+            int userId,
+            String networkId,
+            int feature,
+            Predicate<RemoteDevice> remoteDeviceCondition);
 
     /**
      * Invalidates all networks and add or remove devices from networks based on the latest
@@ -174,6 +236,9 @@ public interface NetworkManager extends Dumpable {
          * network is shared across all users.
          */
         int getUserId();
+
+        /** The feature ID used to log the inbound and outbound messages for this network. */
+        int getFeature();
 
         /** Returns the mapping of association ID to the remote device. */
         Map<Integer, RemoteDevice> getRemoteDevices();
