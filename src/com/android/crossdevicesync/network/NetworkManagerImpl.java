@@ -16,6 +16,15 @@
 package com.android.crossdevicesync.network;
 
 import static com.android.crossdevicesync.common.Utils.toIntArray;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_DROPPED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_RECEIVED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FAILED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FINISHED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_STARTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FAILED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FINISHED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_STARTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED;
 
 import static java.util.Objects.requireNonNull;
 
@@ -35,6 +44,7 @@ import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
@@ -46,6 +56,8 @@ import com.android.crossdevicesync.network.scanner.Scanner;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,6 +91,7 @@ public class NetworkManagerImpl implements NetworkManager {
     private final Scanner mScanner;
     private final Clock mClock;
     private final Context mContext;
+    private final FrameworkStatsLogProxy mFrameworkStatsLogProxy;
     private final Consumer<List<AssociationInfo>> mOnTransportChanged = this::onTransportChanged;
     private final OnAssociationsChangedListener mOnAssociationsChanged =
             this::onAssociationsChanged;
@@ -115,7 +128,8 @@ public class NetworkManagerImpl implements NetworkManager {
             Advertiser advertiser,
             Scanner scanner,
             Clock clock,
-            Context context) {
+            Context context,
+            FrameworkStatsLogProxy frameworkStatsLogProxy) {
         mLock = lock;
         mMainExecutor = mainExecutor;
         mCompanionDeviceManager = companionDeviceManager;
@@ -125,6 +139,7 @@ public class NetworkManagerImpl implements NetworkManager {
         mMessenger = messenger;
         mClock = clock;
         mContext = context;
+        mFrameworkStatsLogProxy = frameworkStatsLogProxy;
     }
 
     @Override
@@ -416,54 +431,68 @@ public class NetworkManagerImpl implements NetworkManager {
     }
 
     private void onMessage(String networkId, int associationId, byte[] message) {
-        synchronized (mLock) {
-            if (!mInitialized) {
-                Log.w(
-                        TAG,
-                        "onMessage: ignore incoming message from "
-                                + getAddressString(networkId, associationId)
-                                + " since network manager is not initialized!");
-                return;
+        boolean messageReceived = false;
+        int feature = CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED;
+        try {
+            synchronized (mLock) {
+                if (!mInitialized) {
+                    Log.w(
+                            TAG,
+                            "onMessage: ignore incoming message from "
+                                    + getAddressString(networkId, associationId)
+                                    + " since network manager is not initialized!");
+                    return;
+                }
+                RemoteDeviceImpl device = mRemoteDevices.get(associationId);
+                if (device == null) {
+                    Log.w(
+                            TAG,
+                            "onMessage: ignore incoming message from "
+                                    + getAddressString(networkId, associationId)
+                                    + " since device is not found!");
+                    return;
+                }
+                NetworkImpl network = getNetworkLocked(networkId, device.getUserId());
+                if (network == null) {
+                    Log.w(
+                            TAG,
+                            "onMessage: ignore incoming message from "
+                                    + getAddressString(networkId, associationId)
+                                    + " since network is not found for user "
+                                    + device.getUserId()
+                                    + "!");
+                    return;
+                }
+                feature = network.getFeature();
+                // Always invalidate networks to ensure the network members are up-to-date.
+                invalidate(/* async= */ false);
+                if (network.notifyInboundMessageLocked(associationId, message)) {
+                    messageReceived = true;
+                    Log.d(
+                            TAG,
+                            "onMessage: delivered message from "
+                                    + getAddressString(networkId, associationId)
+                                    + " to network "
+                                    + networkId
+                                    + " for user "
+                                    + network.getUserId()
+                                    + ".");
+                } else {
+                    Log.i(
+                            TAG,
+                            "onMessage: dropped incoming message from "
+                                    + getAddressString(networkId, associationId)
+                                    + " since the source address is not found for user "
+                                    + network.getUserId());
+                }
             }
-            RemoteDeviceImpl device = mRemoteDevices.get(associationId);
-            if (device == null) {
-                Log.w(
-                        TAG,
-                        "onMessage: ignore incoming message from "
-                                + getAddressString(networkId, associationId)
-                                + " since device is not found!");
-                return;
-            }
-            NetworkImpl network = getNetworkLocked(networkId, device.getUserId());
-            if (network == null) {
-                Log.w(
-                        TAG,
-                        "onMessage: ignore incoming message from "
-                                + getAddressString(networkId, associationId)
-                                + " since network is not found for user "
-                                + device.getUserId()
-                                + "!");
-                return;
-            }
-            // Always invalidate networks to ensure the network members are up-to-date.
-            invalidate(/* async= */ false);
-            if (network.notifyInboundMessageLocked(associationId, message)) {
-                Log.d(
-                        TAG,
-                        "onMessage: delivered message from "
-                                + getAddressString(networkId, associationId)
-                                + " to network "
-                                + networkId
-                                + " for user "
-                                + network.getUserId()
-                                + ".");
+        } finally {
+            if (messageReceived) {
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_RECEIVED, feature);
             } else {
-                Log.i(
-                        TAG,
-                        "onMessage: dropped incoming message from "
-                                + getAddressString(networkId, associationId)
-                                + " since the source address is not found for user "
-                                + network.getUserId());
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_DROPPED, feature);
             }
         }
     }
@@ -494,11 +523,10 @@ public class NetworkManagerImpl implements NetworkManager {
 
     @GuardedBy("mLock")
     private long enqueueMessageLocked(
+            Network network,
             byte[] message,
             Collection<Integer> targetAssociationIds,
             int flags,
-            int userId,
-            String networkId,
             boolean isBroadcast) {
         if (!mInitialized) {
             Log.w(TAG, "enqueueMessage: ignore since not initialized");
@@ -511,11 +539,14 @@ public class NetworkManagerImpl implements NetworkManager {
                         message,
                         targetAssociationIds,
                         flags,
-                        userId,
-                        networkId,
+                        network.getUserId(),
+                        network.getNetworkId(),
+                        network.getFeature(),
                         isBroadcast,
                         mClock.elapsedRealtime());
         mMessageRecords.put(id, record);
+        mFrameworkStatsLogProxy.logSyncEvent(
+                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_STARTED, network.getFeature());
         invalidate(/* async= */ true);
         if (DEBUG) {
             Log.d(TAG, "enqueueMessage: queued message " + id + ".");
@@ -595,14 +626,20 @@ public class NetworkManagerImpl implements NetworkManager {
                                             + getAddressString(record.networkId, associationId)
                                             + ".");
                         }
+                        mFrameworkStatsLogProxy.logSyncEvent(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_STARTED,
+                                record.feature);
+                        final long sendingStartTimestamp = mClock.elapsedRealtime();
                         deliveryState.messageSendingFuture =
                                 mMessenger.sendMessage(
                                         record.networkId,
                                         associationId,
                                         record.message,
                                         record.maxAttempts);
-                        deliveryState.messageSendingFuture.addListener(
-                                () -> invalidate(/* async= */ true), Runnable::run);
+                        Futures.addCallback(
+                                deliveryState.messageSendingFuture,
+                                getMessageSendingCallback(record, sendingStartTimestamp),
+                                Runnable::run);
                     } else {
                         // State is not SENDING. Cancel the message request.
                         if (deliveryState.messageSendingFuture != null
@@ -655,6 +692,46 @@ public class NetworkManagerImpl implements NetworkManager {
                         deliveryState.scanningSession = null;
                     }
                 });
+        if (!record.isLogged()) {
+            if (record.isAllDelivered()) {
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FINISHED,
+                        record.feature,
+                        /* duration= */ now - record.creationTimestamp);
+                record.noteLogged();
+            } else if (record.isCancelled() || record.isAnyCancelled()) {
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FAILED,
+                        record.feature,
+                        /* duration= */ now - record.creationTimestamp);
+                record.noteLogged();
+            }
+        }
+    }
+
+    private FutureCallback<Object> getMessageSendingCallback(
+            MessageRecord record, final long sendingStartTimestamp) {
+        return new FutureCallback<>() {
+            @Override
+            public void onSuccess(Object result) {
+                invalidate(/* async= */ true);
+                long now = mClock.elapsedRealtime();
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FINISHED,
+                        record.feature,
+                        /* duration= */ now - sendingStartTimestamp);
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                invalidate(/* async= */ true);
+                long now = mClock.elapsedRealtime();
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FAILED,
+                        record.feature,
+                        /* duration= */ now - sendingStartTimestamp);
+            }
+        };
     }
 
     /** Advance the delivery state machine to next state based on latest information. */
@@ -854,7 +931,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     return -1;
                 }
                 return enqueueMessageLocked(
-                        message, mAssociationIds, flags, mUserId, mId, /* isBroadcast= */ true);
+                        this, message, mAssociationIds, flags, /* isBroadcast= */ true);
             }
         }
 
@@ -866,7 +943,7 @@ public class NetworkManagerImpl implements NetworkManager {
                     return -1;
                 }
                 return enqueueMessageLocked(
-                        message, associationIds, flags, mUserId, mId, /* isBroadcast= */ false);
+                        this, message, associationIds, flags, /* isBroadcast= */ false);
             }
         }
 

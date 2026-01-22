@@ -22,11 +22,11 @@ import javax.inject.Singleton
 
 @Singleton
 class FrameworkStatsLogProxyImpl @Inject constructor() : FrameworkStatsLogProxy {
-    override fun logSyncEvent(event: Int, feature: Int, duration: Long?) {
-        if (duration == null) {
-            FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature)
-        } else {
-            FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature, duration)
-        }
+    override fun logSyncEvent(event: Int, feature: Int) {
+        FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature)
+    }
+
+    override fun logSyncEvent(event: Int, feature: Int, duration: Long) {
+        FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature, duration)
     }
 }

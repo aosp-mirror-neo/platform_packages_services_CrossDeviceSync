@@ -17,6 +17,15 @@
 package com.android.crossdevicesync.network;
 
 import static com.android.crossdevicesync.network.MessageRecord.MAX_DELIVERY_ATTEMPT;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_DROPPED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_RECEIVED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FAILED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FINISHED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_STARTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FAILED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FINISHED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_STARTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -36,6 +45,7 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy.DevicePresenceListener;
+import com.android.crossdevicesync.common.fake.FakeFrameworkStatsLogProxy;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
@@ -64,6 +74,7 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     @Rule public final MockitoRule mockito = MockitoJUnit.rule();
 
     private static final Predicate<RemoteDevice> INCLUDE_ALL_DEVICES = device -> true;
+    private static final int FEATURE = 123;
 
     @Mock private NetworkListener mListener;
 
@@ -1498,6 +1509,128 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(sentMessages.get(6).message).isEqualTo(new byte[] {4});
     }
 
+    @Test
+    public void inboundMessage_logsEvent() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        mNetworkManagerImpl.createNetwork("test", FEATURE, INCLUDE_ALL_DEVICES);
+
+        mFakeMessenger.receiveMessage("test", 2, new byte[] {5, 6});
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_RECEIVED,
+                                FEATURE));
+    }
+
+    @Test
+    public void inboundMessage_unknownNetwork_dropped_logsEvent() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        mNetworkManagerImpl.createNetwork("test", FEATURE, INCLUDE_ALL_DEVICES);
+
+        mFakeMessenger.receiveMessage("unknown_network", 1, new byte[] {7, 8});
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_DROPPED,
+                                CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_UNSPECIFIED));
+    }
+
+    @Test
+    public void inboundMessage_associationNotPartOfNetwork_dropped_logsEvent() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        mNetworkManagerImpl.createNetwork("test", FEATURE, device -> device.getAssociationId() < 2);
+
+        // Receive a message from an association that's not part of this network.
+        mFakeMessenger.receiveMessage("test", 2, new byte[] {7, 8});
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_MESSAGE_DROPPED,
+                                FEATURE));
+    }
+
+    @Test
+    public void messageQueue_logsEvents() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        Network network = mNetworkManagerImpl.createNetwork("test", FEATURE, INCLUDE_ALL_DEVICES);
+
+        network.broadcastMessage(new byte[] {1}, 0);
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_STARTED,
+                                FEATURE));
+
+        mFakeFrameworkStatsLogProxy.clear();
+        mFakeMessenger.getSentMessages().get(0).completeSuccessfully();
+        mFakeMessenger.getSentMessages().get(1).completeSuccessfully();
+        mNetworkManagerImpl.invalidateNetworks();
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FINISHED,
+                                FEATURE,
+                                0L));
+    }
+
+    @Test
+    public void messageQueue_failed_logsEvent() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        Network network = mNetworkManagerImpl.createNetwork("test", FEATURE, INCLUDE_ALL_DEVICES);
+
+        long id = network.broadcastMessage(new byte[] {1}, 0);
+        network.cancelMessage(id);
+        mNetworkManagerImpl.invalidateNetworks();
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_FAILED,
+                                FEATURE,
+                                0L));
+    }
+
+    @Test
+    public void messageSend_logsEvents() {
+        setupTwoDevices(/* present= */ true, /* nearby= */ true);
+        Network network = mNetworkManagerImpl.createNetwork("test", FEATURE, INCLUDE_ALL_DEVICES);
+
+        network.broadcastMessage(new byte[] {1}, 0);
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_STARTED,
+                                FEATURE));
+
+        mFakeFrameworkStatsLogProxy.clear();
+        mFakeClock.advanceTime(1000);
+        mFakeMessenger.getSentMessages().get(0).completeSuccessfully();
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FINISHED,
+                                FEATURE,
+                                1000L));
+
+        mFakeFrameworkStatsLogProxy.clear();
+        mFakeClock.advanceTime(500);
+        mFakeMessenger.getSentMessages().get(1).completeWithException(new Exception());
+
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites())
+                .contains(
+                        new FakeFrameworkStatsLogProxy.WriteCall(
+                                CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FAILED,
+                                FEATURE,
+                                1500L));
+    }
+
     private void setupDevice(int id, boolean present, boolean nearby) {
         setupDevice(id, mContext.getUserId(), present, nearby);
     }
@@ -1520,9 +1653,8 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
                 mFakeCompanionDeviceManagerProxy.getAllAssociations(UserHandle.USER_ALL)) {
             nextAssociationId = Math.max(nextAssociationId, associationInfo.getId());
         }
-        nextAssociationId++;
-        setupDevice(/* id= */ nextAssociationId, userId, present, nearby);
         setupDevice(/* id= */ nextAssociationId + 1, userId, present, nearby);
+        setupDevice(/* id= */ nextAssociationId + 2, userId, present, nearby);
     }
 
     private void makeDevicePresent(int associationId, boolean nearby) {

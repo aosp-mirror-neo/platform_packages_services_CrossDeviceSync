@@ -18,6 +18,8 @@ package com.android.crossdevicesync.data;
 import static com.android.crossdevicesync.common.Utils.getException;
 import static com.android.crossdevicesync.common.Utils.isFutureFailed;
 import static com.android.crossdevicesync.common.Utils.isFutureSucceeded;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_UPDATES_LOCAL_STATE;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -30,6 +32,7 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.crossdevicesync.common.fake.FakeFrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.SharedDataStore.Document;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
@@ -59,6 +62,7 @@ import java.util.function.Consumer;
 public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBase {
     private static final String TAG = "SubmergeSharedDataStoreTest";
     private static final String NETWORK_ID = "test_network";
+    private static final int FEATURE = 123;
 
     private SubmergeSharedDataStore<String> mDataStore;
     private Network mNetwork;
@@ -70,7 +74,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     public void setUp() {
         super.setUp();
         mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
-        mNetwork = mFakeNetworkManager.createNetwork(NETWORK_ID, device -> true);
+        mNetwork = mFakeNetworkManager.createNetwork(NETWORK_ID, FEATURE, device -> true);
         mDataStore.init(mNetwork);
         mRemoteDevice1 = new RemoteDeviceContext();
         mRemoteDevice2 = new RemoteDeviceContext();
@@ -1178,6 +1182,65 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         transactDataStore(mRemoteDevice2, verifier);
     }
 
+    @Test
+    public void testRemoteUpdate_logsSyncEvent() throws Exception {
+        // 1. Initial state.
+        connectNetworks(this, mRemoteDevice1);
+
+        // 2. Remote update that changes local state.
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "abc"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Verify log for success.
+        var expectedWriteCall =
+                new FakeFrameworkStatsLogProxy.WriteCall(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_UPDATES_LOCAL_STATE,
+                        FEATURE);
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites()).contains(expectedWriteCall);
+        mFakeFrameworkStatsLogProxy.clear();
+
+        // 3. Remote update that does NOT change local state.
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "abc"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // Verify log for no change.
+        expectedWriteCall =
+                new FakeFrameworkStatsLogProxy.WriteCall(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE,
+                        FEATURE);
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites()).contains(expectedWriteCall);
+    }
+
+    @Test
+    public void testRemoteUpdate_logsNotChangingEvent() throws Exception {
+        // 1. Connect and sync the devices
+        connectNetworks(this, mRemoteDevice1);
+        transactDataStore(this, doc -> doc.putData("/root/register", "abc"));
+        flushNetworks(this, mRemoteDevice1);
+
+        // 2. Disconnect the devices from each other temporarily.
+        var remoteDevice = mFakeNetworkManager.findRemoteDevice(mRemoteDevice1.getNetworkManager());
+        var localDevice = mRemoteDevice1.getNetworkManager().findRemoteDevice(mFakeNetworkManager);
+        remoteDevice.setRemoteNetworkManager(null);
+        localDevice.setRemoteNetworkManager(null);
+
+        // 3. Make a no-op net change to the remote device
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "def"));
+        transactDataStore(mRemoteDevice1, doc -> doc.putData("/root/register", "abc"));
+
+        // 4. Reconnect the network managers, and flush the network.
+        remoteDevice.setRemoteNetworkManager(mRemoteDevice1.getNetworkManager());
+        localDevice.setRemoteNetworkManager(mFakeNetworkManager);
+        flushNetworks(this, mRemoteDevice1);
+
+        // Verify log for no change.
+        var expectedWriteCall =
+                new FakeFrameworkStatsLogProxy.WriteCall(
+                        CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE,
+                        FEATURE);
+        assertThat(mFakeFrameworkStatsLogProxy.getWrites()).contains(expectedWriteCall);
+    }
+
     private static void connectNetworks(SharedDataStoreComponentTestBase... testContexts) {
         for (SharedDataStoreComponentTestBase a : testContexts) {
             for (SharedDataStoreComponentTestBase b : testContexts) {
@@ -1235,7 +1298,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                         testContext.mFakeStorage)
                 .inject(testContext);
         return testContext.mSubmergeSharedDataStore.init(
-                testContext.getNetworkManager().createNetwork(NETWORK_ID, device -> true));
+                testContext.getNetworkManager().createNetwork(NETWORK_ID, FEATURE, device -> true));
     }
 
     private void closeAndReCreateDataStore() {
@@ -1292,7 +1355,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         RemoteDeviceContext() {
             super.setUp();
             mSubmergeSharedDataStore.init(
-                    mFakeNetworkManager.createNetwork(NETWORK_ID, device -> true));
+                    mFakeNetworkManager.createNetwork(NETWORK_ID, FEATURE, device -> true));
         }
 
         @Override
