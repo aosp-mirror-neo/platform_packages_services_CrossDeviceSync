@@ -22,6 +22,7 @@ import javax.inject.Singleton
 
 /** A test class to provide a fake [Resources] for testing. */
 @Singleton
+@Suppress("DEPRECATION") // Using deprecated Resources constructor for testing
 class FakeResources @Inject internal constructor(private val application: Application) :
     Resources(
         application.assets,

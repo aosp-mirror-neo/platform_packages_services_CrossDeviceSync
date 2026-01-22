@@ -31,6 +31,8 @@ import com.android.crossdevicesync.common.DefaultThreadChecker;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.DeviceUtils;
 import com.android.crossdevicesync.common.DeviceUtilsImpl;
+import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
+import com.android.crossdevicesync.common.FrameworkStatsLogProxyImpl;
 import com.android.crossdevicesync.common.HandlerDelayedExecutorImpl;
 import com.android.crossdevicesync.common.ThreadChecker;
 import com.android.crossdevicesync.dagger.qualifier.Background;
@@ -134,4 +136,8 @@ public abstract class ApplicationModule {
     @Singleton
     abstract NotificationManagerProxy bindsNotificationManagerProxy(
             NotificationManagerProxyImpl impl);
+
+    @Binds
+    @Singleton
+    abstract FrameworkStatsLogProxy bindsFrameworkStatsLogProxy(FrameworkStatsLogProxyImpl impl);
 }

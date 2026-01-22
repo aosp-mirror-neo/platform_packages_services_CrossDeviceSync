@@ -1,0 +1,32 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.android.crossdevicesync.common
+
+import com.android.internal.util.FrameworkStatsLog
+import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class FrameworkStatsLogProxyImpl @Inject constructor() : FrameworkStatsLogProxy {
+    override fun logSyncEvent(event: Int, feature: Int, duration: Long?) {
+        if (duration == null) {
+            FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature)
+        } else {
+            FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature, duration)
+        }
+    }
+}

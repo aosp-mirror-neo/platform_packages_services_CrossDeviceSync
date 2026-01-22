@@ -21,6 +21,7 @@ import static com.android.crossdevicesync.feature.mode.ModeSyncDocs.CONTEXTUAL_M
 import static com.android.crossdevicesync.feature.mode.ModeSyncDocs.getManualDoNotDisturbStatePath;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -91,7 +92,10 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         assertThat(mSharedDataStore).isNotNull();
         assertThat(mSharedDataStore.isOpen()).isTrue();
         assertThat(isDndActiveInSharedDataStore()).isFalse();
-        assertThat(mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier())).isNotNull();
+        var network = mFakeNetworkManager.getNetwork(NETWORK_ID, mUser.getIdentifier());
+        assertThat(network).isNotNull();
+        assertThat(network.getFeature())
+                .isEqualTo(CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC);
         assertThat(
                         mFakeMetadataPublisher
                                 .getMetadata(mUser.getIdentifier())
