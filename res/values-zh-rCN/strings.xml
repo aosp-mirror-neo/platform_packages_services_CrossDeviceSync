@@ -17,9 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"跨设备同步"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"飞行模式"</string>
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"飞行模式同步"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"飞行模式"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"飞行模式现在会在手机和手表之间同步。\n\n您可以在手表和手机的设置中管理模式同步偏好设置。"</string>
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"管理设置"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"同步“勿扰设置”"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"勿扰设置"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"已同步附近设备的勿扰设置"</string>

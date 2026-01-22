@@ -17,9 +17,12 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"მოწყობილობათშორისი სინქრონიზაცია"</string>
-    <string name="airplane_mode_sync_notification_channel_name" msgid="4439297700203450842">"თვითმფრინავის რეჟიმი"</string>
+    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
+    <skip />
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"თვითმფრინავის რეჟიმი"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"თვითმფრინავის რეჟიმი ახლა სინქრონიზდება თქვენს ტელეფონსა და საათს შორის.\n\nმართეთ რეჟიმის სინქრონიზაციის პარამეტრები თქვენი საათისა და ტელეფონის პარამეტრებში."</string>
+    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
+    <skip />
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"„არ შემაწუხოთ“ რეჟიმის სინქრონიზაცია"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"არ შემაწუხოთ"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"სინქრონიზებულია თქვენი ახლომახლო მოწყობილობიდან"</string>
