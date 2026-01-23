@@ -18,5 +18,8 @@ package com.android.crossdevicesync.common
 /** Proxy for the Framework Stats Logger. */
 interface FrameworkStatsLogProxy {
     /** See [com.android.internal.util.FrameworkStatsLog.write] */
-    fun logSyncEvent(event: Int, feature: Int, duration: Long? = null)
+    fun logSyncEvent(event: Int, feature: Int)
+
+    /** See [com.android.internal.util.FrameworkStatsLog.write] */
+    fun logSyncEvent(event: Int, feature: Int, duration: Long)
 }

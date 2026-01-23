@@ -15,6 +15,7 @@
  */
 package com.android.crossdevicesync.data.dagger;
 
+import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.DefaultSharedDataStoreHandle;
 import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.SchemaProvider;
@@ -52,6 +53,7 @@ interface SharedDataStoreBaseModule {
             @DataStoreLock Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
             IStorage storage,
+            FrameworkStatsLogProxy frameworkStatsLogProxy,
             TimestampProvider timestampProvider,
             Converter<?> converter,
             SchemaProvider<?> schemaProvider,
@@ -62,6 +64,7 @@ interface SharedDataStoreBaseModule {
                 lock,
                 deviceNodeIdProvider,
                 storage,
+                frameworkStatsLogProxy,
                 timestampProvider,
                 converter,
                 schemaProvider,

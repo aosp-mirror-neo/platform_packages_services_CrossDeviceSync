@@ -24,7 +24,11 @@ import javax.inject.Singleton
 class FakeFrameworkStatsLogProxy @Inject constructor() : FrameworkStatsLogProxy {
     private val mWrites = mutableListOf<WriteCall>()
 
-    override fun logSyncEvent(event: Int, feature: Int, duration: Long?) {
+    override fun logSyncEvent(event: Int, feature: Int) {
+        mWrites.add(WriteCall(event, feature))
+    }
+
+    override fun logSyncEvent(event: Int, feature: Int, duration: Long) {
         mWrites.add(WriteCall(event, feature, duration))
     }
 
@@ -37,5 +41,7 @@ class FakeFrameworkStatsLogProxy @Inject constructor() : FrameworkStatsLogProxy 
     }
 
     /** Data class representing a call to [logSyncEvent]. */
-    data class WriteCall(val event: Int, val feature: Int, val duration: Long?)
+    data class WriteCall
+    @JvmOverloads
+    constructor(val event: Int, val feature: Int, val duration: Long? = null)
 }
