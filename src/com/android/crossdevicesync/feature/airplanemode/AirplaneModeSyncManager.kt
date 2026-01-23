@@ -43,6 +43,7 @@ import com.android.crossdevicesync.notification.NotificationHelper
 import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
 import com.android.internal.R
+import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC
 import com.android.server.connectivity.Flags
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
@@ -104,23 +105,34 @@ internal constructor(
         synchronized(mLock) {
             val localDataStore = mDataStore
             if (
-                mState == STATE_ACTIVE && paths.contains(APM_ENABLED_PATH) && localDataStore != null
+                mState != STATE_ACTIVE ||
+                    !paths.contains(APM_ENABLED_PATH) ||
+                    localDataStore == null
             ) {
-                logD("Remote APM changed")
-                localDataStore.transactLocked("Get remote state") { doc ->
-                    synchronized(mLock) {
-                        doc.getRecord(APM_ENABLED_PATH)?.let { record ->
-                            val apmEnabled = record.get() == AIRPLANE_MODE_ON
-                            logD("Remote APM state = $apmEnabled. Updating local setting")
-                            mAirplaneModeState = apmEnabled
-                            mAirplaneModeController.updateAirplaneModeState(apmEnabled)
-                            if (apmEnabled) {
-                                mNotificationHelper.maybeShowNotification(
-                                    AIRPLANE_MODE_SYNCED,
-                                    UserHandle.ALL,
-                                )
-                            }
-                        }
+                return
+            }
+            logD("Remote APM changed")
+            localDataStore.transactLocked("Get remote state") { doc ->
+                synchronized(mLock) {
+                    if (mState != STATE_ACTIVE) {
+                        return@transactLocked
+                    }
+                    val record = doc.getRecord(APM_ENABLED_PATH)
+                    if (record == null) {
+                        return@transactLocked
+                    }
+                    val apmEnabled = record.get() == AIRPLANE_MODE_ON
+                    if (mAirplaneModeState == apmEnabled) {
+                        return@transactLocked
+                    }
+                    logD("Remote APM state = $apmEnabled. Updating local setting")
+                    mAirplaneModeState = apmEnabled
+                    mAirplaneModeController.updateAirplaneModeState(apmEnabled)
+                    if (apmEnabled) {
+                        mNotificationHelper.maybeShowNotification(
+                            AIRPLANE_MODE_SYNCED,
+                            UserHandle.ALL,
+                        )
                     }
                 }
             }
@@ -206,12 +218,15 @@ internal constructor(
 
         mState = STATE_OPENING_DATA_STORE
         val network =
-            mNetworkManager.createNetwork(NETWORK_ID)
-            /* remoteDeviceCondition= */ {
+            mNetworkManager.createNetwork(
+                NETWORK_ID,
+                CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC,
+            )
+            /* remoteDeviceCondition= */ { remoteDevice ->
                 // Whether this device is a watch, or the remote device is a watch.
-                (mDeviceUtils.isWatch || it.deviceProfile == DEVICE_PROFILE_WATCH) &&
+                (mDeviceUtils.isWatch || remoteDevice.deviceProfile == DEVICE_PROFILE_WATCH) &&
                     // Whether the remote device supports sync and has the sync toggle enabled.
-                    it.associationInfoCache.run {
+                    remoteDevice.associationInfoCache.run {
                         getMetadata(FEATURE_CROSS_DEVICE_SYNC).run {
                             getBoolean(APM_SYNC_SUPPORTED) && getBoolean(AIRPLANE_MODE_SYNC)
                         } && (systemDataSyncFlags and FLAG_AIRPLANE_MODE) != 0

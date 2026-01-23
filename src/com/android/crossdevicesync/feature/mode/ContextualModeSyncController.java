@@ -20,6 +20,7 @@ import static android.app.modes.ContextualMode.TYPE_MANUAL_DO_NOT_DISTURB;
 import static com.android.crossdevicesync.feature.mode.ModeSyncDocs.CONTEXTUAL_MODES_DOC_ID;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED;
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC;
 
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
@@ -211,7 +212,10 @@ public class ContextualModeSyncController
         mState = STATE_OPENING_DATA_STORE;
         mNetwork =
                 mNetworkManager.createNetworkForUser(
-                        mUser.getIdentifier(), NETWORK_ID, this::shouldSyncWithDevice);
+                        mUser.getIdentifier(),
+                        NETWORK_ID,
+                        CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC,
+                        this::shouldSyncWithDevice);
         Futures.addCallback(
                 mSharedDataStoreHandle.openDataStore(mNetwork),
                 new FutureCallback<SharedDataStore<String>>() {
@@ -442,7 +446,7 @@ public class ContextualModeSyncController
                         active ? ContextualMode.STATE_ACTIVE : ContextualMode.STATE_INACTIVE;
                 if (cachedMode.getState() == remoteState) {
                     // Unchanged.
-                    return;
+                    continue;
                 }
                 changed = true;
                 ContextualMode updatedMode =

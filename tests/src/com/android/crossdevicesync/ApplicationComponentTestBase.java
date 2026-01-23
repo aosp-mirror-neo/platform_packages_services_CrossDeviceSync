@@ -25,6 +25,7 @@ import com.android.crossdevicesync.common.fake.FakeClock;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.fake.FakeContextualModeManager;
 import com.android.crossdevicesync.common.fake.FakeDeviceUtils;
+import com.android.crossdevicesync.common.fake.FakeFrameworkStatsLogProxy;
 import com.android.crossdevicesync.common.fake.FakeResources;
 import com.android.crossdevicesync.dagger.TestApplicationComponent;
 import com.android.crossdevicesync.dagger.qualifier.Main;
@@ -52,6 +53,7 @@ public abstract class ApplicationComponentTestBase {
     @Inject protected FakeUserHelper mFakeUserHelper;
     @Inject protected FakeContextualModeManager mFakeContextualModeManager;
     @Inject protected FakeResources mFakeResources;
+    @Inject protected FakeFrameworkStatsLogProxy mFakeFrameworkStatsLogProxy;
 
     public void setUp() {
         mContext = ApplicationProvider.getApplicationContext();

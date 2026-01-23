@@ -20,6 +20,7 @@ import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
 import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.LAST_METADATA_UPDATE_TIMESTAMP_PREFIX;
 import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.NETWORK_ID;
 import static com.android.crossdevicesync.metadata.MetadataPublisherImpl.NETWORK_ID_USER_ALL;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_METADATA;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -134,7 +135,10 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
         mMetadataPublisher.putBooleanMetaData(userId, "key", true);
 
         assertThat(device.getSentMessages()).hasSize(1);
-        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId()).isEqualTo(NETWORK_ID);
+        var network = mFakeNetworkManager.getNetworks().get(0);
+        assertThat(network.getNetworkId()).isEqualTo(NETWORK_ID);
+        assertThat(network.getFeature())
+                .isEqualTo(CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_METADATA);
     }
 
     @Test
@@ -153,8 +157,10 @@ public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
 
         assertThat(device1.getSentMessages()).hasSize(1);
         assertThat(device2.getSentMessages()).hasSize(1);
-        assertThat(mFakeNetworkManager.getNetworks().get(0).getNetworkId())
-                .isEqualTo(NETWORK_ID_USER_ALL);
+        var network = mFakeNetworkManager.getNetworks().get(0);
+        assertThat(network.getNetworkId()).isEqualTo(NETWORK_ID_USER_ALL);
+        assertThat(network.getFeature())
+                .isEqualTo(CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_METADATA);
     }
 
     @Test

@@ -172,13 +172,11 @@ public class NetworkManagerImpl implements NetworkManager {
     }
 
     @Override
-    public Network createNetwork(String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
-        return createNetworkForUser(UserHandle.USER_ALL, networkId, remoteDeviceCondition);
-    }
-
-    @Override
     public Network createNetworkForUser(
-            int userId, String networkId, Predicate<RemoteDevice> remoteDeviceCondition) {
+            int userId,
+            String networkId,
+            int feature,
+            Predicate<RemoteDevice> remoteDeviceCondition) {
         synchronized (mLock) {
             throwIfUninitializedLocked();
             NetworkImpl network = getNetworkLocked(networkId, userId);
@@ -195,7 +193,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 }
                 return network;
             }
-            network = new NetworkImpl(userId, networkId, remoteDeviceCondition);
+            network = new NetworkImpl(userId, networkId, feature, remoteDeviceCondition);
             mNetworks.computeIfAbsent(networkId, k -> new HashMap<>()).put(userId, network);
             invalidateNetworks();
             return network;
@@ -797,6 +795,7 @@ public class NetworkManagerImpl implements NetworkManager {
     private class NetworkImpl implements Network {
         private final int mUserId;
         private final String mId;
+        private final int mFeature;
         private final Predicate<RemoteDevice> mDeviceCondition;
 
         @GuardedBy("mLock")
@@ -811,9 +810,10 @@ public class NetworkManagerImpl implements NetworkManager {
         @GuardedBy("mLock")
         private boolean mDestroyed;
 
-        NetworkImpl(int userId, String id, Predicate<RemoteDevice> deviceCondition) {
+        NetworkImpl(int userId, String id, int feature, Predicate<RemoteDevice> deviceCondition) {
             mUserId = userId;
             mId = id;
+            mFeature = feature;
             mDeviceCondition = deviceCondition;
         }
 
@@ -825,6 +825,11 @@ public class NetworkManagerImpl implements NetworkManager {
         @Override
         public int getUserId() {
             return mUserId;
+        }
+
+        @Override
+        public int getFeature() {
+            return mFeature;
         }
 
         @SuppressWarnings("GuardedBy")
@@ -1028,6 +1033,7 @@ public class NetworkManagerImpl implements NetworkManager {
             synchronized (mLock) {
                 pw.println("userId=" + (mUserId == UserHandle.USER_ALL ? "USER_ALL" : mUserId));
                 pw.println("id=" + mId);
+                pw.println("feature=" + mFeature);
                 pw.println("destroyed=" + mDestroyed);
                 pw.println("deviceCondition=" + mDeviceCondition);
                 pw.println("advertisingSessions=" + mAdvertisingSessions.keySet());
