@@ -15,6 +15,9 @@
  */
 package com.android.crossdevicesync.data;
 
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE;
+import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_UPDATES_LOCAL_STATE;
+
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import static java.util.Objects.requireNonNull;
@@ -26,6 +29,7 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
+import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.proto.DocMetadata;
 import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
 import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
@@ -85,6 +89,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     private final String mName;
     private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     private final IStorage mStorage;
+    private final FrameworkStatsLogProxy mFrameworkStatsLogProxy;
     private final TimestampProvider mTimestampProvider;
     private final Converter<T> mConverter;
     private final SchemaProvider<T> mSchemaProvider;
@@ -144,20 +149,22 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             Object lock,
             DeviceNodeIdProvider deviceNodeIdProvider,
             IStorage storage,
+            FrameworkStatsLogProxy frameworkStatsLogProxy,
             TimestampProvider timestampProvider,
             Converter<T> converter,
             SchemaProvider<T> schemaProvider,
             SubmergeSchemaUpgradeHelper<T> schemaUpgradeHelper,
             SharedDataStoreHandle<T> handle) {
-        this.mName = name;
-        this.mLock = lock;
-        this.mDeviceNodeIdProvider = deviceNodeIdProvider;
-        this.mStorage = storage;
-        this.mTimestampProvider = timestampProvider;
-        this.mConverter = converter;
-        this.mSchemaProvider = schemaProvider;
-        this.mSchemaUpgradeHelper = schemaUpgradeHelper;
-        this.mHandle = handle;
+        mName = name;
+        mLock = lock;
+        mDeviceNodeIdProvider = deviceNodeIdProvider;
+        mStorage = storage;
+        mFrameworkStatsLogProxy = frameworkStatsLogProxy;
+        mTimestampProvider = timestampProvider;
+        mConverter = converter;
+        mSchemaProvider = schemaProvider;
+        mSchemaUpgradeHelper = schemaUpgradeHelper;
+        mHandle = handle;
     }
 
     private void broadcastUpdateMessage(String docId, byte[] updateMessage) {
@@ -473,6 +480,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         Log.i(TAG, "onNetworkMessage: associationId = " + associationId);
         DataStore<T> submergeDataStore;
         String myNodeId;
+        int myFeature;
         synchronized (mLock) {
             if (mState != STATE_OPEN) {
                 Log.w(
@@ -486,6 +494,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             }
             submergeDataStore = requireNonNull(mSubmergeDataStore);
             myNodeId = requireNonNull(mNodeId);
+            myFeature = requireNonNull(mNetwork).getFeature();
         }
         NetworkMessage networkMessage;
         try {
@@ -505,6 +514,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         boolean broadcastedVersion = false;
         if (networkMessage.hasDocUpdate()) {
             Log.d(TAG, "Received network update for " + getDebugDocIdentityString(docId));
+            boolean remoteChangeSynced = false;
             try {
                 List<String> changedPaths =
                         doTransact(
@@ -517,6 +527,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                                                 .toByteArray()));
                 if (!changedPaths.isEmpty()) {
                     mRemoteChangeListeners.forEach(record -> record.onRemoteChange(changedPaths));
+                    remoteChangeSynced = true;
                     // Broadcast latest version.
                     broadcastVersion(submergeDataStore, docId, myNodeId);
                     broadcastedVersion = true;
@@ -536,6 +547,9 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                 + getDebugDocIdentityString(docId),
                         e);
                 return;
+            } finally {
+                mFrameworkStatsLogProxy.logSyncEvent(
+                        getRemoteChangeSyncEvent(/* success= */ remoteChangeSynced), myFeature);
             }
         }
         if (networkMessage.hasDocVersion()) {
@@ -592,6 +606,12 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 unicastMessages.put(targetNode, msgId);
             }
         }
+    }
+
+    private static int getRemoteChangeSyncEvent(boolean success) {
+        return success
+                ? CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_UPDATES_LOCAL_STATE
+                : CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE;
     }
 
     private static boolean isPartiallyOlder(VersionVector a, VersionVector b) {

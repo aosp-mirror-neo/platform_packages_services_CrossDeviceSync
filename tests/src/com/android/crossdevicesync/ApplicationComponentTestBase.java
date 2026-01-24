@@ -64,5 +64,6 @@ public abstract class ApplicationComponentTestBase {
         // Clear shared preferences
         mSharedPreferences.edit().clear().commit();
         mFakeResources.reset();
+        mFakeFrameworkStatsLogProxy.clear();
     }
 }

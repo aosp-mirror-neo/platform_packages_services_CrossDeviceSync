@@ -19,6 +19,7 @@ import android.companion.AssociationRequest.DEVICE_PROFILE_WATCH
 import android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC
 import android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE
 import android.content.Context
+import android.os.Trace
 import android.os.UserHandle
 import android.os.UserHandle.USER_ALL
 import android.provider.Settings.Global.AIRPLANE_MODE_SYNC
@@ -84,82 +85,102 @@ internal constructor(
         if (!Flags.syncAirplaneModeWithWatches()) {
             return
         }
-        val apmEnabled = mAirplaneModeController.isAirplaneModeEnabled()
-        val syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled()
-        val isKidsWatch = mDeviceUtils.isKidsWatch()
-        logD("Init : apmEnabled=$apmEnabled, syncEnabled=$syncEnabled, isKidsWatch=$isKidsWatch")
+        Trace.beginSection("AirplaneModeSyncManager.init")
+        try {
+            val apmEnabled = mAirplaneModeController.isAirplaneModeEnabled()
+            val syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled()
+            val isKidsWatch = mDeviceUtils.isKidsWatch()
+            logD("Init: apmEnabled=$apmEnabled, syncEnabled=$syncEnabled, isKidsWatch=$isKidsWatch")
 
-        synchronized(mLock) {
-            mAirplaneModeState = apmEnabled
-            mIsKidsWatch = isKidsWatch
-            mStarted = true
-            setApmSyncSupportedMetadataLocked()
-            mAirplaneModeController.registerAirplaneModeChangedListener(this)
-            mDeviceUtils.registerKidsWatchChangeListener(this)
-            onAirplaneModeSyncEnabledStateChanged(syncEnabled)
-            maybeUpdateDataStoreLocked()
+            synchronized(mLock) {
+                mAirplaneModeState = apmEnabled
+                mIsKidsWatch = isKidsWatch
+                mStarted = true
+                setApmSyncSupportedMetadataLocked()
+                mAirplaneModeController.registerAirplaneModeChangedListener(this)
+                mDeviceUtils.registerKidsWatchChangeListener(this)
+                onAirplaneModeSyncEnabledStateChanged(syncEnabled)
+                maybeUpdateDataStoreLocked()
+            }
+        } finally {
+            Trace.endSection()
         }
     }
 
     override fun onRemoteChange(paths: List<String>) {
-        synchronized(mLock) {
-            val localDataStore = mDataStore
-            if (
-                mState != STATE_ACTIVE ||
-                    !paths.contains(APM_ENABLED_PATH) ||
-                    localDataStore == null
-            ) {
-                return
-            }
-            logD("Remote APM changed")
-            localDataStore.transactLocked("Get remote state") { doc ->
-                synchronized(mLock) {
-                    if (mState != STATE_ACTIVE) {
-                        return@transactLocked
-                    }
-                    val record = doc.getRecord(APM_ENABLED_PATH)
-                    if (record == null) {
-                        return@transactLocked
-                    }
-                    val apmEnabled = record.get() == AIRPLANE_MODE_ON
-                    if (mAirplaneModeState == apmEnabled) {
-                        return@transactLocked
-                    }
-                    logD("Remote APM state = $apmEnabled. Updating local setting")
-                    mAirplaneModeState = apmEnabled
-                    mAirplaneModeController.updateAirplaneModeState(apmEnabled)
-                    if (apmEnabled) {
-                        mNotificationHelper.maybeShowNotification(
-                            AIRPLANE_MODE_SYNCED,
-                            UserHandle.ALL,
-                        )
+        Trace.beginSection("AirplaneModeSyncManager.onRemoteChange")
+        try {
+            synchronized(mLock) {
+                val localDataStore = mDataStore
+                if (
+                    mState != STATE_ACTIVE ||
+                        !paths.contains(APM_ENABLED_PATH) ||
+                        localDataStore == null
+                ) {
+                    return
+                }
+                logD("Remote APM changed")
+                localDataStore.transactLocked("Get remote state") { doc ->
+                    synchronized(mLock) {
+                        if (mState != STATE_ACTIVE) {
+                            return@transactLocked
+                        }
+                        val record = doc.getRecord(APM_ENABLED_PATH)
+                        if (record == null) {
+                            return@transactLocked
+                        }
+                        val apmEnabled = record.get() == AIRPLANE_MODE_ON
+                        if (mAirplaneModeState == apmEnabled) {
+                            return@transactLocked
+                        }
+                        logD("Remote APM state = $apmEnabled. Updating local setting")
+                        mAirplaneModeState = apmEnabled
+                        mAirplaneModeController.updateAirplaneModeState(apmEnabled)
+                        if (apmEnabled) {
+                            mNotificationHelper.maybeShowNotification(
+                                AIRPLANE_MODE_SYNCED,
+                                UserHandle.ALL,
+                            )
+                        }
                     }
                 }
             }
+        } finally {
+            Trace.endSection()
         }
     }
 
     override fun onAirplaneModeChanged(enabled: Boolean) {
         logD("Local APM state changed to $enabled")
-        synchronized(mLock) {
-            val localDataStore = mDataStore
-            if (mAirplaneModeState != enabled) {
-                mAirplaneModeState = enabled
-                if (mState == STATE_ACTIVE && localDataStore != null) {
-                    logD("Setting APM state to SharedDataStore")
-                    localDataStore.transactLocked("Update local state") { doc ->
-                        doc.putData(APM_ENABLED_PATH, enabled.toAirplaneModeState())
+        Trace.beginSection("AirplaneModeSyncManager.onAirplaneModeChanged")
+        try {
+            synchronized(mLock) {
+                val localDataStore = mDataStore
+                if (mAirplaneModeState != enabled) {
+                    mAirplaneModeState = enabled
+                    if (mState == STATE_ACTIVE && localDataStore != null) {
+                        logD("Setting APM state to SharedDataStore")
+                        localDataStore.transactLocked("Update local state") { doc ->
+                            doc.putData(APM_ENABLED_PATH, enabled.toAirplaneModeState())
+                        }
                     }
                 }
             }
+        } finally {
+            Trace.endSection()
         }
     }
 
     override fun onKidsWatchChanged(isKidsWatch: Boolean) {
-        synchronized(mLock) {
-            mIsKidsWatch = isKidsWatch
-            setApmSyncSupportedMetadataLocked()
-            maybeUpdateDataStoreLocked()
+        Trace.beginSection("AirplaneModeSyncManager.onKidsWatchChanged")
+        try {
+            synchronized(mLock) {
+                mIsKidsWatch = isKidsWatch
+                setApmSyncSupportedMetadataLocked()
+                maybeUpdateDataStoreLocked()
+            }
+        } finally {
+            Trace.endSection()
         }
     }
 
@@ -192,11 +213,16 @@ internal constructor(
 
     override fun onAirplaneModeSyncEnabledStateChanged(enabled: Boolean) {
         logD("Local APM sync enabled state changed to $enabled")
-        mMetadataPublisher.putBooleanMetaData(USER_ALL, AIRPLANE_MODE_SYNC, enabled)
-        synchronized(mLock) {
-            if (mStarted && mSyncEnabled.compareAndSet(!enabled, enabled)) {
-                mNetworkManager.invalidateNetworks()
+        Trace.beginSection("AirplaneModeSyncManager.onAirplaneModeSyncEnabledStateChanged")
+        try {
+            mMetadataPublisher.putBooleanMetaData(USER_ALL, AIRPLANE_MODE_SYNC, enabled)
+            synchronized(mLock) {
+                if (mStarted && mSyncEnabled.compareAndSet(!enabled, enabled)) {
+                    mNetworkManager.invalidateNetworks()
+                }
             }
+        } finally {
+            Trace.endSection()
         }
     }
 
@@ -306,19 +332,24 @@ internal constructor(
         if (!Flags.syncAirplaneModeWithWatches()) {
             return
         }
-        synchronized(mLock) {
-            if (!mStarted) {
-                return
+        Trace.beginSection("AirplaneModeSyncManager.destroy")
+        try {
+            synchronized(mLock) {
+                if (!mStarted) {
+                    return
+                }
+                mStarted = false
+                mState = STATE_INACTIVE
+                mAirplaneModeController.unregisterAirplaneModeChangedListener(this)
+                mDeviceUtils.unregisterKidsWatchChangeListener(this)
+                mDataStore?.unregisterOnRemoteChangeListener(this)
+                mDataStore = null
+                mNetwork?.destroy()
+                mNetwork = null
+                mSharedDataStoreHandle.destroy()
             }
-            mStarted = false
-            mState = STATE_INACTIVE
-            mAirplaneModeController.unregisterAirplaneModeChangedListener(this)
-            mDeviceUtils.unregisterKidsWatchChangeListener(this)
-            mDataStore?.unregisterOnRemoteChangeListener(this)
-            mDataStore = null
-            mNetwork?.destroy()
-            mNetwork = null
-            mSharedDataStoreHandle.destroy()
+        } finally {
+            Trace.endSection()
         }
     }
 

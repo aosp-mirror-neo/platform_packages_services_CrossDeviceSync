@@ -37,10 +37,15 @@ class MessageRecord implements Dumpable {
     public final int maxAttempts;
     public final int userId;
     public final String networkId;
+    public final int feature;
     public final boolean isBroadcast;
+    public final long creationTimestamp;
+
     private final int mFlags;
     private final Map<Integer, DeliveryState> mDeliveryStates = new HashMap<>();
+
     private boolean mCancelled;
+    private boolean mLogged;
 
     MessageRecord(
             long id,
@@ -49,6 +54,7 @@ class MessageRecord implements Dumpable {
             int flags,
             int userId,
             String networkId,
+            int feature,
             boolean isBroadcast,
             long now) {
         this.id = id;
@@ -57,7 +63,9 @@ class MessageRecord implements Dumpable {
         this.maxAttempts = shouldRetryAfterFail() ? MAX_DELIVERY_ATTEMPT : 1;
         this.userId = userId;
         this.networkId = networkId;
+        this.feature = feature;
         this.isBroadcast = isBroadcast;
+        this.creationTimestamp = now;
         for (Integer associationId : targetAssociationIds) {
             mDeliveryStates.put(associationId, new DeliveryState(now));
         }
@@ -100,6 +108,26 @@ class MessageRecord implements Dumpable {
         return true;
     }
 
+    /** Returns {@code true} if any message was cancelled. */
+    public boolean isAnyCancelled() {
+        for (DeliveryState state : mDeliveryStates.values()) {
+            if (state.state == DeliveryState.CANCELLED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Returns {@code true} if all messages are delivered. */
+    public boolean isAllDelivered() {
+        for (DeliveryState state : mDeliveryStates.values()) {
+            if (state.state != DeliveryState.DELIVERED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Cancels this message. */
     public boolean cancelAll() {
         if (!isDone()) {
@@ -112,6 +140,16 @@ class MessageRecord implements Dumpable {
     /** Returns {@code true} if this message has been cancelled. */
     public boolean isCancelled() {
         return mCancelled;
+    }
+
+    /** Record that this message has been logged. */
+    public void noteLogged() {
+        mLogged = true;
+    }
+
+    /** Returns {@code true} if the message has been logged already. */
+    public boolean isLogged() {
+        return mLogged;
     }
 
     /** Iterates through each delivery that is not yet finished. */

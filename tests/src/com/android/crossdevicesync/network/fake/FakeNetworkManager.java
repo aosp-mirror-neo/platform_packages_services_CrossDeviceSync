@@ -200,8 +200,9 @@ public class FakeNetworkManager implements NetworkManager {
         addRemoteDevice().setRemoteNetworkManager(remoteNetworkManager);
     }
 
+    /** Returns the {@link FakeRemoteDevice} that's using the given {@link FakeNetworkManager}. */
     @Nullable
-    private FakeRemoteDevice findRemoteDevice(FakeNetworkManager remoteNetworkManager) {
+    public FakeRemoteDevice findRemoteDevice(FakeNetworkManager remoteNetworkManager) {
         for (FakeRemoteDevice device : mRemoteDevices.values()) {
             if (device.mRemoteNetworkManager == remoteNetworkManager) {
                 return device;
