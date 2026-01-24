@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"பன்முகச் சாதன ஒத்திசைவு"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"விமான மோட் ஒத்திசைவு"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"விமான மோட்"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"விமான மோட் இப்போது உங்கள் மொபைலிலும் வாட்ச்சிலும் ஒத்திசைக்கப்படும்.\n\nஉங்கள் வாட்ச் மற்றும் மொபைல் அமைப்புகளில் மோட் ஒத்திசைவு விருப்பத்தேர்வுகளை நிர்வகிக்கலாம்."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"அமைப்புகளை நிர்வகியுங்கள்"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"தொந்தரவு செய்ய வேண்டாம் அம்சத்தை ஒத்திசைத்தல்"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"தொந்தரவு செய்ய வேண்டாம்"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"அருகிலுள்ள சாதனத்தில் இருந்து ஒத்திசைக்கப்பட்டது"</string>

@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"ক্রস-ডিভাইস সিঙ্ক"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"বিমান মোড সিঙ্ক"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"বিমান মোড"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"বিমান মোড এখন আপনার ফোন ও স্মার্টওয়াচ জুড়ে সিঙ্ক করা হবে।\n\nআপনার স্মার্টওয়াচ ও ফোনের সেটিংসে গিয়ে মোড সিঙ্ক করার পছন্দ ম্যানেজ করুন।"</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"সেটিংস ম্যানেজ করুন"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"\'বিরক্ত করবে না\' সেটিংস সিঙ্ক করে"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"বিরক্ত করবে না"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"আপনার আশেপাশের ডিভাইস থেকে সিঙ্ক করা হয়েছে"</string>

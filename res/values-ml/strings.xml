@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"ക്രോസ് ഉപകരണ സമന്വയം"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"ഫ്ലൈറ്റ് മോഡ് സമന്വയം"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"ഫ്ലൈറ്റ് മോഡ്"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"ഫ്ലൈറ്റ് മോഡ് ഇപ്പോൾ നിങ്ങളുടെ ഫോണിലും വാച്ചിലും ഉടനീളം സമന്വയിപ്പിക്കും.\n\nനിങ്ങളുടെ വാച്ചിലും ഫോൺ ക്രമീകരണത്തിലും മോഡ് സമന്വയിപ്പിക്കൽ മുൻഗണനകൾ മാനേജ് ചെയ്യുക."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"ക്രമീകരണം മാനേജ് ചെയ്യുക"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"\'ശല്യപ്പെടുത്തരുത്\' സമന്വയിപ്പിക്കൽ"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"ശല്യപ്പെടുത്തരുത്"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"സമീപമുള്ള ഉപകരണത്തിൽ നിന്ന് സമന്വയിപ്പിച്ചത്"</string>
