@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"សមកាលកម្មឆ្លងកាត់ឧបករណ៍"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"ការធ្វើសមកាលកម្មមុខងារពេលជិះយន្តហោះ"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"ពេល​ជិះ​យន្តហោះ"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"ឥឡូវនេះ មុខងារពេល​ជិះ​យន្តហោះនឹងធ្វើសមកាលកម្មនៅលើទូរសព្ទ និងនាឡិការបស់អ្នក។\n\nគ្រប់គ្រងចំណូលចិត្តសមកាលកម្មមុខងារនៅលើការកំណត់នាឡិកា និងទូរសព្ទរបស់អ្នក។"</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"គ្រប់គ្រងការកំណត់"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"សមកាលកម្មមុខងារកុំរំខាន"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"កុំ​រំខាន"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"បានធ្វើសមកាលកម្មពីឧបករណ៍នៅជិតរបស់អ្នក"</string>

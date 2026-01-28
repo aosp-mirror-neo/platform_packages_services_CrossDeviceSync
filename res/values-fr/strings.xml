@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Synchronisation inter-appareil"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Synchronisation du mode Avion"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Mode Avion"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Le mode Avion sera désormais synchronisé sur votre téléphone et votre montre.\n\nGérez les préférences de synchronisation dans les paramètres de votre montre et de votre téléphone."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"Gérer les paramètres"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Synchronisation du mode Ne pas déranger"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Ne pas déranger"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Synchronisé depuis votre appareil à proximité"</string>

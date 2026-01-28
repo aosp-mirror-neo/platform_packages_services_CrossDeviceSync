@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"ਕ੍ਰਾਸ-ਡੀਵਾਈਸ ਸਿੰਕ"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"ਹਵਾਈ-ਜਹਾਜ਼ ਮੋਡ ਸਿੰਕ"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"ਹਵਾਈ-ਜਹਾਜ਼ ਮੋਡ"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"ਹਵਾਈ-ਜਹਾਜ਼ ਮੋਡ ਹੁਣ ਤੁਹਾਡੇ ਫ਼ੋਨ ਅਤੇ ਘੜੀ ਵਿਚਾਲੇ ਸਿੰਕ ਹੋਵੇਗਾ।\n\nਆਪਣੀ ਘੜੀ ਅਤੇ ਫ਼ੋਨ ਦੀਆਂ ਸੈਟਿੰਗਾਂ \'ਤੇ ਮੋਡ ਸਿੰਕ ਤਰਜੀਹਾਂ ਦਾ ਪ੍ਰਬੰਧਨ ਕਰੋ।"</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"ਸੈਟਿੰਗਾਂ ਦਾ ਪ੍ਰਬੰਧਨ ਕਰੋ"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"\'ਪਰੇਸ਼ਾਨ ਨਾ ਕਰੋ\' ਮੋਡ ਨਾਲ ਸਿੰਕ"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"ਪਰੇਸ਼ਾਨ ਨਾ ਕਰੋ"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"ਤੁਹਾਡੇ ਨਜ਼ਦੀਕੀ ਡੀਵਾਈਸ ਤੋਂ ਸਿੰਕ ਕੀਤਾ ਗਿਆ"</string>
