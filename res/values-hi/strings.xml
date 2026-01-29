@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"अलग-अलग डिवाइसों पर सिंक करने की सुविधा"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"फ़्लाइट मोड में डेटा सिंक करने की सुविधा"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"फ़्लाइट मोड"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"फ़्लाइट मोड अब आपके फ़ोन और स्मार्टवॉच पर सिंक हो जाएगा.\n\nमोड सिंक करने की सेटिंग को अपनी स्मार्टवॉच और फ़ोन की सेटिंग में जाकर मैनेज करें."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"सेटिंग मैनेज करें"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"\'परेशान न करें\' मोड को सिंक करने की सुविधा"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"\'परेशान न करें\' मोड"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"आस-पास मौजूद डिवाइस के साथ सिंक किया गया"</string>

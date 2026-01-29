@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"හරස් උපාංග සමමුහුර්ත කිරීම"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"අහස්යානා ආකාරය සමමුහුර්ත කරන්න"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"අහස්යානා ආකාරය"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"අහස්යානා ප්‍රකාරය දැන් ඔබේ දුරකථනය සහ ඔරලෝසුව හරහා සමමුහුර්ත වනු ඇත.\n\nඔබේ ඔරලෝසු සහ දුරකථන සැකසීම් මත ප්‍රකාර සමමුහුර්ත මනාප කළමනාකරණය කරන්න."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"සැකසීම් කළමනාකරණය කරන්න"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"බාධා නොකරන්න සමමුහුර්ත කරන්න"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"බාධා නොකරන්න"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"ඔබේ අවට උපාංගයෙන් සමමුහුර්ත කර ඇත"</string>

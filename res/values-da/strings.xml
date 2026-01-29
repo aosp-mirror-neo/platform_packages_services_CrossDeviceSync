@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Synkronisering på tværs af enheder"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Synkronisering i flytilstand"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Flytilstand"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Flytilstand synkroniseres nu på din telefon og dit ur.\n\nAdministrer præferencer for tilstandssynkronisering i indstillingerne på dit ur og din telefon."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"Administrer indstillinger"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Synkronisering af Forstyr ikke"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Forstyr ikke"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Synkroniseret fra din enhed i nærheden"</string>

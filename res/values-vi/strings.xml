@@ -17,12 +17,10 @@
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="app_label" msgid="8317618268687481611">"Đồng bộ hoá trên nhiều thiết bị"</string>
-    <!-- no translation found for airplane_mode_sync_notification_channel_name (6564497319920541027) -->
-    <skip />
+    <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Đồng bộ hoá ở chế độ trên máy bay"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Chế độ trên máy bay"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Chế độ trên máy bay sẽ đồng bộ hoá giữa điện thoại và đồng hồ của bạn.\n\nQuản lý các tuỳ chọn đồng bộ hoá trong phần cài đặt của đồng hồ và điện thoại."</string>
-    <!-- no translation found for apm_sync_notification_settings_action (5047802942977350991) -->
-    <skip />
+    <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"Quản lý chế độ cài đặt"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Đồng bộ hoá chế độ Không làm phiền"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Không làm phiền"</string>
     <string name="do_not_disturb_sync_notification_content" msgid="3277535522068446603">"Đã đồng bộ hoá trên thiết bị ở gần"</string>
