@@ -31,6 +31,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -106,6 +107,12 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         assertThat(devices.keySet()).containsExactly(1, 2);
         assertThat(devices.get(1).hasTransport()).isFalse();
         assertThat(devices.get(2).hasTransport()).isTrue();
+    }
+
+    @Test
+    public void init_alreadyInitialized_throwsIllegalStateException() {
+        // The manager is already initialized in setUp(). Calling it again should throw.
+        assertThrows(IllegalStateException.class, () -> mNetworkManagerImpl.init());
     }
 
     @Test
@@ -855,6 +862,18 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
     }
 
     @Test
+    public void inboundMessage_fromUnknownDevice_isDropped() {
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
+        network.registerListener(mMainExecutor, mListener);
+
+        // Send a message from an association ID that does not exist.
+        mFakeMessenger.receiveMessage("test", 999, new byte[] {1, 2});
+
+        // Verify the message is dropped and the listener is not notified.
+        verify(mListener, never()).onNetworkMessage(anyInt(), any());
+    }
+
+    @Test
     public void inboundMessage_sentToRightUser() {
         // Setup 2 devices for 2 users.
         setupDevice(/* id= */ 1, /* userId= */ 1, /* present= */ true, /* nearby= */ true);
@@ -1370,6 +1389,34 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
         // Not sent since device is not in network.
         assertThat(mFakeMessenger.getSentMessages()).isEmpty();
         // Message doesn't stick.
+        assertThat(network.isMessagePending(msgId)).isFalse();
+    }
+
+    @Test
+    public void nonStickyMessage_toOfflineDevice_isCancelled() {
+        setupDevice(/* id= */ 1, /* present= */ false, /* nearby= */ false);
+        Network network = mNetworkManagerImpl.createNetwork("test", INCLUDE_ALL_DEVICES);
+
+        // Send a non-sticky message to an offline device.
+        long msgId = network.unicastMessage(/* associationId= */ 1, new byte[] {1}, /* flags= */ 0);
+
+        // Verify the message is not sent and is immediately cancelled.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
+        assertThat(network.isMessagePending(msgId)).isFalse();
+    }
+
+    @Test
+    public void nonStickyMessage_toOutOfNetworkDevice_isCancelled() {
+        setupDevice(/* id= */ 1, /* present= */ true, /* nearby= */ true);
+        // Create a network that excludes device 1.
+        Network network =
+                mNetworkManagerImpl.createNetwork("test", device -> device.getAssociationId() != 1);
+
+        // Send a non-sticky message to the out-of-network device.
+        long msgId = network.unicastMessage(/* associationId= */ 1, new byte[] {1}, /* flags= */ 0);
+
+        // Verify the message is not sent and is immediately cancelled.
+        assertThat(mFakeMessenger.getSentMessages()).isEmpty();
         assertThat(network.isMessagePending(msgId)).isFalse();
     }
 
