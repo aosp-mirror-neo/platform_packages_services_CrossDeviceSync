@@ -186,7 +186,6 @@ internal constructor(
 
     @GuardedBy("mLock")
     private fun setApmSyncSupportedMetadataLocked() {
-        // TODO(b/469447704): Check if companion apps support APM Sync
         mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, isSyncSupportedLocked())
     }
 
