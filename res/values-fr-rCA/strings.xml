@@ -16,7 +16,7 @@
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="app_label" msgid="8317618268687481611">"Synchronisation multiappareil"</string>
+    <string name="app_label" msgid="8317618268687481611">"Synchron. multiappareil"</string>
     <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Synchronisation en mode Avion"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Mode Avion"</string>
     <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Le mode Avion se synchronisera désormais entre votre téléphone et votre montre.\n\nGérez les préférences de synchronisation des modes dans les paramètres de votre montre et de votre téléphone."</string>
