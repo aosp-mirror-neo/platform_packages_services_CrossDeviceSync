@@ -168,17 +168,19 @@ public class MetadataPublisherImpl
     public void onDeviceChanged(RemoteDevice device) {
         int userId = device.getUserId();
         synchronized (mLock) {
-            if (mUserBroadcastMessages.containsKey(userId)) {
+            if (mUserBroadcastMessages.containsKey(userId)
+                    || mUserBroadcastMessages.containsKey(UserHandle.USER_ALL)) {
                 // Already entered broadcast phase for user. No need to send unicast ping.
                 return;
             }
-            if (getLastModifiedTimestampForUser(device.getUserId())
-                    <= device.getAssociationInfoCache().getMetadataSentTimestamp()) {
-                // Already sent metadata to the remote device. Nothing to do.
-                return;
+            long lastSentTimestamp = device.getAssociationInfoCache().getMetadataSentTimestamp();
+            if (getLastModifiedTimestampForUser(device.getUserId()) > lastSentTimestamp) {
+                // Send unicast ping to the target device for pushing user metadata.
+                unicastPingLocked(userId, device.getAssociationId());
+            } else if (getLastModifiedTimestampForUser(UserHandle.USER_ALL) > lastSentTimestamp) {
+                // Send unicast ping to the target device for pushing USER_ALL metadata.
+                unicastPingLocked(UserHandle.USER_ALL, device.getAssociationId());
             }
-            // Send unicast ping to the target device for pushing metadata.
-            unicastPingLocked(userId, device.getAssociationId());
         }
     }
 
@@ -354,13 +356,12 @@ public class MetadataPublisherImpl
                     // Unchanged.
                     continue;
                 }
+                long now = mClock.currentTimeMillis();
                 mCompanionDeviceManager.setLocalMetadata(
                         userId, CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, bundle);
                 mSharedPreferences
                         .edit()
-                        .putLong(
-                                LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId,
-                                mClock.currentTimeMillis())
+                        .putLong(LAST_METADATA_UPDATE_TIMESTAMP_PREFIX + userId, now)
                         .apply();
                 broadcastPingLocked(userId);
             }
