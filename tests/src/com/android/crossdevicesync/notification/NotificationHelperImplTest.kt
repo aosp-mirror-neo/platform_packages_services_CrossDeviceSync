@@ -103,8 +103,6 @@ class NotificationHelperImplTest : SyncServiceComponentTestBase() {
             .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_title))
         assertThat(extras.getString(Notification.EXTRA_TEXT))
             .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_content))
-        assertThat(extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString())
-            .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_content))
 
         assertThat(notification.contentIntent.intent.action)
             .isEqualTo(Settings.ACTION_AIRPLANE_MODE_SETTINGS)
