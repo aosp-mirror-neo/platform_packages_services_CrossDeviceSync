@@ -28,11 +28,13 @@ import com.google.common.util.concurrent.MoreExecutors.directExecutor
 
 /** Fake implementation of [SharedDataStoreHandle]. */
 class FakeSharedDataStoreHandle<T>(
-    override val name: String,
+    private val name: String,
     private val mNodeIdProvider: DeviceNodeIdProvider,
     private val mStorage: IStorage,
     private val mDataStoreFactory: SharedDataStoreFactory<T>,
 ) : SharedDataStoreHandle<T> {
+    override fun getName(): String = name
+
     private var mLockedDataStore: SharedDataStore<T>? = null
 
     override fun isLocked(): Boolean = mLockedDataStore != null

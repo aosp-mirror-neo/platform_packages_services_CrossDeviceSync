@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,25 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.common
+
+package com.android.crossdevicesync.common;
 
 /** Utility to check if the current device is a watch and its specific type. */
-interface DeviceUtils {
+public interface DeviceUtils {
     /** Returns true if the device is a watch. */
-    val isWatch: Boolean
+    boolean isWatch();
 
     /** Returns true if the device is a kids watch. */
-    fun isKidsWatch(): Boolean
+    boolean isKidsWatch();
 
     /** Registers a listener to be notified when the kids watch status changes. */
-    fun registerKidsWatchChangeListener(listener: Listener)
+    void registerKidsWatchChangeListener(Listener listener);
 
     /** Unregisters a previously registered listener. */
-    fun unregisterKidsWatchChangeListener(listener: Listener)
+    void unregisterKidsWatchChangeListener(Listener listener);
 
     /** Listener for kids watch status changes. */
     interface Listener {
         /** Called when the kids watch status changes. */
-        fun onKidsWatchChanged(isKidsWatch: Boolean)
+        void onKidsWatchChanged(boolean isKidsWatch);
     }
 }

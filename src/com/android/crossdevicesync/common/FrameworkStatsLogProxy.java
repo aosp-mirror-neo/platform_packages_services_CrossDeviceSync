@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.feature.dagger
 
-import com.android.crossdevicesync.feature.airplanemode.dagger.AirplaneModeSyncModule
-import com.android.crossdevicesync.feature.mode.dagger.ContextualModeSyncModule
-import dagger.Module
+package com.android.crossdevicesync.common;
 
-/** Dagger module for feature code. */
-@Module(includes = [ContextualModeSyncModule::class, AirplaneModeSyncModule::class])
-object FeatureModule
+/** Proxy for the Framework Stats Logger. */
+public interface FrameworkStatsLogProxy {
+    /** See {@link com.android.internal.util.FrameworkStatsLog#write} */
+    void logSyncEvent(int event, int feature);
+
+    /** See {@link com.android.internal.util.FrameworkStatsLog#write} */
+    void logSyncEvent(int event, int feature, long duration);
+}

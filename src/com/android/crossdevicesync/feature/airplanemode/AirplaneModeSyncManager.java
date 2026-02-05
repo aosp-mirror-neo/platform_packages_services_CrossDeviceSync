@@ -1,0 +1,556 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.crossdevicesync.feature.airplanemode;
+
+import static android.companion.AssociationRequest.DEVICE_PROFILE_WATCH;
+import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC;
+import static android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE;
+import static android.provider.Settings.Global.AIRPLANE_MODE_SYNC;
+
+import android.annotation.NonNull;
+import android.annotation.Nullable;
+import android.content.Context;
+import android.os.Trace;
+import android.os.UserHandle;
+import android.util.IndentingPrintWriter;
+import android.util.Log;
+
+import androidx.annotation.GuardedBy;
+
+import com.android.crossdevicesync.common.DeviceUtils;
+import com.android.crossdevicesync.dagger.qualifier.Main;
+import com.android.crossdevicesync.data.DocumentSchemaInfo;
+import com.android.crossdevicesync.data.RecordType;
+import com.android.crossdevicesync.data.SchemaProvider;
+import com.android.crossdevicesync.data.SharedDataStore;
+import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
+import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
+import com.android.crossdevicesync.data.SharedDataStoreHandle;
+import com.android.crossdevicesync.data.SharedDataStoreHandleFactory;
+import com.android.crossdevicesync.data.StringConverter;
+import com.android.crossdevicesync.feature.FeatureManager;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
+import com.android.crossdevicesync.network.NetworkManager;
+import com.android.crossdevicesync.notification.NotificationHelper;
+import com.android.crossdevicesync.notification.NotificationReason;
+import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
+import com.android.internal.R;
+import com.android.internal.util.FrameworkStatsLog;
+import com.android.server.connectivity.Flags;
+
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+
+import javax.inject.Inject;
+
+/** Airplane mode sync feature manager. */
+@SyncServiceSingleton
+public class AirplaneModeSyncManager
+        implements FeatureManager,
+                OnRemoteChangeListener,
+                AirplaneModeController.Listener,
+                DeviceUtils.Listener {
+    private static final String TAG = "AirplaneModeSyncManager";
+    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+
+    private static final String DATA_STORE_NAME = "apm_sync_data_store"; // DO NOT CHANGE!
+    public static final String DOC_ID = "apm_sync_doc";
+    private static final int DOC_VERSION = 1;
+    public static final String APM_ENABLED_PATH = "/apm/enabled";
+    private static final int APM_ENABLED_VERSION = 1;
+    private static final String AIRPLANE_MODE_ON = "1";
+    private static final String AIRPLANE_MODE_OFF = "0";
+    public static final String NETWORK_ID = "apm_sync_network";
+
+    private static final int STATE_INACTIVE = 0;
+    private static final int STATE_OPENING_DATA_STORE = 1;
+    private static final int STATE_ACTIVE = 2;
+    private static final int STATE_CLOSING_DATA_STORE = 3;
+
+    // Shared metadata key across apps.
+    public static final String APM_SYNC_SUPPORTED = "apm_sync_supported";
+
+    static final List<DocumentSchemaInfo> DOCUMENT_SCHEMA_INFO_LIST =
+            Collections.singletonList(
+                    DocumentSchemaInfo.builder()
+                            .setDocId(DOC_ID)
+                            .setVersion(DOC_VERSION)
+                            .putPathSchema(
+                                    APM_ENABLED_PATH, RecordType.TYPE_REGISTER, APM_ENABLED_VERSION)
+                            .build());
+
+    private final Context mContext;
+    private final NetworkManager mNetworkManager;
+    private final AirplaneModeController mAirplaneModeController;
+    private final MetadataPublisher mMetadataPublisher;
+    private final NotificationHelper mNotificationHelper;
+    private final DeviceUtils mDeviceUtils;
+    private final Executor mExecutor;
+    private final SharedDataStoreHandle<String> mSharedDataStoreHandle;
+
+    private final Object mLock = new Object();
+
+    private Boolean mSupportedRes;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private SharedDataStore<String> mDataStore;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private NetworkManager.Network mNetwork;
+
+    @GuardedBy("mLock")
+    private int mState = STATE_INACTIVE;
+
+    @GuardedBy("mLock")
+    private boolean mStarted = false;
+
+    @GuardedBy("mLock")
+    private boolean mAirplaneModeState = false;
+
+    @GuardedBy("mLock")
+    private boolean mIsKidsWatch = false;
+
+    private final AtomicBoolean mSyncEnabled = new AtomicBoolean(false);
+
+    @Inject
+    public AirplaneModeSyncManager(
+            Context context,
+            NetworkManager networkManager,
+            AirplaneModeController airplaneModeController,
+            MetadataPublisher metadataPublisher,
+            NotificationHelper notificationHelper,
+            DeviceUtils deviceUtils,
+            @Main Executor executor,
+            StringConverter stringConverter,
+            SharedDataStoreHandleFactory sharedDataStoreHandleFactory) {
+        mContext = context;
+        mNetworkManager = networkManager;
+        mAirplaneModeController = airplaneModeController;
+        mMetadataPublisher = metadataPublisher;
+        mNotificationHelper = notificationHelper;
+        mDeviceUtils = deviceUtils;
+        mExecutor = executor;
+        mSharedDataStoreHandle =
+                sharedDataStoreHandleFactory.create(
+                        DATA_STORE_NAME, stringConverter, getSchemaProvider());
+    }
+
+    @Override
+    public void init() {
+        if (!Flags.syncAirplaneModeWithWatches()) {
+            return;
+        }
+        Trace.beginSection("AirplaneModeSyncManager.init");
+        try {
+            boolean apmEnabled = mAirplaneModeController.isAirplaneModeEnabled();
+            boolean syncEnabled = mAirplaneModeController.isAirplaneModeSyncEnabled();
+            boolean isKidsWatch = mDeviceUtils.isKidsWatch();
+            logD(
+                    "Init: apmEnabled="
+                            + apmEnabled
+                            + ", syncEnabled="
+                            + syncEnabled
+                            + ", isKidsWatch="
+                            + isKidsWatch);
+
+            synchronized (mLock) {
+                mAirplaneModeState = apmEnabled;
+                mIsKidsWatch = isKidsWatch;
+                mStarted = true;
+                setApmSyncSupportedMetadataLocked();
+                mAirplaneModeController.registerAirplaneModeChangedListener(this);
+                mDeviceUtils.registerKidsWatchChangeListener(this);
+                onAirplaneModeSyncEnabledStateChanged(syncEnabled);
+                maybeUpdateDataStoreLocked();
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @Override
+    public void onRemoteChange(@NonNull List<String> paths) {
+        Trace.beginSection("AirplaneModeSyncManager.onRemoteChange");
+        try {
+            synchronized (mLock) {
+                SharedDataStore<String> localDataStore = mDataStore;
+                if (mState != STATE_ACTIVE
+                        || !paths.contains(APM_ENABLED_PATH)
+                        || localDataStore == null) {
+                    return;
+                }
+                logD("Remote APM changed");
+                transactLocked(
+                        localDataStore,
+                        "Get remote state",
+                        doc -> {
+                            synchronized (mLock) {
+                                if (mState != STATE_ACTIVE) {
+                                    return;
+                                }
+                                SharedDataStore.Record record = doc.getRecord(APM_ENABLED_PATH);
+                                if (record == null) {
+                                    return;
+                                }
+                                boolean apmEnabled = AIRPLANE_MODE_ON.equals(record.get());
+                                if (mAirplaneModeState == apmEnabled) {
+                                    return;
+                                }
+                                logD(
+                                        "Remote APM state = "
+                                                + apmEnabled
+                                                + ". Updating local setting");
+                                mAirplaneModeState = apmEnabled;
+                                mAirplaneModeController.updateAirplaneModeState(apmEnabled);
+                                if (apmEnabled) {
+                                    mNotificationHelper.maybeShowNotification(
+                                            NotificationReason.AIRPLANE_MODE_SYNCED,
+                                            UserHandle.ALL);
+                                }
+                            }
+                        });
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @Override
+    public void onAirplaneModeChanged(boolean enabled) {
+        logD("Local APM state changed to " + enabled);
+        Trace.beginSection("AirplaneModeSyncManager.onAirplaneModeChanged");
+        try {
+            synchronized (mLock) {
+                SharedDataStore<String> localDataStore = mDataStore;
+                if (mAirplaneModeState != enabled) {
+                    mAirplaneModeState = enabled;
+                    if (mState == STATE_ACTIVE && localDataStore != null) {
+                        logD("Setting APM state to SharedDataStore");
+                        transactLocked(
+                                localDataStore,
+                                "Update local state",
+                                doc -> {
+                                    doc.putData(APM_ENABLED_PATH, toAirplaneModeState(enabled));
+                                });
+                    }
+                }
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @Override
+    public void onKidsWatchChanged(boolean isKidsWatch) {
+        Trace.beginSection("AirplaneModeSyncManager.onKidsWatchChanged");
+        try {
+            synchronized (mLock) {
+                mIsKidsWatch = isKidsWatch;
+                setApmSyncSupportedMetadataLocked();
+                maybeUpdateDataStoreLocked();
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void setApmSyncSupportedMetadataLocked() {
+        mMetadataPublisher.putBooleanMetaData(
+                UserHandle.USER_ALL, APM_SYNC_SUPPORTED, isSyncSupportedLocked());
+    }
+
+    @GuardedBy("mLock")
+    private boolean isSyncSupportedLocked() {
+        return isSupportedRes() && !mIsKidsWatch;
+    }
+
+    private boolean isSupportedRes() {
+        if (mSupportedRes == null) {
+            mSupportedRes =
+                    mContext.getResources().getBoolean(R.bool.config_supportAirplaneModeSync);
+        }
+        return mSupportedRes;
+    }
+
+    private void transactLocked(
+            SharedDataStore<String> dataStore,
+            String name,
+            Consumer<MutableDocument<String>> transaction) {
+        Futures.addCallback(
+                dataStore.transact(
+                        DOC_ID,
+                        document -> {
+                            transaction.accept(document);
+                            return null;
+                        }),
+                new FutureCallback<Void>() {
+                    @Override
+                    public void onSuccess(Void result) {
+                        logD("Transaction[" + name + "] successful");
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        Log.e(TAG, "Transaction[" + name + "] failed", t);
+                    }
+                },
+                mExecutor);
+    }
+
+    @Override
+    public void onAirplaneModeSyncEnabledStateChanged(boolean enabled) {
+        logD("Local APM sync enabled state changed to " + enabled);
+        Trace.beginSection("AirplaneModeSyncManager.onAirplaneModeSyncEnabledStateChanged");
+        try {
+            mMetadataPublisher.putBooleanMetaData(UserHandle.USER_ALL, AIRPLANE_MODE_SYNC, enabled);
+            synchronized (mLock) {
+                if (mStarted && mSyncEnabled.compareAndSet(!enabled, enabled)) {
+                    mNetworkManager.invalidateNetworks();
+                }
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void maybeUpdateDataStoreLocked() {
+        if (!mStarted || !isSyncSupportedLocked()) {
+            maybeCloseDataStoreLocked();
+        } else {
+            maybeOpenDataStoreLocked();
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void maybeOpenDataStoreLocked() {
+        if (mState != STATE_INACTIVE) {
+            logD("maybeEnableSync: ignored. Current state is " + stateToString(mState));
+            return;
+        }
+
+        mState = STATE_OPENING_DATA_STORE;
+        NetworkManager.Network network =
+                mNetworkManager.createNetwork(
+                        NETWORK_ID,
+                        FrameworkStatsLog
+                                .CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC,
+                        remoteDevice -> {
+                            // Whether this device is a watch, or the remote device is a watch.
+                            return (mDeviceUtils.isWatch()
+                                            || remoteDevice.getDeviceProfile()
+                                                    == DEVICE_PROFILE_WATCH)
+                                    &&
+                                    // Whether the remote device supports sync and has the sync
+                                    // toggle enabled.
+                                    remoteDevice
+                                            .getAssociationInfoCache()
+                                            .getMetadata(FEATURE_CROSS_DEVICE_SYNC)
+                                            .getBoolean(APM_SYNC_SUPPORTED)
+                                    && remoteDevice
+                                            .getAssociationInfoCache()
+                                            .getMetadata(FEATURE_CROSS_DEVICE_SYNC)
+                                            .getBoolean(AIRPLANE_MODE_SYNC)
+                                    && (remoteDevice
+                                                            .getAssociationInfoCache()
+                                                            .getSystemDataSyncFlags()
+                                                    & FLAG_AIRPLANE_MODE)
+                                            != 0
+                                    &&
+                                    // Whether the sync toggle is enabled in this device
+                                    mSyncEnabled.get();
+                        });
+        mNetwork = network;
+
+        Futures.addCallback(
+                mSharedDataStoreHandle.openDataStore(network),
+                new FutureCallback<SharedDataStore<String>>() {
+                    @Override
+                    public void onSuccess(SharedDataStore<String> dataStore) {
+                        onDataStoreInitialized(dataStore);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        onDataStoreFailedToInitialize(t);
+                    }
+                },
+                mExecutor);
+    }
+
+    private void onDataStoreInitialized(SharedDataStore<String> dataStore) {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                return;
+            }
+            logD("APM Data Store init success");
+            mState = STATE_ACTIVE;
+            mDataStore = dataStore;
+            dataStore.registerOnRemoteChangeListener(mExecutor, this);
+            maybeUpdateDataStoreLocked();
+        }
+    }
+
+    private void onDataStoreFailedToInitialize(Throwable t) {
+        synchronized (mLock) {
+            if (mState != STATE_OPENING_DATA_STORE) {
+                return;
+            }
+            Log.e(TAG, "APM Data Store init error", t);
+            mState = STATE_INACTIVE;
+            if (mNetwork != null) {
+                mNetwork.destroy();
+                mNetwork = null;
+            }
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void maybeCloseDataStoreLocked() {
+        if (mState != STATE_ACTIVE) {
+            logD("maybeDisableSync: ignored. Current state is " + stateToString(mState));
+            return;
+        }
+        mState = STATE_CLOSING_DATA_STORE;
+        if (mDataStore != null) {
+            mDataStore.unregisterOnRemoteChangeListener(this);
+            mDataStore.close().addListener(this::onDataStoreClosed, mExecutor);
+        }
+    }
+
+    private void onDataStoreClosed() {
+        synchronized (mLock) {
+            if (mState != STATE_CLOSING_DATA_STORE) {
+                return;
+            }
+            mState = STATE_INACTIVE;
+            mDataStore = null;
+            if (mNetwork != null) {
+                mNetwork.destroy();
+                mNetwork = null;
+            }
+            maybeUpdateDataStoreLocked();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        if (!Flags.syncAirplaneModeWithWatches()) {
+            return;
+        }
+        Trace.beginSection("AirplaneModeSyncManager.destroy");
+        try {
+            synchronized (mLock) {
+                if (!mStarted) {
+                    return;
+                }
+                mStarted = false;
+                mState = STATE_INACTIVE;
+                mAirplaneModeController.unregisterAirplaneModeChangedListener(this);
+                mDeviceUtils.unregisterKidsWatchChangeListener(this);
+                if (mDataStore != null) {
+                    mDataStore.unregisterOnRemoteChangeListener(this);
+                }
+                mDataStore = null;
+                if (mNetwork != null) {
+                    mNetwork.destroy();
+                }
+                mNetwork = null;
+                mSharedDataStoreHandle.destroy();
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    private SchemaProvider<String> getSchemaProvider() {
+        return new SchemaProvider<String>() {
+            @NonNull
+            @Override
+            public List<DocumentSchemaInfo> getAllDocumentSchema() {
+                return DOCUMENT_SCHEMA_INFO_LIST;
+            }
+
+            @Override
+            public void migrateDocument(@NonNull MutableDocument<String> document) {
+                synchronized (mLock) {
+                    if (mState != STATE_OPENING_DATA_STORE) {
+                        throw new IllegalStateException(
+                                "migrateDocument: illegal state " + stateToString(mState));
+                    }
+                    document.putData(APM_ENABLED_PATH, toAirplaneModeState(mAirplaneModeState));
+                }
+            }
+        };
+    }
+
+    @Override
+    public void dump(@NonNull IndentingPrintWriter pw) {
+        if (!Flags.syncAirplaneModeWithWatches()) {
+            return;
+        }
+        synchronized (mLock) {
+            pw.println("AirplaneModeSyncManager:");
+            pw.increaseIndent();
+            pw.println("State = " + stateToString(mState));
+            pw.println("Airplane Mode State = " + mAirplaneModeState);
+            pw.println("Airplane Mode Sync State = " + mSyncEnabled.get());
+            pw.println("Is Kids Watch = " + mIsKidsWatch);
+            if (mNetwork != null) {
+                pw.println("Network : " + mNetwork);
+            }
+            if (mDataStore != null) {
+                pw.println("Data Store : " + mDataStore);
+            }
+            pw.decreaseIndent();
+        }
+    }
+
+    private static String stateToString(int state) {
+        switch (state) {
+            case STATE_INACTIVE:
+                return "INACTIVE";
+            case STATE_OPENING_DATA_STORE:
+                return "OPENING_DATA_STORE";
+            case STATE_ACTIVE:
+                return "ACTIVE";
+            case STATE_CLOSING_DATA_STORE:
+                return "CLOSING_DATA_STORE";
+            default:
+                return "UNKNOWN(" + state + ")";
+        }
+    }
+
+    private static void logD(String log) {
+        if (DEBUG) {
+            Log.d(TAG, log);
+        }
+    }
+
+    static String toAirplaneModeState(boolean enabled) {
+        return enabled ? AIRPLANE_MODE_ON : AIRPLANE_MODE_OFF;
+    }
+}
