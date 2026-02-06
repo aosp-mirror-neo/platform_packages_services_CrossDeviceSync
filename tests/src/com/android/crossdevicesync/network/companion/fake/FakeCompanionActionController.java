@@ -23,7 +23,6 @@ import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,10 +31,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.inject.Inject;
-
 /** A fake implementation of {@link CompanionActionController}. */
-@SyncServiceSingleton
 public class FakeCompanionActionController implements CompanionActionController {
     private final FakeCompanionDeviceManagerProxy mCompanionDeviceManager;
     private final Map<Integer, SettableFuture<?>> mTransportRequests = new HashMap<>();
@@ -44,8 +40,7 @@ public class FakeCompanionActionController implements CompanionActionController 
     private boolean mAutomaticallyAttachTransport;
     private boolean mInitialized;
 
-    @Inject
-    FakeCompanionActionController(FakeCompanionDeviceManagerProxy companionDeviceManager) {
+    public FakeCompanionActionController(FakeCompanionDeviceManagerProxy companionDeviceManager) {
         mCompanionDeviceManager = companionDeviceManager;
     }
 

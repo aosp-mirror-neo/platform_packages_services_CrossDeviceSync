@@ -32,7 +32,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
 import com.android.crossdevicesync.network.proto.CdmMessage;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 import com.android.internal.util.ArrayUtils;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -49,7 +49,7 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
-public class MessengerImplTest extends SyncServiceComponentTestBase {
+public class MessengerImplTest extends SyncServiceTestBase {
     private static final String TEST_NETWORK = "test_network";
 
     private MessengerImpl mRemoteMessenger1;
@@ -60,7 +60,6 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mMessengerImpl.init();
         RemoteDeviceContext remoteContext1 = simulateConnectedRemoteDevice(/* associationId= */ 1);
         mRemoteMessenger1 = remoteContext1.getMessenger();
@@ -1033,9 +1032,8 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         assertThat(Arrays.equals(m1.second, m2.second)).isTrue();
     }
 
-    private static class RemoteDeviceContext extends SyncServiceComponentTestBase {
+    private static class RemoteDeviceContext extends SyncServiceTestBase {
         RemoteDeviceContext() {
-            super.setUp();
             mFakeCompanionActionController.init();
         }
 

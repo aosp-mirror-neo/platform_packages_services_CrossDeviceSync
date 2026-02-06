@@ -60,7 +60,7 @@ class FakeSharedDataStoreHandle<T>(
         network: NetworkManager.Network
     ): ListenableFuture<SharedDataStore<T>> {
         try {
-            val dataStore = mDataStoreFactory.create()
+            val dataStore = mDataStoreFactory.create(this)
             return FluentFuture.from(dataStore.init(network))
                 .transform({ dataStore }, directExecutor())
         } catch (e: Exception) {

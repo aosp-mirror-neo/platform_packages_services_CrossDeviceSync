@@ -34,14 +34,12 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.data.SharedDataStore.Document;
-import com.android.crossdevicesync.data.dagger.TestSharedDataStoreComponent;
 import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
 import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
-import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice;
 import com.android.crossdevicesync.notification.NotificationReason;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import com.google.android.submerge.StorageInterface.StorageException;
 
@@ -52,7 +50,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBase {
+public class ContextualModeSyncControllerTest extends SyncServiceTestBase {
     private static final String REMOTE_NODE_ID = "remote_node";
 
     private UserHandle mUser;
@@ -62,10 +60,9 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
     private FakeSharedDataStore<String> mSharedDataStore;
     private IStorage mStorage;
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("DataFlowIssue")
     @Before
     public void setUp() {
-        super.setUp();
         mUser = mContext.getUser();
         mDoNotDisturbMode =
                 new ContextualMode.Builder("id")
@@ -74,17 +71,17 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                         .build();
         mFakeContextualModeManager.addOrUpdateMode(mUser, mDoNotDisturbMode);
         mFakeContextualModeManager.setModeSyncEnabled(mUser, true);
+
         mController = mContextualModeSyncControllerFactory.create(mUser);
+
         mFakeNetworkManager.init();
         mFakeMetadataPublisher.init();
         mController.start();
-        TestSharedDataStoreComponent component =
-                mSharedDataStoreComponentBuilderWrapper.getComponent(
-                        DATASTORE_NAME_PREFIX + mUser.getIdentifier());
-        mDataStoreFactory =
-                (TestSharedDataStoreFactory<String>) component.getTestSharedDataStoreFactory();
+
+        String dataStoreName = DATASTORE_NAME_PREFIX + mUser.getIdentifier();
+        mDataStoreFactory = mSharedDataStoreHandleFactory.getFactory(dataStoreName);
         mSharedDataStore = (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
-        mStorage = component.getStorage();
+        mStorage = mFakeStorage;
     }
 
     @Test
@@ -243,7 +240,6 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
         assertThat(mStorage.getDocument(CONTEXTUAL_MODES_DOC_ID)).isNull();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void dndRemovedAndAdded_dataStoreOpenAfterClose() {
         // Make close async.
@@ -286,7 +282,6 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .isTrue();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void dndAddedAndRemoved_dataStoreCloseAfterOpen() {
         // Remove DND mode.
@@ -336,7 +331,6 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .isTrue();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     public void dndAdded_dataStoreOpen() {
         mFakeContextualModeManager.removeMode(mUser, mDoNotDisturbMode.getId());
@@ -430,23 +424,22 @@ public class ContextualModeSyncControllerTest extends SyncServiceComponentTestBa
                 .get();
     }
 
-    private FakeRemoteDevice addRemoteDevice(
+    private void addRemoteDevice(
             int associationId,
             boolean syncSupported,
             boolean syncEnabled,
             boolean hasModeSyncFlag) {
+        PersistableBundle featureBundle = new PersistableBundle();
+        featureBundle.putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED, syncSupported);
+        featureBundle.putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, syncEnabled);
         PersistableBundle metadata = new PersistableBundle();
         metadata.putPersistableBundle(
-                CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, new PersistableBundle());
-        metadata.getPersistableBundle(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC)
-                .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED, syncSupported);
-        metadata.getPersistableBundle(CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC)
-                .putBoolean(METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, syncEnabled);
+                CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC, featureBundle);
         int flags = 0;
         if (hasModeSyncFlag) {
             flags |= CompanionDeviceManager.FLAG_UNIVERSAL_MODES;
         }
-        return mFakeNetworkManager.addRemoteDevice(
+        mFakeNetworkManager.addRemoteDevice(
                 new AssociationInfo.Builder(associationId, mContext.getUserId(), "package")
                         .setMetadata(metadata)
                         .setDisplayName("test")

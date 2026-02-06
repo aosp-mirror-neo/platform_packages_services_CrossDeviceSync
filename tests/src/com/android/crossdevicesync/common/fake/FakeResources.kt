@@ -15,20 +15,12 @@
  */
 package com.android.crossdevicesync.common.fake
 
-import android.app.Application
 import android.content.res.Resources
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** A test class to provide a fake [Resources] for testing. */
-@Singleton
 @Suppress("DEPRECATION") // Using deprecated Resources constructor for testing
-class FakeResources @Inject internal constructor(private val application: Application) :
-    Resources(
-        application.assets,
-        application.resources.displayMetrics,
-        application.resources.configuration,
-    ) {
+class FakeResources(val baseResources: Resources) :
+    Resources(baseResources.assets, baseResources.displayMetrics, baseResources.configuration) {
     private val mResourceOverrides = mutableMapOf<Int, Any>()
 
     fun overrideResource(resId: Int, value: Any) {
@@ -43,6 +35,6 @@ class FakeResources @Inject internal constructor(private val application: Applic
         if (mResourceOverrides.containsKey(resId) && mResourceOverrides[resId] is Boolean) {
             mResourceOverrides[resId] as Boolean
         } else {
-            application.resources.getBoolean(resId)
+            baseResources.getBoolean(resId)
         }
 }

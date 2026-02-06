@@ -27,17 +27,11 @@ import android.database.ContentObserver;
 import android.provider.Settings;
 import android.util.Log;
 
-import com.android.crossdevicesync.dagger.qualifier.Main;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Implementation of {@link DeviceUtils}. */
-@Singleton
 public class DeviceUtilsImpl implements DeviceUtils {
     private static final String TAG = "WatchChecker";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
@@ -47,12 +41,11 @@ public class DeviceUtilsImpl implements DeviceUtils {
     private final List<Listener> mListeners = new ArrayList<>();
     private final ContentObserver mContentObserver;
 
-    @Inject
-    public DeviceUtilsImpl(Context context, @Main Executor executor) {
+    public DeviceUtilsImpl(Context context, Executor mainExecutor) {
         mContext = context;
         mIsWatch = mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH);
         mContentObserver =
-                new ContentObserver(executor, /* unused= */ 0) {
+                new ContentObserver(mainExecutor, /* unused= */ 0) {
                     @Override
                     public void onChange(boolean selfChange) {
                         boolean isKids = isKidsWatch();

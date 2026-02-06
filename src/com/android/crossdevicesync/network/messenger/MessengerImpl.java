@@ -34,13 +34,10 @@ import androidx.annotation.VisibleForTesting;
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.network.proto.CdmMessage;
 import com.android.crossdevicesync.network.proto.CdmMessage.BatchedMessage;
 import com.android.crossdevicesync.network.proto.CdmMessage.Message;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -58,10 +55,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
-import javax.inject.Inject;
-
 /** Implementation of {@link Messenger} using CompanionDeviceManager. */
-@SyncServiceSingleton
 public class MessengerImpl implements Messenger {
     private static final String TAG = "Messenger";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
@@ -95,14 +89,13 @@ public class MessengerImpl implements Messenger {
     @GuardedBy("mLock")
     private long mNextHandleId;
 
-    @Inject
-    MessengerImpl(
-            @NetworkLock Object lock,
+    public MessengerImpl(
+            Object networkLock,
             CompanionDeviceManagerProxy companionDeviceManager,
-            @Main DelayedExecutor mainExecutor,
+            DelayedExecutor mainExecutor,
             Clock clock,
             CompanionActionController actionController) {
-        mLock = lock;
+        mLock = networkLock;
         mCompanionDeviceManager = companionDeviceManager;
         mMainExecutor = mainExecutor;
         mClock = clock;

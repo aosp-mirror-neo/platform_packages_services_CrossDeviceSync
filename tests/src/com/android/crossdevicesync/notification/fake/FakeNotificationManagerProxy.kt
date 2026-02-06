@@ -20,12 +20,9 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.os.UserHandle
 import com.android.crossdevicesync.notification.NotificationManagerProxy
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** A fake implementation of [NotificationManagerProxy] for testing. */
-@Singleton
-class FakeNotificationManagerProxy @Inject constructor() : NotificationManagerProxy {
+class FakeNotificationManagerProxy : NotificationManagerProxy {
 
     private val mNotifications = mutableMapOf<Pair<Int, UserHandle>, Notification>()
     private val mChannels = mutableMapOf<String, NotificationChannel>()

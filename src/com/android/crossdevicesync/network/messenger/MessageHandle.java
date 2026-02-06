@@ -72,7 +72,7 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     private Throwable mError;
 
     MessageHandle(
-            Object lock,
+            Object networkLock,
             Clock clock,
             long handleId,
             int maxAttempts,
@@ -85,7 +85,7 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
                             + ", message.getHandleId()="
                             + message.getHandleId());
         }
-        mLock = lock;
+        mLock = networkLock;
         mClock = clock;
         mHandleId = handleId;
         mMaxAttempts = maxAttempts;

@@ -31,11 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Default implementation of {@link UserHelper}. */
-@Singleton
 public class UserHelperImpl implements UserHelper {
     private static final String TAG = "UserHelper";
     private final Object mLock = new Object();
@@ -79,8 +75,7 @@ public class UserHelperImpl implements UserHelper {
                 }
             };
 
-    @Inject
-    UserHelperImpl(Context context) {
+    public UserHelperImpl(Context context) {
         mContext = context;
         mUserManager = context.getSystemService(UserManager.class);
     }

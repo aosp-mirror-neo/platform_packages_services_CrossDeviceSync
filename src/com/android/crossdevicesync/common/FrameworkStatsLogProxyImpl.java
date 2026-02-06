@@ -20,13 +20,8 @@ import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVEN
 
 import com.android.internal.util.FrameworkStatsLog;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Implementation of {@link FrameworkStatsLogProxy}. */
-@Singleton
 public class FrameworkStatsLogProxyImpl implements FrameworkStatsLogProxy {
-    @Inject
     public FrameworkStatsLogProxyImpl() {}
 
     @Override

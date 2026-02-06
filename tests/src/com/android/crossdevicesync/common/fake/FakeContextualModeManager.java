@@ -31,17 +31,12 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Fake implementation of {@link ContextualModeManagerProxy}. */
-@Singleton
 public class FakeContextualModeManager implements ContextualModeManagerProxy {
     private final Map<UserHandle, UserModesState> mUserModes = new HashMap<>();
     private boolean mModeSyncSupported;
 
-    @Inject
-    FakeContextualModeManager() {}
+    public FakeContextualModeManager() {}
 
     @Override
     public boolean isModeSyncSupported() {

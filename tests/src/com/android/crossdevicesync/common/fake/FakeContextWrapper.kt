@@ -17,13 +17,9 @@ package com.android.crossdevicesync.common.fake
 
 import android.app.Application
 import android.content.ContextWrapper
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** A Fake Context that can provide custom implementation for resources. */
-@Singleton
 class FakeContextWrapper
-@Inject
 internal constructor(application: Application, private val fakeResources: FakeResources) :
     ContextWrapper(application) {
     override fun getResources() = fakeResources

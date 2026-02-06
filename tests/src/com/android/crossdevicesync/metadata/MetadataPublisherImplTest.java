@@ -31,17 +31,16 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class MetadataPublisherImplTest extends SyncServiceComponentTestBase {
+public class MetadataPublisherImplTest extends SyncServiceTestBase {
     @Before
     public void setUp() {
-        super.setUp();
         mFakeClock.setCurrentTime(100);
         mFakeNetworkManager.init();
     }

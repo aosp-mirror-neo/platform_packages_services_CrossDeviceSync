@@ -18,28 +18,29 @@ package com.android.crossdevicesync.data;
 
 import android.annotation.NonNull;
 
-import com.android.crossdevicesync.data.dagger.SharedDataStoreComponent;
-import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
+import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.data.storage.StorageNamespaceDecorator;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.Converter;
-
-import javax.inject.Inject;
+import com.google.android.submerge.TimestampProvider;
 
 /** A factory to create a {@link SharedDataStoreHandle}. */
-@SyncServiceSingleton
-public class SharedDataStoreHandleFactory {
-    private final SharedDataStoreComponent.Builder mComponentBuilder;
+public class SharedDataStoreHandleFactory implements SharedDataStoreHandle.Factory {
+    private final DeviceNodeIdProvider mDeviceNodeIdProvider;
     private final IStorage mGlobalStorage;
+    private final FrameworkStatsLogProxy mFrameworkStatsLogProxy;
+    private final TimestampProvider mTimestampProvider;
 
-    @Inject
     public SharedDataStoreHandleFactory(
-            SharedDataStoreComponent.Builder componentBuilder,
-            @GlobalStorage IStorage globalStorage) {
-        mComponentBuilder = componentBuilder;
+            DeviceNodeIdProvider deviceNodeIdProvider,
+            IStorage globalStorage,
+            FrameworkStatsLogProxy frameworkStatsLogProxy,
+            TimestampProvider timestampProvider) {
+        mDeviceNodeIdProvider = deviceNodeIdProvider;
         mGlobalStorage = globalStorage;
+        mFrameworkStatsLogProxy = frameworkStatsLogProxy;
+        mTimestampProvider = timestampProvider;
     }
 
     /**
@@ -51,22 +52,33 @@ public class SharedDataStoreHandleFactory {
      * @param <T> The type of the data stored in the data store.
      * @return A {@link SharedDataStoreHandle} for the given data store.
      */
+    @Override
     @SuppressWarnings("unchecked")
     @NonNull
     public <T> SharedDataStoreHandle<T> create(
             @NonNull String name,
             @NonNull Converter<T> converter,
             @NonNull SchemaProvider<T> schemaProvider) {
-        return (SharedDataStoreHandle<T>)
-                mComponentBuilder
-                        .name(name)
-                        .converter(converter)
-                        .schemaProvider(schemaProvider)
-                        // Use the global storage with the namespace decorator to reuse the same
-                        // database
-                        // connection and reduce memory cost for multiple databases.
-                        .storage(new StorageNamespaceDecorator(name, mGlobalStorage))
-                        .build()
-                        .getSharedDataStoreHandle();
+        Object lock = new Object();
+        IStorage storage = new StorageNamespaceDecorator(name, mGlobalStorage);
+        SubmergeSchemaUpgradeHelper<T> schemaUpgradeHelper =
+                new SubmergeSchemaUpgradeHelper<>(storage, converter, name);
+
+        SharedDataStoreFactory<T> dataStoreFactory =
+                dataStoreHandle ->
+                        new SubmergeSharedDataStore<>(
+                                name,
+                                lock,
+                                mDeviceNodeIdProvider,
+                                storage,
+                                mFrameworkStatsLogProxy,
+                                mTimestampProvider,
+                                converter,
+                                schemaProvider,
+                                schemaUpgradeHelper,
+                                dataStoreHandle);
+
+        return new DefaultSharedDataStoreHandle<>(
+                name, lock, mDeviceNodeIdProvider, storage, dataStoreFactory);
     }
 }

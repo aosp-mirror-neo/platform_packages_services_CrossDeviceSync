@@ -31,12 +31,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.SchemaProvider
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument
-import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase
+import com.android.crossdevicesync.data.SharedDataStoreTestBase
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.APM_ENABLED_PATH
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.APM_SYNC_SUPPORTED
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice
 import com.android.crossdevicesync.notification.NotificationReason.AIRPLANE_MODE_SYNCED
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase
+import com.android.crossdevicesync.services.SyncServiceTestBase
 import com.android.internal.R
 import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC
 import com.android.server.connectivity.Flags
@@ -49,7 +49,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
+class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
     @get:Rule val setFlagsRule: SetFlagsRule = SetFlagsRule()
 
     private lateinit var mRemoteDeviceContext: RemoteDeviceContext
@@ -58,8 +58,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     override fun useRealSharedDataStoreImpl() = true
 
     @Before
-    override fun setUp() {
-        super.setUp()
+    fun setUp() {
         mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, true)
         mFakeNetworkManager.init()
         mFakeMetadataPublisher.init()
@@ -567,7 +566,7 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     }
 
     private fun isAirplaneModeOn(): Boolean {
-        return mFakeAirplaneModeController.isAirplaneModeEnabled()
+        return mFakeAirplaneModeController.isAirplaneModeEnabled
     }
 
     private fun setAirplaneModeSyncEnabled(enabled: Boolean) {
@@ -621,9 +620,8 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
     }
 
     companion object {
-        private class RemoteDeviceContext : SharedDataStoreComponentTestBase() {
+        private class RemoteDeviceContext : SharedDataStoreTestBase() {
             init {
-                super.setUp()
                 mSharedDataStore.init(
                     networkManager.createNetwork(AirplaneModeSyncManager.NETWORK_ID) { true }
                 )

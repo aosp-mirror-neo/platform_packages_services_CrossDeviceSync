@@ -17,14 +17,9 @@ package com.android.crossdevicesync.common;
 
 import android.os.SystemClock;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
-@Singleton
 public class ClockImpl implements Clock {
 
-    @Inject
-    ClockImpl() {}
+    public ClockImpl() {}
 
     @Override
     public long elapsedRealtime() {

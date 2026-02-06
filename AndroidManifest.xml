@@ -34,8 +34,7 @@
         android:allowClearUserData="true"
         android:label="@string/app_label"
         android:allowBackup="false"
-        android:directBootAware="true"
-        android:appComponentFactory="com.android.crossdevicesync.CrossDeviceSyncAppComponentFactory">
+        android:directBootAware="true">
         <service android:name="com.android.crossdevicesync.services.SyncService" />
         <receiver
             android:name="com.android.crossdevicesync.BootReceiver"

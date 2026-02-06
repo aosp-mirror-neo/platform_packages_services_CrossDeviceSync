@@ -108,6 +108,8 @@ public interface SharedDataStore<T> {
      * <p>Note: a document can only be accessed within {@link
      * TransactionApplier#transact(MutableDocument)} method. Any interactions with the document
      * after transaction will lead to {@link IllegalStateException}.
+     *
+     * @param <T> the type of data in the document.
      */
     interface Document<T> {
 
@@ -133,7 +135,11 @@ public interface SharedDataStore<T> {
         String getDebugStringForPath(String path);
     }
 
-    /** A mutable interface of {@link Document} which supports mutations. */
+    /**
+     * A mutable interface of {@link Document} which supports mutations.
+     *
+     * @param <T> the type of data in the document.
+     */
     interface MutableDocument<T> extends Document<T> {
 
         /**
@@ -174,6 +180,8 @@ public interface SharedDataStore<T> {
      *
      * <p>Note: if this record is also a {@link SetRecord} or {@link UnmergedRecord}, it may contain
      * more than a single value. See {@link SetRecord} and {@link UnmergedRecord} for details.
+     *
+     * @param <T> the type of data in the record.
      */
     interface Record<T> {
 
@@ -195,6 +203,8 @@ public interface SharedDataStore<T> {
     /**
      * A record represents a set data structure. It implements eventually consistency for add() and
      * remove() operations.
+     *
+     * @param <T> the type of data in the set.
      */
     interface SetRecord<T> extends Record<T> {
 
@@ -221,6 +231,8 @@ public interface SharedDataStore<T> {
      * independently increments a counter, which get synced in the network so that each device can
      * see other device's counter value. Then each device can independently sum the counters to
      * compute a "global counter" based on the values in {@link UnmergedRecord#entries()} .
+     *
+     * @param <T> the type of data in the record.
      */
     interface UnmergedRecord<T> extends Record<T> {
 

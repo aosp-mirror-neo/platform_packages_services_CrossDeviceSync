@@ -15,31 +15,7 @@
  */
 package com.android.crossdevicesync;
 
-import android.annotation.Nullable;
 import android.app.Application;
 
-import com.android.crossdevicesync.dagger.ApplicationComponent;
-import com.android.crossdevicesync.dagger.DaggerApplicationComponent;
-
 /** Application class of the cross device sync app. */
-public class CrossDeviceSyncApplication extends Application {
-    private static final String TAG = "XDeviceSyncApplication";
-
-    @Nullable protected ApplicationComponent mAppComponent;
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        mAppComponent = createDaggerComponent();
-    }
-
-    /** Create an {@link ApplicationComponent}. Overridable by tests. */
-    protected ApplicationComponent createDaggerComponent() {
-        return DaggerApplicationComponent.builder().application(this).build();
-    }
-
-    @Nullable
-    public ApplicationComponent getApplicationComponent() {
-        return mAppComponent;
-    }
-}
+public class CrossDeviceSyncApplication extends Application {}

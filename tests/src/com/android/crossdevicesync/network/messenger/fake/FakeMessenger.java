@@ -18,7 +18,6 @@ package com.android.crossdevicesync.network.messenger.fake;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.network.messenger.Messenger;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -31,10 +30,8 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-import javax.inject.Inject;
 
 /** A fake implementation of {@link Messenger} for use in tests. */
-@SyncServiceSingleton
 public class FakeMessenger implements Messenger {
 
     private final Map<MessageListener, Executor> mListeners = new HashMap<>();
@@ -43,7 +40,6 @@ public class FakeMessenger implements Messenger {
     private boolean mIsDestroyed = false;
     private boolean mIsInitialized = false;
 
-    @Inject
     public FakeMessenger() {}
 
     @Override

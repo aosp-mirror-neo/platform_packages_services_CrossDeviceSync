@@ -45,13 +45,11 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.Dumpable;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.data.Docs;
 import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
 import com.android.crossdevicesync.data.SharedDataStoreHandle;
-import com.android.crossdevicesync.data.SharedDataStoreHandleFactory;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
@@ -63,10 +61,6 @@ import com.android.crossdevicesync.notification.NotificationReason;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-
-import dagger.assisted.Assisted;
-import dagger.assisted.AssistedFactory;
-import dagger.assisted.AssistedInject;
 
 import java.util.HashMap;
 import java.util.List;
@@ -130,16 +124,15 @@ public class ContextualModeSyncController
     @GuardedBy("mLock")
     private boolean mStarted;
 
-    @AssistedInject
-    ContextualModeSyncController(
+    public ContextualModeSyncController(
             NetworkManager networkManager,
-            SharedDataStoreHandleFactory sharedDataStoreHandleFactory,
-            @Main Executor mainExecutor,
+            SharedDataStoreHandle.Factory sharedDataStoreHandleFactory,
+            Executor mainExecutor,
             StringConverter converter,
             ContextualModeManagerProxy contextualModeManager,
             MetadataPublisher metadataPublisher,
             NotificationHelper notificationHelper,
-            @Assisted UserHandle user) {
+            UserHandle user) {
         mNetworkManager = networkManager;
         mSharedDataStoreHandle =
                 sharedDataStoreHandleFactory.create(
@@ -586,9 +579,8 @@ public class ContextualModeSyncController
     }
 
     /** A factory to create a {@link ContextualModeSyncController} */
-    @AssistedFactory
     public interface Factory {
         /** Create a {@link ContextualModeSyncController} */
-        ContextualModeSyncController create(@Assisted UserHandle user);
+        ContextualModeSyncController create(UserHandle user);
     }
 }

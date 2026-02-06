@@ -20,27 +20,21 @@ import android.util.Log;
 
 import androidx.annotation.GuardedBy;
 
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-
 /** Default implementation of {@link Scanner}. */
-@SyncServiceSingleton
 public class ScannerImpl implements Scanner {
     private static final String TAG = "Scanner";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock;
     private final CompanionActionController mCompanionActionController;
-    private final Executor mExecutor;
+    private final Executor mMainExecutor;
 
     @GuardedBy("mLock")
     private final Set<ScanningSessionImpl> mSessions = new HashSet<>();
@@ -50,14 +44,13 @@ public class ScannerImpl implements Scanner {
     @GuardedBy("mLock")
     private boolean mInvalidationPending;
 
-    @Inject
-    ScannerImpl(
-            @NetworkLock Object lock,
+    public ScannerImpl(
+            Object networkLock,
             CompanionActionController companionActionController,
-            @Main Executor executor) {
-        mLock = lock;
+            Executor mainExecutor) {
+        mLock = networkLock;
         mCompanionActionController = companionActionController;
-        mExecutor = executor;
+        mMainExecutor = mainExecutor;
     }
 
     @Override
@@ -105,7 +98,7 @@ public class ScannerImpl implements Scanner {
             return;
         }
         mInvalidationPending = true;
-        mExecutor.execute(this::doInvalidate);
+        mMainExecutor.execute(this::doInvalidate);
     }
 
     private void doInvalidate() {

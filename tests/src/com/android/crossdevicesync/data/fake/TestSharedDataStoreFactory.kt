@@ -17,16 +17,16 @@ package com.android.crossdevicesync.data.fake
 
 import com.android.crossdevicesync.data.SharedDataStore
 import com.android.crossdevicesync.data.SharedDataStoreFactory
-import javax.inject.Provider
+import com.android.crossdevicesync.data.SharedDataStoreHandle
 
 /** A test implementation of [SharedDataStoreFactory]. */
-class TestSharedDataStoreFactory<T>(private val mProvider: Provider<SharedDataStore<T>>) :
+class TestSharedDataStoreFactory<T>(private val mFactory: SharedDataStoreFactory<T>) :
     SharedDataStoreFactory<T> {
     val dataStores: MutableList<SharedDataStore<T>> = ArrayList()
     private var mAsync: Boolean = false
 
-    override fun create(): SharedDataStore<T> {
-        val dataStore = mProvider.get()
+    override fun create(handle: SharedDataStoreHandle<T>): SharedDataStore<T> {
+        val dataStore = mFactory.create(handle)
         dataStores.add(dataStore)
         if (dataStore is FakeSharedDataStore<T>) {
             dataStore.setAsync(mAsync)
@@ -49,7 +49,7 @@ class TestSharedDataStoreFactory<T>(private val mProvider: Provider<SharedDataSt
      */
     fun setDataStoresAsync(async: Boolean): TestSharedDataStoreFactory<T> {
         mAsync = async
-        dataStores.forEach({ d ->
+        dataStores.forEach { d ->
             if (d is FakeSharedDataStore<T>) {
                 d.setAsync(async)
             } else {
@@ -58,7 +58,7 @@ class TestSharedDataStoreFactory<T>(private val mProvider: Provider<SharedDataSt
                         " implementation."
                 )
             }
-        })
+        }
         return this
     }
 }

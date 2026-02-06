@@ -17,23 +17,17 @@ package com.android.crossdevicesync.data;
 
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import com.google.android.submerge.Converter;
 
 import java.nio.charset.StandardCharsets;
 
-import javax.inject.Inject;
-
 /** Class responsible for serializing/deserializing @Nullable strings. */
-@SyncServiceSingleton
 public class StringConverter implements Converter<String> {
     private static final String TAG = "StringConverter";
     private static final byte FLAG_NULL = 0x00;
     private static final byte FLAG_NON_NULL = 0x01;
 
-    @Inject
-    StringConverter() {}
+    public StringConverter() {}
 
     @Nullable
     @Override

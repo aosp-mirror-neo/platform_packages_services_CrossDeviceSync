@@ -15,26 +15,18 @@
  */
 package com.android.crossdevicesync;
 
-import android.annotation.Nullable;
-
-import com.android.crossdevicesync.dagger.ApplicationComponent;
-import com.android.crossdevicesync.dagger.DaggerTestApplicationComponent;
-import com.android.crossdevicesync.dagger.TestApplicationComponent;
+import android.content.res.Resources;
 
 /** Test application implementation. */
 public class TestApplication extends CrossDeviceSyncApplication {
+    private Resources mResources;
+
     @Override
-    protected ApplicationComponent createDaggerComponent() {
-        return DaggerTestApplicationComponent.builder().application(this).build();
+    public Resources getResources() {
+        return mResources == null ? super.getResources() : mResources;
     }
 
-    @Nullable
-    @Override
-    public TestApplicationComponent getApplicationComponent() {
-        return (TestApplicationComponent) super.getApplicationComponent();
-    }
-
-    public void reCreateDaggerComponent() {
-        mAppComponent = createDaggerComponent();
+    public void setResources(Resources resources) {
+        mResources = resources;
     }
 }

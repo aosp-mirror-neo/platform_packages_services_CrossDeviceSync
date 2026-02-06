@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
+import com.google.android.submerge.Converter;
 import com.google.common.util.concurrent.ListenableFuture;
 
 /**
@@ -84,4 +85,22 @@ public interface SharedDataStoreHandle<T> {
      * @param deleteDataStore Whether to delete the data store as part of the clean-up.
      */
     void destroy(boolean deleteDataStore);
+
+    /** A factory to create a {@link SharedDataStoreHandle}. */
+    interface Factory {
+        /**
+         * Creates a {@link SharedDataStoreHandle}
+         *
+         * @param name The name of the data store
+         * @param converter used to serialize/deserialize the data
+         * @param schemaProvider The {@link SchemaProvider} for the data store
+         * @param <T> The type of the data stored in the data store.
+         * @return A {@link SharedDataStoreHandle} for the given data store.
+         */
+        @NonNull
+        <T> SharedDataStoreHandle<T> create(
+                @NonNull String name,
+                @NonNull Converter<T> converter,
+                @NonNull SchemaProvider<T> schemaProvider);
+    }
 }

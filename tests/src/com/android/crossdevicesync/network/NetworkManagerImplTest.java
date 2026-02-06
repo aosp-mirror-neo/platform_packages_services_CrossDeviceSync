@@ -53,7 +53,7 @@ import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
 import com.android.crossdevicesync.network.messenger.fake.FakeMessenger.SentMessage;
 import com.android.crossdevicesync.network.scanner.fake.FakeScanner;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -71,7 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 @RunWith(AndroidJUnit4.class)
-public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
+public class NetworkManagerImplTest extends SyncServiceTestBase {
     @Rule public final MockitoRule mockito = MockitoJUnit.rule();
 
     private static final Predicate<RemoteDevice> INCLUDE_ALL_DEVICES = device -> true;
@@ -81,7 +81,6 @@ public class NetworkManagerImplTest extends SyncServiceComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mNetworkManagerImpl.init();
     }
 

@@ -22,7 +22,7 @@ import android.content.SharedPreferences;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.After;
 import org.junit.Before;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 
 @RunWith(AndroidJUnit4.class)
-public class DeviceNodeIdProviderImplTest extends SyncServiceComponentTestBase {
+public class DeviceNodeIdProviderImplTest extends SyncServiceTestBase {
     private static final String TEST_FILE = "test_prefs";
 
     private SharedPreferences mSharedPreferences;
@@ -43,7 +43,6 @@ public class DeviceNodeIdProviderImplTest extends SyncServiceComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mSharedPreferences = mContext.getSharedPreferences(TEST_FILE, Context.MODE_PRIVATE);
         mDeviceNodeIdProvider = new DeviceNodeIdProviderImpl(mSharedPreferences);
     }

@@ -22,13 +22,10 @@ import com.android.crossdevicesync.notification.NotificationHelper;
 
 import java.io.PrintWriter;
 
-import javax.inject.Inject;
-
 /** {@link ShellCommand} Handler for commands passed to the {@link SyncService}. */
 public class SyncServiceShellCommand extends ShellCommand {
     private final NotificationHelper mNotificationHelper;
 
-    @Inject
     public SyncServiceShellCommand(NotificationHelper notificationHelper) {
         mNotificationHelper = notificationHelper;
     }

@@ -40,11 +40,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** A fake implementation of {@link CompanionDeviceManagerProxy} for testing. */
-@Singleton
 public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerProxy {
     private static final String TAG = "FakeCDM";
 
@@ -80,8 +76,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     private final List<ActionResultListener> mActionResultListeners = new ArrayList<>();
     private final Map<Integer, PersistableBundle> mMetadata = new HashMap<>();
 
-    @Inject
-    FakeCompanionDeviceManagerProxy() {}
+    public FakeCompanionDeviceManagerProxy() {}
 
     /** Returns the list of registered device presence listeners. */
     public List<DevicePresenceListener> getDevicePresenceListeners() {

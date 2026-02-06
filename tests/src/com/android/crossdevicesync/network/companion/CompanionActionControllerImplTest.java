@@ -25,7 +25,7 @@ import android.companion.AssociationInfo;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -34,13 +34,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class CompanionActionControllerImplTest extends SyncServiceComponentTestBase {
+public class CompanionActionControllerImplTest extends SyncServiceTestBase {
     private static int ASSOCIATION1_ID = 1;
     private static int ASSOCIATION2_ID = 2;
 
     @Before
     public void setUp() {
-        super.setUp();
         mCompanionActionController.init();
         mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(ASSOCIATION1_ID));
         mFakeCompanionDeviceManagerProxy.addAssociation(createAssociationInfo(ASSOCIATION2_ID));

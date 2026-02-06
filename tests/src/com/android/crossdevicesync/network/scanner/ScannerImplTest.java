@@ -20,19 +20,18 @@ import static com.google.common.truth.Truth.assertThat;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.network.scanner.Scanner.ScanningSession;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class ScannerImplTest extends SyncServiceComponentTestBase {
+public class ScannerImplTest extends SyncServiceTestBase {
     private static final String REQUEST_NAME = "test";
 
     @Before
     public void setUp() {
-        super.setUp();
         mFakeCompanionActionController.init();
     }
 

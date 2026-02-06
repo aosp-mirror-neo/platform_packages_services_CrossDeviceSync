@@ -45,15 +45,12 @@ import androidx.annotation.Nullable;
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.Messenger.MessageListener;
 import com.android.crossdevicesync.network.scanner.Scanner;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
@@ -74,10 +71,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import javax.inject.Inject;
-
 /** Default implementation of {@link NetworkManager}. */
-@SyncServiceSingleton
 public class NetworkManagerImpl implements NetworkManager {
     private static final String TAG = "NetworkManager";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
@@ -118,10 +112,9 @@ public class NetworkManagerImpl implements NetworkManager {
     @GuardedBy("mLock")
     private long mNextMessageId;
 
-    @Inject
-    NetworkManagerImpl(
-            @NetworkLock Object lock,
-            @Main Executor mainExecutor,
+    public NetworkManagerImpl(
+            Object networkLock,
+            Executor mainExecutor,
             CompanionDeviceManagerProxy companionDeviceManager,
             CompanionActionController companionActionController,
             Messenger messenger,
@@ -130,7 +123,7 @@ public class NetworkManagerImpl implements NetworkManager {
             Clock clock,
             Context context,
             FrameworkStatsLogProxy frameworkStatsLogProxy) {
-        mLock = lock;
+        mLock = networkLock;
         mMainExecutor = mainExecutor;
         mCompanionDeviceManager = companionDeviceManager;
         mCompanionActionController = companionActionController;

@@ -33,8 +33,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
-import javax.inject.Inject;
-
 /** Configuration for notifications. */
 public class NotificationConfig {
     private static final String APM_SYNC_NOTIFICATION_CHANNEL_ID = "apm_sync_channel";
@@ -45,7 +43,6 @@ public class NotificationConfig {
 
     final Map<String, Notification> mNotificationMap;
 
-    @Inject
     public NotificationConfig(Context context, DeviceUtils deviceUtils) {
         mContext = context;
         mDeviceUtils = deviceUtils;

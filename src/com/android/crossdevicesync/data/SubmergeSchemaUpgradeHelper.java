@@ -43,6 +43,8 @@ import java.util.TreeMap;
  * in the virtual node, then merged to the "real" submerge document. This setup ensures concurrent
  * schema change across different devices gets correctly merged and prevent data loss caused by
  * schema override.
+ *
+ * @param <T> the type of the document.
  */
 public class SubmergeSchemaUpgradeHelper<T> {
     /**
@@ -91,7 +93,7 @@ public class SubmergeSchemaUpgradeHelper<T> {
     }
 
     /**
-     * Upgrade the schema data store based on the latest schema info, and return a {@link byte[]}
+     * Upgrade the schema data store based on the latest schema info, and return a {@code byte[]}
      * that can be merged with the main data store to apply the schema change.
      *
      * @param schema the latest schema info.

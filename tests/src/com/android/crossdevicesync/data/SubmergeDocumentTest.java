@@ -56,7 +56,7 @@ import org.mockito.junit.MockitoRule;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
+public class SubmergeDocumentTest extends SharedDataStoreTestBase {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NetworkInterface mNetworkInterface;
     @Mock private DocumentTransaction<String> mMockTransaction;
@@ -66,9 +66,8 @@ public class SubmergeDocumentTest extends SharedDataStoreComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mFakeStorage.open();
-        mDeviceNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mDataStoreName);
+        mDeviceNodeId = mFakeDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mDataStoreName);
         mSubmergeDataStore = newDataStore(mDeviceNodeId);
         mDocument = newDocument(mDeviceNodeId);
     }

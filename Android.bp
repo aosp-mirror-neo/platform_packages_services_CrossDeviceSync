@@ -47,11 +47,9 @@ android_app {
         "androidx.annotation_annotation",
         "com_android_crossdevicesync_flags_lib",
         "connectivity_flags_lib",
-        "dagger2",
         "data-protos-lite",
         "error_prone_annotations",
         "guava",
-        "jsr330",
         "network-protos-lite",
         "submerge_java",
         "android.service.notification.flags-aconfig-java",
@@ -68,15 +66,6 @@ android_app {
         optimized_shrink_resources: true,
         proguard_flags_files: ["proguard.flags"],
     },
-    plugins: [
-        "dagger2-compiler",
-    ],
-    javacflags: [
-        "-Adagger.fastInit=enabled",
-        "-J-Xmx8192M",
-        "-Adagger.explicitBindingConflictsWithInject=ERROR",
-        "-Adagger.strictMultibindingValidation=enabled",
-    ],
 }
 
 android_test {
@@ -104,8 +93,6 @@ android_test {
         "network-protos-lite",
         "submerge_java",
         "truth",
-        "dagger2",
-        "jsr330",
     ],
     jni_libs: ["submerge_java_shared"],
     aaptflags: ["--extra-packages com.android.crossdevicesync"],
@@ -114,13 +101,4 @@ android_test {
     test_config: "tests/AndroidTest.xml",
     manifest: "tests/AndroidManifest.xml",
     additional_manifests: ["AndroidManifest.xml"],
-    plugins: [
-        "dagger2-compiler",
-    ],
-    javacflags: [
-        "-Adagger.fastInit=enabled",
-        "-J-Xmx8192M",
-        "-Adagger.explicitBindingConflictsWithInject=ERROR",
-        "-Adagger.strictMultibindingValidation=enabled",
-    ],
 }

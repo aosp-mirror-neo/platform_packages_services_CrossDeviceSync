@@ -19,13 +19,11 @@ import com.google.android.submerge.TimestampProvider;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import javax.inject.Inject;
 
 /** Fake implementation of {@link TimestampProvider} for testing. */
 public class FakeTimestampProvider implements TimestampProvider {
     private static final AtomicLong sGlobalTimestamp = new AtomicLong(0);
 
-    @Inject
     public FakeTimestampProvider() {}
 
     @Override

@@ -21,19 +21,13 @@ import static org.junit.Assert.assertThrows;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class StringConverterTest extends SyncServiceComponentTestBase {
-
-    @Before
-    public void setUp() {
-        super.setUp();
-    }
+public class StringConverterTest extends SyncServiceTestBase {
 
     @Test
     public void testNullString() {

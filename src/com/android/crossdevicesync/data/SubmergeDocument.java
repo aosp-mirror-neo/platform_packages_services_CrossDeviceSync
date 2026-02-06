@@ -200,7 +200,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         }
         mClosed = true;
         // Close all records, then close transaction.
-        try (mTransaction) {
+        try (DocumentTransaction<T> transaction = mTransaction) {
             mSubmergeRecordRefs
                     .values()
                     .forEach(
@@ -590,7 +590,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                     findSubmergeNodeRecursive(root.unwrap(), normalizedKeys(path));
             if (result == root.unwrap()) {
                 // Do not close root if it's the target node.
-                root.setkeepOpen(true);
+                root.setKeepOpen(true);
             }
             return result;
         }
@@ -618,7 +618,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
             SubmergeDataType<T> result = findSubmergeNodeRecursive(child, path);
             if (result == child) {
                 // Do not close child if it's the target node.
-                closeable.setkeepOpen(true);
+                closeable.setKeepOpen(true);
             }
             return result;
         }
@@ -642,7 +642,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         try (SmartAutoClosable<?> closable = new SmartAutoClosable<>(root)) {
             SubmergeDataType<T> result = findOrCreateLeafRecursive(root, keys, nodeCreator);
             if (result == root) {
-                closable.setkeepOpen(true);
+                closable.setKeepOpen(true);
             }
             return result;
         }
@@ -699,7 +699,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
             SubmergeDataType<T> result = findOrCreateLeafRecursive(child, path, nodeCreator);
             if (result == child) {
                 // Keep the object open if it's the target.
-                closeable.setkeepOpen(true);
+                closeable.setKeepOpen(true);
             }
             return result;
         }
@@ -723,7 +723,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                             + key
                             + "\"");
             root.setChild(key, requireNonNull(node.unwrap()));
-            node.setkeepOpen(true);
+            node.setKeepOpen(true);
             return node.unwrap();
         }
     }
@@ -738,7 +738,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
                 new SmartAutoClosable<>(nodeCreator.getOrThrow())) {
             logDebug("getOrCreateRoot: inserting root node " + node.unwrap());
             mTransaction.setRoot(requireNonNull(node.unwrap()));
-            node.setkeepOpen(true);
+            node.setKeepOpen(true);
             return node.unwrap();
         }
     }
@@ -762,10 +762,6 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         Log.i(TAG, getDebugIdentityString() + " - " + message);
     }
 
-    private void logWarning(String message) {
-        Log.w(TAG, getDebugIdentityString() + " - " + message);
-    }
-
     private void requireDocumentOpen() {
         if (mClosed) {
             throw new IllegalStateException(getDebugIdentityString() + " - document is closed.");
@@ -775,7 +771,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
     public void commitTransaction() throws TransactionException {
         requireDocumentOpen();
         // Always close self regardless of if transaction succeeded or failed.
-        try (this) {
+        try (SubmergeDocument<T> document = this) {
             mTransaction.commit();
         }
     }

@@ -29,12 +29,10 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 import com.android.crossdevicesync.user.UserHelper;
 
 import java.util.HashMap;
@@ -45,10 +43,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-
 /** Default implementation of {@link MetadataPublisher}. */
-@SyncServiceSingleton
 public class MetadataPublisherImpl
         implements MetadataPublisher, NetworkListener, UserHelper.UserListener {
     private static final String TAG = "MetadataPublisher";
@@ -85,13 +80,12 @@ public class MetadataPublisherImpl
     @GuardedBy("mLock")
     private boolean mInitialized;
 
-    @Inject
-    MetadataPublisherImpl(
+    public MetadataPublisherImpl(
             SharedPreferences sharedPreferences,
             NetworkManager networkManager,
             CompanionDeviceManagerProxy companionDeviceManagerProxy,
             Clock clock,
-            @Main Executor mainExecutor,
+            Executor mainExecutor,
             UserHelper userHelper) {
         mSharedPreferences = sharedPreferences;
         mNetworkManager = networkManager;

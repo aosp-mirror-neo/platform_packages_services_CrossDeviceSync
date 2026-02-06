@@ -125,7 +125,7 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
                     return Futures.immediateFuture(mLockedDataStore);
                 }
                 return initializeDataStore(
-                        mSharedDataStoreFactory.create(), network, /* shouldRetry= */ true);
+                        mSharedDataStoreFactory.create(this), network, /* shouldRetry= */ true);
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
             }
@@ -172,8 +172,8 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
                                             .transformAsync(
                                                     unused ->
                                                             initializeDataStore(
-                                                                    mSharedDataStoreFactory
-                                                                            .create(),
+                                                                    mSharedDataStoreFactory.create(
+                                                                            this),
                                                                     network,
                                                                     /* shouldRetry= */ false),
                                                     directExecutor());

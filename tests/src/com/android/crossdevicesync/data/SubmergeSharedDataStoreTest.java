@@ -39,7 +39,6 @@ import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
-import com.android.crossdevicesync.data.storage.fake.FakeStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
@@ -59,12 +58,11 @@ import java.util.function.Consumer;
 
 @SuppressWarnings({"unchecked", "DataFlowIssue", "FutureReturnValueIgnored"})
 @RunWith(AndroidJUnit4.class)
-public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBase {
+public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     private static final String TAG = "SubmergeSharedDataStoreTest";
     private static final String NETWORK_ID = "test_network";
     private static final int FEATURE = 123;
 
-    private SubmergeSharedDataStore<String> mDataStore;
     private Network mNetwork;
     private RemoteDeviceContext mRemoteDevice1;
     private RemoteDeviceContext mRemoteDevice2;
@@ -72,10 +70,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
     @Before
     public void setUp() {
-        super.setUp();
-        mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
         mNetwork = mFakeNetworkManager.createNetwork(NETWORK_ID, FEATURE, device -> true);
-        mDataStore.init(mNetwork);
+        mSubmergeSharedDataStore.init(mNetwork);
         mRemoteDevice1 = new RemoteDeviceContext();
         mRemoteDevice2 = new RemoteDeviceContext();
         mRemoteDevice3 = new RemoteDeviceContext();
@@ -85,7 +81,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @After
     public void tearDown() {
         Log.i(TAG, "Starting tearDown().");
-        mDataStore.close();
+        mSubmergeSharedDataStore.close();
         mRemoteDevice1.close();
         mRemoteDevice2.close();
         mRemoteDevice3.close();
@@ -128,7 +124,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         assertThat(mFakeStorage.getDocument(DOC_ID)).isNotNull();
         assertThat(mFakeStorage.getDocumentSchema(DOC_ID)).isNotNull();
         assertThat(mFakeStorage.getMetadata(DOC_ID)).isNotNull();
-        assertThat(mDataStore.isOpen()).isTrue();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isTrue();
         assertThat(mSharedDataStoreHandle.isLocked()).isTrue();
     }
 
@@ -295,7 +291,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         assertThrows(ExecutionException.class, future::get);
         assertThat(future.exceptionNow()).isInstanceOf(IllegalSchemaChangeException.class);
-        assertThat(mDataStore.isOpen()).isFalse();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isFalse();
         assertThat(mSharedDataStoreHandle.isLocked()).isFalse();
     }
 
@@ -315,7 +311,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         assertThrows(ExecutionException.class, future::get);
         assertThat(future.exceptionNow()).isInstanceOf(SchemaValidationException.class);
-        assertThat(mDataStore.isOpen()).isFalse();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isFalse();
         assertThat(mSharedDataStoreHandle.isLocked()).isFalse();
     }
 
@@ -325,7 +321,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                 upgradeSchema(getSchemaProvider().getAllDocumentSchema().getFirst());
 
         assertThat(future.get()).isTrue();
-        assertThat(mDataStore.isOpen()).isTrue();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isTrue();
         assertThat(mSharedDataStoreHandle.isLocked()).isTrue();
     }
 
@@ -342,7 +338,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         assertThrows(ExecutionException.class, future::get);
         assertThat(future.exceptionNow()).isInstanceOf(SchemaValidationException.class);
-        assertThat(mDataStore.isOpen()).isFalse();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isFalse();
         assertThat(mSharedDataStoreHandle.isLocked()).isFalse();
     }
 
@@ -377,7 +373,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         assertThrows(ExecutionException.class, future::get);
         assertThat(future.exceptionNow()).isInstanceOf(SchemaValidationException.class);
-        assertThat(mDataStore.isOpen()).isFalse();
+        assertThat(mSubmergeSharedDataStore.isOpen()).isFalse();
         assertThat(mSharedDataStoreHandle.isLocked()).isFalse();
     }
 
@@ -395,7 +391,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         assertThat(future.exceptionNow()).isInstanceOf(IllegalSchemaChangeException.class);
 
         // Close and delete the DB
-        assertThat(mDataStore.close().get()).isTrue();
+        assertThat(mSubmergeSharedDataStore.close().get()).isTrue();
         assertThat(mSharedDataStoreHandle.delete().get()).isTrue();
 
         // Re-init after deletion should succeed.
@@ -410,8 +406,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @Test
     public void testInit_multipleCallReturnsSameSucceededFuture() {
         closeAndReCreateDataStore();
-        ListenableFuture<?> future1 = mDataStore.init(mNetwork);
-        ListenableFuture<?> future2 = mDataStore.init(mNetwork);
+        ListenableFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
+        ListenableFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(isFutureSucceeded(future1)).isTrue();
@@ -422,33 +418,35 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     public void testInit_afterFailure_returnsFailedFuture() {
         closeAndReCreateDataStore();
         mFakeStorage.setRuntimeException(new RuntimeException());
-        ListenableFuture<?> future1 = mDataStore.init(mNetwork);
+        ListenableFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
         assertThat(isFutureFailed(future1)).isTrue();
 
         // Second init shall fail
-        ListenableFuture<?> future2 = mDataStore.init(mNetwork);
+        ListenableFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(isFutureFailed(future2)).isTrue();
     }
 
     @Test
     public void testInit_afterClose_returnFailedFuture() throws Exception {
-        mDataStore.close().get();
+        mSubmergeSharedDataStore.close().get();
 
-        ListenableFuture<?> future = mDataStore.init(mNetwork);
+        ListenableFuture<?> future = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(isFutureFailed(future)).isTrue();
     }
 
     @Test
-    public void testInit_handleLocked_returnFailedFuture() throws Exception {
+    public void testInit_handleLocked_returnFailedFuture() {
         // Verify that the handle is locked.
         assertThat(mSharedDataStoreHandle.isLocked()).isTrue();
 
         // Init a new data store instance.
-        ListenableFuture<?> future = mTestSharedDataStoreFactory.create().init(mNetwork);
+        ListenableFuture<?> future =
+                mTestSharedDataStoreFactory.create(mSharedDataStoreHandle).init(mNetwork);
 
         assertThat(isFutureFailed(future)).isTrue();
+        assertThat(getException(future)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -529,13 +527,13 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                         .putPathSchema("/root", RecordType.TYPE_SET, 1)
                         .build());
 
-        mDataStore.transact(
+        mSubmergeSharedDataStore.transact(
                 "doc_1",
                 doc -> {
                     doc.putData("/root", "abc");
                     return true;
                 });
-        mDataStore.transact(
+        mSubmergeSharedDataStore.transact(
                 "doc_2",
                 doc -> {
                     doc.addDataToSet("/root", "def");
@@ -544,7 +542,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
         // Verify their value are independent.
         ListenableFuture<Boolean> future =
-                mDataStore.transact(
+                mSubmergeSharedDataStore.transact(
                         "doc_1",
                         doc -> {
                             Record<String> r = doc.getRecord("/root");
@@ -554,7 +552,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
                         });
         assertThat(future.get()).isTrue();
         future =
-                mDataStore.transact(
+                mSubmergeSharedDataStore.transact(
                         "doc_2",
                         doc -> {
                             SetRecord<String> r = (SetRecord<String>) doc.getRecord("/root");
@@ -1053,11 +1051,9 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     public void testSharedNetwork_multiplexing() throws Exception {
         // Create a new data store sharing the same network.
         SubmergeSharedDataStore<String> newDataStore =
-                (SubmergeSharedDataStore<String>)
-                        newSharedDataStoreComponent(
-                                        "newDataStore", getSchemaProvider(), new FakeStorage())
-                                .getSubmergeSharedDataStore();
-        newDataStore.init(mNetwork);
+                (SubmergeSharedDataStore<String>) getNewSharedDataStore("newDataStore");
+        newDataStore.init(mNetwork).get();
+
         // Both data store connect to a remote device.
         connectNetworks(this, mRemoteDevice1);
 
@@ -1107,11 +1103,11 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     public void testClose() throws Exception {
         transactDataStore(doc -> doc.putData("/root/register", "abc"));
 
-        ListenableFuture<?> future = mDataStore.close();
+        ListenableFuture<?> future = mSubmergeSharedDataStore.close();
 
-        assertThat(getException(mDataStore.transact(DOC_ID, doc -> null)))
+        assertThat(getException(mSubmergeSharedDataStore.transact(DOC_ID, doc -> null)))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(getException(mDataStore.init(mNetwork)))
+        assertThat(getException(mSubmergeSharedDataStore.init(mNetwork)))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(mFakeStorage.isOpen()).isFalse();
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -1120,8 +1116,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
 
     @Test
     public void testClose_multipleCallReturnsSameFuture() {
-        ListenableFuture<?> future1 = mDataStore.close();
-        ListenableFuture<?> future2 = mDataStore.close();
+        ListenableFuture<?> future1 = mSubmergeSharedDataStore.close();
+        ListenableFuture<?> future2 = mSubmergeSharedDataStore.close();
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(isFutureSucceeded(future1)).isTrue();
@@ -1131,7 +1127,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
     @Test
     public void testRemoteChangeListener_batchCallback() throws Exception {
         OnRemoteChangeListener listener = mock(OnRemoteChangeListener.class);
-        mDataStore.registerOnRemoteChangeListener(mMainExecutor, listener);
+        mSubmergeSharedDataStore.registerOnRemoteChangeListener(mMainExecutor, listener);
         // Update initiated from remote device.
         connectNetworks(this, mRemoteDevice1);
         transactDataStore(
@@ -1241,9 +1237,9 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         assertThat(mFakeFrameworkStatsLogProxy.getWrites()).contains(expectedWriteCall);
     }
 
-    private static void connectNetworks(SharedDataStoreComponentTestBase... testContexts) {
-        for (SharedDataStoreComponentTestBase a : testContexts) {
-            for (SharedDataStoreComponentTestBase b : testContexts) {
+    private static void connectNetworks(SharedDataStoreTestBase... testContexts) {
+        for (SharedDataStoreTestBase a : testContexts) {
+            for (SharedDataStoreTestBase b : testContexts) {
                 if (a == b) {
                     continue;
                 }
@@ -1252,10 +1248,10 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         }
     }
 
-    private static void flushNetworks(SharedDataStoreComponentTestBase... testContexts) {
+    private static void flushNetworks(SharedDataStoreTestBase... testContexts) {
         while (true) {
             boolean allFlushed = true;
-            for (SharedDataStoreComponentTestBase t : testContexts) {
+            for (SharedDataStoreTestBase t : testContexts) {
                 allFlushed &= !t.getNetworkManager().flushAllMessages();
             }
             if (allFlushed) {
@@ -1272,69 +1268,54 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             @Nullable Consumer<MutableDocument<String>> migrator,
             @Nullable ThrowingConsumer<Document<String>> validator,
             DocumentSchemaInfo... schema) {
-        ListenableFuture<Boolean> future = upgradeSchema(this, migrator, validator, schema);
-        mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
-        return future;
+        return upgradeSchema(this, migrator, validator, schema);
     }
 
     private ListenableFuture<Boolean> upgradeSchema(
-            SharedDataStoreComponentTestBase testContext, DocumentSchemaInfo... schema) {
+            SharedDataStoreTestBase testContext, DocumentSchemaInfo... schema) {
         return upgradeSchema(testContext, null, null, schema);
     }
 
     private ListenableFuture<Boolean> upgradeSchema(
-            SharedDataStoreComponentTestBase testContext,
+            SharedDataStoreTestBase testContext,
             @Nullable Consumer<MutableDocument<String>> migrator,
             @Nullable ThrowingConsumer<Document<String>> validator,
             DocumentSchemaInfo... schema) {
         // Close the current data store. And build a new one with a higher schema version.
-        testContext.mSubmergeSharedDataStore.close();
-        testContext
-                .newSharedDataStoreComponent(
-                        testContext.mDataStoreName,
-                        new TestSchemaProvider(schema)
-                                .setMigrator(migrator)
-                                .setValidator(validator),
-                        testContext.mFakeStorage)
-                .inject(testContext);
-        return testContext.mSubmergeSharedDataStore.init(
-                testContext.getNetworkManager().createNetwork(NETWORK_ID, FEATURE, device -> true));
+        testContext.mSharedDataStore.close();
+        testContext.initialize(
+                new TestSchemaProvider(schema).setMigrator(migrator).setValidator(validator));
+        return ((SubmergeSharedDataStore<String>) testContext.mSharedDataStore)
+                .init(
+                        testContext
+                                .getNetworkManager()
+                                .createNetwork(NETWORK_ID, FEATURE, device -> true));
     }
 
     private void closeAndReCreateDataStore() {
         closeAndReCreateDataStore(this);
-        mDataStore = (SubmergeSharedDataStore<String>) mSubmergeSharedDataStore;
     }
 
-    private void closeAndReCreateDataStore(SharedDataStoreComponentTestBase testContext) {
+    private void closeAndReCreateDataStore(SharedDataStoreTestBase testContext) {
         testContext.mSharedDataStore.close();
-        testContext
-                .newSharedDataStoreComponent(
-                        testContext.mDataStoreName,
-                        (SchemaProvider<String>) testContext.mSchemaProvider,
-                        testContext.mFakeStorage)
-                .inject(testContext);
+        testContext.initialize(getSchemaProvider());
     }
 
     private ListenableFuture<Boolean> reInitWithNewSchema(
-            SharedDataStoreComponentTestBase testContext, DocumentSchemaInfo... schema)
-            throws Exception {
-        testContext.mSubmergeSharedDataStore.close().get();
+            SharedDataStoreTestBase testContext, DocumentSchemaInfo... schema) throws Exception {
+        testContext.mSharedDataStore.close().get();
         testContext.mSharedDataStoreHandle.delete();
         return upgradeSchema(testContext, schema);
     }
 
     private void transactDataStore(
-            SharedDataStoreComponentTestBase testContext,
-            ThrowingConsumer<MutableDocument<String>> consumer)
+            SharedDataStoreTestBase testContext, ThrowingConsumer<MutableDocument<String>> consumer)
             throws Exception {
-        transactDataStore(
-                (SubmergeSharedDataStore<String>) testContext.mSubmergeSharedDataStore, consumer);
+        transactDataStore((SharedDataStore<String>) testContext.getSharedDataStore(), consumer);
     }
 
     private void transactDataStore(
-            SubmergeSharedDataStore<String> dataStore,
-            ThrowingConsumer<MutableDocument<String>> consumer)
+            SharedDataStore<String> dataStore, ThrowingConsumer<MutableDocument<String>> consumer)
             throws Exception {
         dataStore
                 .transact(
@@ -1351,10 +1332,9 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
         transactDataStore(this, consumer);
     }
 
-    private class RemoteDeviceContext extends SharedDataStoreComponentTestBase {
+    private class RemoteDeviceContext extends SharedDataStoreTestBase {
         RemoteDeviceContext() {
-            super.setUp();
-            mSubmergeSharedDataStore.init(
+            mSharedDataStore.init(
                     mFakeNetworkManager.createNetwork(NETWORK_ID, FEATURE, device -> true));
         }
 
@@ -1363,12 +1343,17 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreComponentTestBas
             return SubmergeSharedDataStoreTest.this.getSchemaProvider();
         }
 
+        @Override
+        public boolean useRealSharedDataStoreImpl() {
+            return true;
+        }
+
         public void close() {
-            mSubmergeSharedDataStore.close();
+            mSharedDataStore.close();
         }
 
         public String nodeId() {
-            return mSubmergeSharedDataStore.getLocalDeviceNodeId();
+            return mSharedDataStore.getLocalDeviceNodeId();
         }
     }
 

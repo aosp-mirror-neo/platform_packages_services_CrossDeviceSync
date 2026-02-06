@@ -26,14 +26,11 @@ import android.util.Log;
 import com.android.crossdevicesync.flags.Flags;
 import com.android.crossdevicesync.services.SyncService;
 
-import javax.inject.Inject;
-
 /** Broadcast receiver that reacts to boot signals. */
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BootReceiver";
 
-    @Inject
-    BootReceiver() {}
+    public BootReceiver() {}
 
     @Override
     public void onReceive(Context context, Intent intent) {

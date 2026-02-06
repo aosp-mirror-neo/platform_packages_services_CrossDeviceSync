@@ -18,21 +18,17 @@ package com.android.crossdevicesync.network.scanner.fake;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.network.scanner.Scanner;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.inject.Inject;
 
 /** A fake implementation of {@link Scanner} for use in tests. */
-@SyncServiceSingleton
 public class FakeScanner implements Scanner {
     private final Set<FakeScanningSession> mSessions = new HashSet<>();
     private boolean mIsDestroyed = false;
 
-    @Inject
     public FakeScanner() {}
 
     @Override

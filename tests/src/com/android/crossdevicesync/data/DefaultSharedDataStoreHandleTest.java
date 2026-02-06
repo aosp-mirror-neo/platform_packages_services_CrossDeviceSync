@@ -38,25 +38,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTestBase {
+public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
     private DefaultSharedDataStoreHandle<String> mHandle;
     private TestSharedDataStoreFactory<String> mDataStoreFactory;
     private List<DocumentSchemaInfo> mSchema;
     private SharedDataStore<String> mDataStore;
     private Network mNetwork;
 
-    @SuppressWarnings("unchecked")
     @Before
     public void setUp() {
-        super.setUp();
         mFakeStorage.open();
         mHandle = (DefaultSharedDataStoreHandle<String>) mSharedDataStoreHandle;
-        mDataStoreFactory =
-                (TestSharedDataStoreFactory<String>)
-                        mTestSharedDataStoreFactory.setDataStoresAsync(true);
-        mDataStore = (FakeSharedDataStore<String>) mFakeSharedDataStore;
+        mDataStoreFactory = mTestSharedDataStoreFactory.setDataStoresAsync(true);
+        mDataStore = mFakeSharedDataStore;
         mSchema = new ArrayList<>();
-        mNetwork = getNetworkManager().createNetwork("test_network", device -> true);
+        mNetwork = mFakeNetworkManager.createNetwork("test_network", device -> true);
     }
 
     @Override
@@ -113,7 +109,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
     public void testUnlock_failed() {
         mHandle.lock(mDataStore);
 
-        mHandle.unlock(mDataStoreFactory.create());
+        mHandle.unlock(mDataStoreFactory.create(mHandle));
 
         assertThat(mHandle.isLocked()).isTrue();
         assertThat(mHandle.getLockedDataStore()).isSameInstanceAs(mDataStore);

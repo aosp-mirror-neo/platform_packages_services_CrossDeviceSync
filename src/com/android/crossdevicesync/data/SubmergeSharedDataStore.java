@@ -246,10 +246,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
             String docId = schema.getDocId();
             try (
-            // Create a new submerge data store with timestamp == 0 so that changes made
-            // during data migration are less likely to override concurrent change from
-            // remote devices.
-            DataStore<T> documentDataStore =
+                    // Create a new submerge data store with timestamp == 0 so that changes made
+                    // during data migration are less likely to override concurrent change from
+                    // remote devices.
+                    DataStore<T> documentDataStore =
                             openDocumentDataStore(nodeId, /* timestampProvider= */ () -> 0);
                     SubmergeDocument<T> document = openDocument(nodeId, documentDataStore, docId)) {
                 int previousVersion = document.getSchemaVersion();

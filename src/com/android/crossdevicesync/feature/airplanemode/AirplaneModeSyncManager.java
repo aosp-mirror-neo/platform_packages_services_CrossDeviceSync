@@ -32,7 +32,6 @@ import android.util.Log;
 import androidx.annotation.GuardedBy;
 
 import com.android.crossdevicesync.common.DeviceUtils;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.data.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.RecordType;
 import com.android.crossdevicesync.data.SchemaProvider;
@@ -40,14 +39,12 @@ import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.SharedDataStore.OnRemoteChangeListener;
 import com.android.crossdevicesync.data.SharedDataStoreHandle;
-import com.android.crossdevicesync.data.SharedDataStoreHandleFactory;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.crossdevicesync.notification.NotificationReason;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 import com.android.internal.R;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.connectivity.Flags;
@@ -61,10 +58,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import javax.inject.Inject;
-
 /** Airplane mode sync feature manager. */
-@SyncServiceSingleton
 public class AirplaneModeSyncManager
         implements FeatureManager,
                 OnRemoteChangeListener,
@@ -105,7 +99,7 @@ public class AirplaneModeSyncManager
     private final MetadataPublisher mMetadataPublisher;
     private final NotificationHelper mNotificationHelper;
     private final DeviceUtils mDeviceUtils;
-    private final Executor mExecutor;
+    private final Executor mMainExecutor;
     private final SharedDataStoreHandle<String> mSharedDataStoreHandle;
 
     private final Object mLock = new Object();
@@ -134,7 +128,6 @@ public class AirplaneModeSyncManager
 
     private final AtomicBoolean mSyncEnabled = new AtomicBoolean(false);
 
-    @Inject
     public AirplaneModeSyncManager(
             Context context,
             NetworkManager networkManager,
@@ -142,16 +135,16 @@ public class AirplaneModeSyncManager
             MetadataPublisher metadataPublisher,
             NotificationHelper notificationHelper,
             DeviceUtils deviceUtils,
-            @Main Executor executor,
+            Executor mainExecutor,
             StringConverter stringConverter,
-            SharedDataStoreHandleFactory sharedDataStoreHandleFactory) {
+            SharedDataStoreHandle.Factory sharedDataStoreHandleFactory) {
         mContext = context;
         mNetworkManager = networkManager;
         mAirplaneModeController = airplaneModeController;
         mMetadataPublisher = metadataPublisher;
         mNotificationHelper = notificationHelper;
         mDeviceUtils = deviceUtils;
-        mExecutor = executor;
+        mMainExecutor = mainExecutor;
         mSharedDataStoreHandle =
                 sharedDataStoreHandleFactory.create(
                         DATA_STORE_NAME, stringConverter, getSchemaProvider());
@@ -317,7 +310,7 @@ public class AirplaneModeSyncManager
                         Log.e(TAG, "Transaction[" + name + "] failed", t);
                     }
                 },
-                mExecutor);
+                mMainExecutor);
     }
 
     @Override
@@ -398,7 +391,7 @@ public class AirplaneModeSyncManager
                         onDataStoreFailedToInitialize(t);
                     }
                 },
-                mExecutor);
+                mMainExecutor);
     }
 
     private void onDataStoreInitialized(SharedDataStore<String> dataStore) {
@@ -409,7 +402,7 @@ public class AirplaneModeSyncManager
             logD("APM Data Store init success");
             mState = STATE_ACTIVE;
             mDataStore = dataStore;
-            dataStore.registerOnRemoteChangeListener(mExecutor, this);
+            dataStore.registerOnRemoteChangeListener(mMainExecutor, this);
             maybeUpdateDataStoreLocked();
         }
     }
@@ -437,7 +430,7 @@ public class AirplaneModeSyncManager
         mState = STATE_CLOSING_DATA_STORE;
         if (mDataStore != null) {
             mDataStore.unregisterOnRemoteChangeListener(this);
-            mDataStore.close().addListener(this::onDataStoreClosed, mExecutor);
+            mDataStore.close().addListener(this::onDataStoreClosed, mMainExecutor);
         }
     }
 
