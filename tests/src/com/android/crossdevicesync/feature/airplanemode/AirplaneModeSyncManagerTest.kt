@@ -32,11 +32,10 @@ import com.android.crossdevicesync.data.DocumentSchemaInfo
 import com.android.crossdevicesync.data.SchemaProvider
 import com.android.crossdevicesync.data.SharedDataStore.MutableDocument
 import com.android.crossdevicesync.data.SharedDataStoreComponentTestBase
-import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.APM_ENABLED_PATH
-import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.APM_SYNC_SUPPORTED
-import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.Companion.toAirplaneModeState
+import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.APM_ENABLED_PATH
+import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager.APM_SYNC_SUPPORTED
 import com.android.crossdevicesync.network.fake.FakeNetworkManager.FakeRemoteDevice
-import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
+import com.android.crossdevicesync.notification.NotificationReason.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase
 import com.android.internal.R
 import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC
@@ -577,14 +576,15 @@ class AirplaneModeSyncManagerTest : SyncServiceComponentTestBase() {
 
     private fun setRemoteAirplaneModeEnabled(enabled: Boolean) {
         transactRemoteDataStore { doc ->
-            doc.putData(APM_ENABLED_PATH, enabled.toAirplaneModeState())
+            doc.putData(APM_ENABLED_PATH, AirplaneModeSyncManager.toAirplaneModeState(enabled))
         }
     }
 
     private fun verifyRemoteAirplaneModeEnabled(enabled: Boolean?) {
         transactRemoteDataStore { doc ->
             val record = doc.getRecord(APM_ENABLED_PATH)!!
-            assertThat(record.get()).isEqualTo(enabled?.toAirplaneModeState())
+            assertThat(record.get())
+                .isEqualTo(enabled?.let { AirplaneModeSyncManager.toAirplaneModeState(it) })
         }
     }
 

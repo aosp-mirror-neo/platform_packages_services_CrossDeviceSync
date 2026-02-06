@@ -13,13 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.common
 
-/** Proxy for the Framework Stats Logger. */
-interface FrameworkStatsLogProxy {
-    /** See [com.android.internal.util.FrameworkStatsLog.write] */
-    fun logSyncEvent(event: Int, feature: Int)
+package com.android.crossdevicesync.notification;
 
-    /** See [com.android.internal.util.FrameworkStatsLog.write] */
-    fun logSyncEvent(event: Int, feature: Int, duration: Long)
+import androidx.annotation.StringDef;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+/** Reasons for showing a notification. */
+@Retention(RetentionPolicy.SOURCE)
+@StringDef({NotificationReason.AIRPLANE_MODE_SYNCED, NotificationReason.DO_NOT_DISTURB_SYNCED})
+public @interface NotificationReason {
+    String AIRPLANE_MODE_SYNCED = "apm_sync_notification";
+    String DO_NOT_DISTURB_SYNCED = "dnd_sync_notification";
 }

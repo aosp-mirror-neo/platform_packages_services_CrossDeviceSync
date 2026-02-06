@@ -21,7 +21,7 @@ import android.os.UserHandle
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.crossdevicesync.R
-import com.android.crossdevicesync.notification.NotificationReason.Companion.AIRPLANE_MODE_SYNCED
+import com.android.crossdevicesync.notification.NotificationReason.AIRPLANE_MODE_SYNCED
 import com.android.crossdevicesync.services.SyncServiceComponentTestBase
 import com.google.common.truth.Truth.assertThat
 import org.junit.Before
