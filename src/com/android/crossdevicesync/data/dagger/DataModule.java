@@ -22,7 +22,7 @@ import com.android.crossdevicesync.data.DeviceNodeIdProvider;
 import com.android.crossdevicesync.data.DeviceNodeIdProviderImpl;
 import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
 import com.android.crossdevicesync.data.storage.IStorage;
-import com.android.crossdevicesync.data.storage.RoomStorage;
+import com.android.crossdevicesync.data.storage.SqliteStorage;
 import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.android.submerge.TimestampProvider;
@@ -56,6 +56,6 @@ public abstract class DataModule {
     @SyncServiceSingleton
     @GlobalStorage
     static IStorage providesGlobalStorage(Context context) {
-        return new RoomStorage(context, GLOBAL_DATABASE_NAME);
+        return new SqliteStorage(context, GLOBAL_DATABASE_NAME);
     }
 }

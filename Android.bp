@@ -45,7 +45,6 @@ android_app {
     static_libs: [
         "CrossDeviceSync-res",
         "androidx.annotation_annotation",
-        "androidx.room_room-runtime",
         "com_android_crossdevicesync_flags_lib",
         "connectivity_flags_lib",
         "dagger2",
@@ -70,7 +69,6 @@ android_app {
         proguard_flags_files: ["proguard.flags"],
     },
     plugins: [
-        "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
     ],
     javacflags: [
@@ -78,7 +76,6 @@ android_app {
         "-J-Xmx8192M",
         "-Adagger.explicitBindingConflictsWithInject=ERROR",
         "-Adagger.strictMultibindingValidation=enabled",
-        "-Aroom.schemaLocation=packages/services/CrossDeviceSync/schemas",
     ],
 }
 
@@ -94,7 +91,6 @@ android_test {
     static_libs: [
         "CrossDeviceSync-res",
         "androidx.annotation_annotation",
-        "androidx.room_room-runtime",
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "androidx.test.core",
@@ -119,7 +115,6 @@ android_test {
     manifest: "tests/AndroidManifest.xml",
     additional_manifests: ["AndroidManifest.xml"],
     plugins: [
-        "androidx.room_room-compiler-plugin",
         "dagger2-compiler",
     ],
     javacflags: [
@@ -127,6 +122,5 @@ android_test {
         "-J-Xmx8192M",
         "-Adagger.explicitBindingConflictsWithInject=ERROR",
         "-Adagger.strictMultibindingValidation=enabled",
-        "-Aroom.schemaLocation=packages/services/CrossDeviceSync/schemas",
     ],
 }
