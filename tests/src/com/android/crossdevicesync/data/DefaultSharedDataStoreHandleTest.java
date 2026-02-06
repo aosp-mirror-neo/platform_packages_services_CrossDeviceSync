@@ -141,7 +141,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_success() throws Exception {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -158,7 +159,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_recoverFromSchemaError() throws Exception {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -183,7 +185,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_nonSchemaError_fail() {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -201,7 +204,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_secondInitFailWithSchemaError_fail() {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -227,7 +231,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_secondInitFailWithNonSchemaError_fail() {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -253,7 +258,8 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreComponentTe
 
     @Test
     public void openDataStore_deletionInterruptedByDestroy_fail() {
-        ListenableFuture<SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
+        ListenableFuture<? extends SharedDataStore<String>> future =
+                mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,33 +13,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.data
 
-import com.android.crossdevicesync.network.NetworkManager.Network
-import com.google.common.util.concurrent.ListenableFuture
+package com.android.crossdevicesync.data;
+
+import android.annotation.NonNull;
+import android.annotation.Nullable;
+
+import com.android.crossdevicesync.network.NetworkManager.Network;
+
+import com.google.common.util.concurrent.ListenableFuture;
 
 /**
- * A handle to a [SharedDataStore]. Used to perform operations without opening a [SharedDataStore].
+ * A handle to a {@link SharedDataStore}. Used to perform operations without opening a {@link
+ * SharedDataStore}.
+ *
+ * @param <T> The type of the data stored in the data store.
  */
-interface SharedDataStoreHandle<T> {
+public interface SharedDataStoreHandle<T> {
 
     /** Get the data store name. */
-    val name: String
+    @NonNull
+    String getName();
 
     /**
      * Check if the data store is locked. A data store is locked when it's open or in the middle of
      * close. While it's locked, it can't be deleted or re-initialized.
      */
-    fun isLocked(): Boolean
+    boolean isLocked();
 
     /** Lock this handle. */
-    fun lock(dataStore: SharedDataStore<T>): Boolean
+    boolean lock(@NonNull SharedDataStore<T> dataStore);
 
     /** Unlock this handle. */
-    fun unlock(dataStore: SharedDataStore<T>)
+    void unlock(@NonNull SharedDataStore<T> dataStore);
 
     /** If the data store is locked, get the locked data store. */
-    fun getLockedDataStore(): SharedDataStore<T>?
+    @Nullable
+    SharedDataStore<T> getLockedDataStore();
 
     /**
      * Open and initialize a data store. If the data store is already locked, return the locked data
@@ -49,23 +59,29 @@ interface SharedDataStoreHandle<T> {
      * @param network the network to be used for syncing
      * @return a future containing the initialized data store, or an exception
      */
-    fun openDataStore(network: Network): ListenableFuture<out SharedDataStore<T>>
+    @NonNull
+    ListenableFuture<? extends SharedDataStore<T>> openDataStore(@NonNull Network network);
 
     /**
      * Delete the shared data store. This operation is non-recoverable.
      *
-     * @return a [ListenableFuture] that completes with a boolean indicating if the data store is
-     *   successfully deleted.
+     * @return a {@link ListenableFuture} that completes with a boolean indicating if the data store
+     *     is successfully deleted.
      * @throws IllegalStateException if the data store is locked.
      */
-    fun delete(): ListenableFuture<Boolean>
+    @NonNull
+    ListenableFuture<Boolean> delete();
 
     /** Orderly close the data store if it's open, and release all resources. */
-    fun destroy() = destroy(false)
+    default void destroy() {
+        destroy(false);
+    }
 
     /**
      * Orderly close the data store if it's open, and release all resources. Can optionally delete
      * the data store as part of the clean-up.
+     *
+     * @param deleteDataStore Whether to delete the data store as part of the clean-up.
      */
-    fun destroy(deleteDataStore: Boolean)
+    void destroy(boolean deleteDataStore);
 }

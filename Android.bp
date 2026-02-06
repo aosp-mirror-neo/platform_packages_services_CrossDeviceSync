@@ -41,10 +41,7 @@ android_app {
     defaults: ["platform_app_defaults"],
     certificate: "platform",
     privileged: true,
-    srcs: [
-        "src/**/*.java",
-        "src/**/*.kt",
-    ],
+    srcs: ["src/**/*.java"],
     static_libs: [
         "CrossDeviceSync-res",
         "androidx.annotation_annotation",
@@ -91,7 +88,6 @@ android_test {
     certificate: "platform",
     srcs: [
         "src/**/*.java",
-        "src/**/*.kt",
         "tests/src/**/*.java",
         "tests/src/**/*.kt",
     ],

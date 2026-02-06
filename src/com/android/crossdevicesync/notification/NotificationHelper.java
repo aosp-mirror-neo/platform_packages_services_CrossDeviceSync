@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,37 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.notification
 
-import android.os.UserHandle
-import androidx.annotation.StringDef
+package com.android.crossdevicesync.notification;
+
+import android.annotation.NonNull;
+import android.os.UserHandle;
 
 /** Helper class to show notifications for Cross Device Sync features. */
-interface NotificationHelper {
-    /** Initializes the [NotificationHelper]. */
-    fun init()
+public interface NotificationHelper {
+    /** Initializes the {@link NotificationHelper}. */
+    void init();
 
-    /** Destroys the [NotificationHelper]. */
-    fun destroy()
+    /** Destroys the {@link NotificationHelper}. */
+    void destroy();
 
     /**
      * Potentially shows a notification for the given reason and user. The display of the
      * notification is potentially rate-limited to avoid excessive notifications to the user.
      */
-    fun maybeShowNotification(@NotificationReason notificationReason: String, user: UserHandle)
+    void maybeShowNotification(
+            @NotificationReason String notificationReason, @NonNull UserHandle user);
 
     /** Dismisses the notification for the given reason and user. */
-    fun dismissNotification(@NotificationReason notificationReason: String, user: UserHandle)
+    void dismissNotification(
+            @NotificationReason String notificationReason, @NonNull UserHandle user);
 
     /** Clears the counters that are present for rate limiting the notifications. */
-    fun reset()
-}
-
-@Retention(AnnotationRetention.SOURCE)
-@StringDef(NotificationReason.AIRPLANE_MODE_SYNCED, NotificationReason.DO_NOT_DISTURB_SYNCED)
-annotation class NotificationReason {
-    companion object {
-        const val AIRPLANE_MODE_SYNCED = "apm_sync_notification"
-        const val DO_NOT_DISTURB_SYNCED = "dnd_sync_notification"
-    }
+    void reset();
 }

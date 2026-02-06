@@ -13,20 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.crossdevicesync.common
 
-import com.android.internal.util.FrameworkStatsLog
-import com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT
-import javax.inject.Inject
-import javax.inject.Singleton
+package com.android.crossdevicesync.data;
 
-@Singleton
-class FrameworkStatsLogProxyImpl @Inject constructor() : FrameworkStatsLogProxy {
-    override fun logSyncEvent(event: Int, feature: Int) {
-        FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature)
-    }
+import android.annotation.NonNull;
 
-    override fun logSyncEvent(event: Int, feature: Int, duration: Long) {
-        FrameworkStatsLog.write(CROSS_DEVICE_SYNC_EVENT, event, feature, duration)
-    }
+/**
+ * A testable interface for creating new {@link SharedDataStore} instances.
+ *
+ * @param <T> The type of the data stored in the data store.
+ */
+public interface SharedDataStoreFactory<T> {
+
+    /** Create a new instance of {@link SharedDataStore} */
+    @NonNull
+    SharedDataStore<T> create();
 }

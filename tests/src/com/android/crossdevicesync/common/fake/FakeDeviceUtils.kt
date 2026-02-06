@@ -22,8 +22,14 @@ import javax.inject.Singleton
 /** Fake implementation of [DeviceUtils]. */
 @Singleton
 class FakeDeviceUtils @Inject constructor() : DeviceUtils {
+    private var isWatch: Boolean = false
+
     /** Whether the device is a watch or not. */
-    override var isWatch: Boolean = false
+    override fun isWatch(): Boolean = isWatch
+
+    fun setWatch(isWatch: Boolean) {
+        this.isWatch = isWatch
+    }
 
     /** Whether the device is a kids watch or not. */
     private var isKidsWatch: Boolean = false
