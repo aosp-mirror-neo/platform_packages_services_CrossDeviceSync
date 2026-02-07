@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,69 +35,69 @@ import java.util.Arrays;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
-public final class RoomStorageTest {
-    private RoomStorage mRoomStorage;
+public final class SqliteStorageTest {
+    private SqliteStorage mSqliteStorage;
 
     @Before
     public void setUp() throws Exception {
-        mRoomStorage = new RoomStorage(ApplicationProvider.getApplicationContext(), "test_db");
-        mRoomStorage.runInIoThread(mRoomStorage::open).get();
+        mSqliteStorage = new SqliteStorage(ApplicationProvider.getApplicationContext(), "test_db");
+        mSqliteStorage.runInIoThread(mSqliteStorage::open).get();
     }
 
     @After
     public void tearDown() {
         try {
-            mRoomStorage.submitToIoThread(mRoomStorage::deleteDatabase).get();
+            mSqliteStorage.submitToIoThread(mSqliteStorage::deleteDatabase).get();
         } catch (Exception e) {
             // Ignore
         }
-        mRoomStorage.shutdownIoThread();
+        mSqliteStorage.shutdownIoThread();
     }
 
     @Test
     public void persistDocument_docInserted() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
 
-                            mRoomStorage.persistDocument(id, doc);
-                            assertThat(Arrays.equals(doc, mRoomStorage.getDocument(id))).isTrue();
+                            mSqliteStorage.persistDocument(id, doc);
+                            assertThat(Arrays.equals(doc, mSqliteStorage.getDocument(id))).isTrue();
                         })
                 .get();
     }
 
     @Test
     public void persistDocument_docContentUpdated() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocument(id, doc);
 
                             doc = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocument(id, doc);
 
-                            assertThat(Arrays.equals(doc, mRoomStorage.getDocument(id))).isTrue();
+                            assertThat(Arrays.equals(doc, mSqliteStorage.getDocument(id))).isTrue();
                         })
                 .get();
     }
 
     @Test
     public void persistDocument_dataPersistedAcrossClose() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocument(id, doc);
 
-                            mRoomStorage.close();
-                            mRoomStorage.open();
+                            mSqliteStorage.close();
+                            mSqliteStorage.open();
 
-                            assertThat(Arrays.equals(doc, mRoomStorage.getDocument(id))).isTrue();
+                            assertThat(Arrays.equals(doc, mSqliteStorage.getDocument(id))).isTrue();
                         })
                 .get();
     }
@@ -108,20 +108,20 @@ public final class RoomStorageTest {
         byte[] doc = new byte[] {1, 2, 3, 4};
 
         assertThrows(
-                IllegalThreadStateException.class, () -> mRoomStorage.persistDocument(id, doc));
+                IllegalThreadStateException.class, () -> mSqliteStorage.persistDocument(id, doc));
     }
 
     @Test
     public void persistMetadata_docInserted() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
 
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id)))
+                            assertThat(Arrays.equals(metadata, mSqliteStorage.getMetadata(id)))
                                     .isTrue();
                         })
                 .get();
@@ -129,17 +129,17 @@ public final class RoomStorageTest {
 
     @Test
     public void persistMetadata_docMetadataUpdated() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
                             metadata = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id)))
+                            assertThat(Arrays.equals(metadata, mSqliteStorage.getMetadata(id)))
                                     .isTrue();
                         })
                 .get();
@@ -147,17 +147,17 @@ public final class RoomStorageTest {
 
     @Test
     public void persistMetadata_dataPersistedAcrossClose() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            mRoomStorage.close();
-                            mRoomStorage.open();
+                            mSqliteStorage.close();
+                            mSqliteStorage.open();
 
-                            assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id)))
+                            assertThat(Arrays.equals(metadata, mSqliteStorage.getMetadata(id)))
                                     .isTrue();
                         })
                 .get();
@@ -170,20 +170,20 @@ public final class RoomStorageTest {
 
         assertThrows(
                 IllegalThreadStateException.class,
-                () -> mRoomStorage.persistMetadata(id, metadata));
+                () -> mSqliteStorage.persistMetadata(id, metadata));
     }
 
     @Test
     public void persistSchema_docInserted() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] schema = new byte[] {1, 2, 3, 4};
 
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            assertThat(Arrays.equals(schema, mRoomStorage.getDocumentSchema(id)))
+                            assertThat(Arrays.equals(schema, mSqliteStorage.getDocumentSchema(id)))
                                     .isTrue();
                         })
                 .get();
@@ -191,17 +191,17 @@ public final class RoomStorageTest {
 
     @Test
     public void persistSchema_schemaUpdated() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] schema = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
                             schema = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            assertThat(Arrays.equals(schema, mRoomStorage.getDocumentSchema(id)))
+                            assertThat(Arrays.equals(schema, mSqliteStorage.getDocumentSchema(id)))
                                     .isTrue();
                         })
                 .get();
@@ -209,17 +209,17 @@ public final class RoomStorageTest {
 
     @Test
     public void persistSchema_dataPersistedAcrossClose() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] schema = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            mRoomStorage.close();
-                            mRoomStorage.open();
+                            mSqliteStorage.close();
+                            mSqliteStorage.open();
 
-                            assertThat(Arrays.equals(schema, mRoomStorage.getDocumentSchema(id)))
+                            assertThat(Arrays.equals(schema, mSqliteStorage.getDocumentSchema(id)))
                                     .isTrue();
                         })
                 .get();
@@ -232,26 +232,26 @@ public final class RoomStorageTest {
 
         assertThrows(
                 IllegalThreadStateException.class,
-                () -> mRoomStorage.persistDocumentSchema(id, schema));
+                () -> mSqliteStorage.persistDocumentSchema(id, schema));
     }
 
     @Test
     public void persistDocument_metadataAndSchemaUnchanged() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
                             byte[] metadata = new byte[] {5, 6, 7, 8};
                             byte[] schema = new byte[] {9, 10, 11, 12};
-                            mRoomStorage.persistMetadata(id, metadata);
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            mRoomStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocument(id, doc);
 
-                            assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id)))
+                            assertThat(Arrays.equals(metadata, mSqliteStorage.getMetadata(id)))
                                     .isTrue();
-                            assertThat(Arrays.equals(schema, mRoomStorage.getDocumentSchema(id)))
+                            assertThat(Arrays.equals(schema, mSqliteStorage.getDocumentSchema(id)))
                                     .isTrue();
                         })
                 .get();
@@ -259,20 +259,20 @@ public final class RoomStorageTest {
 
     @Test
     public void persistMetadata_docContentAndSchemaUnchanged() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
                             byte[] metadata = new byte[] {5, 6, 7, 8};
                             byte[] schema = new byte[] {9, 10, 11, 12};
-                            mRoomStorage.persistDocument(id, doc);
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            assertThat(Arrays.equals(doc, mRoomStorage.getDocument(id))).isTrue();
-                            assertThat(Arrays.equals(schema, mRoomStorage.getDocumentSchema(id)))
+                            assertThat(Arrays.equals(doc, mSqliteStorage.getDocument(id))).isTrue();
+                            assertThat(Arrays.equals(schema, mSqliteStorage.getDocumentSchema(id)))
                                     .isTrue();
                         })
                 .get();
@@ -280,20 +280,20 @@ public final class RoomStorageTest {
 
     @Test
     public void persistSchema_docContentAndMetadataUnchanged() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] doc = new byte[] {1, 2, 3, 4};
                             byte[] metadata = new byte[] {5, 6, 7, 8};
                             byte[] schema = new byte[] {9, 10, 11, 12};
-                            mRoomStorage.persistDocument(id, doc);
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            assertThat(Arrays.equals(doc, mRoomStorage.getDocument(id))).isTrue();
-                            assertThat(Arrays.equals(metadata, mRoomStorage.getMetadata(id)))
+                            assertThat(Arrays.equals(doc, mSqliteStorage.getDocument(id))).isTrue();
+                            assertThat(Arrays.equals(metadata, mSqliteStorage.getMetadata(id)))
                                     .isTrue();
                         })
                 .get();
@@ -301,42 +301,44 @@ public final class RoomStorageTest {
 
     @Test
     public void getDocument_multipleDocs_rightDocReturned() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id1 = "id1";
                             byte[] doc1 = new byte[] {1, 2, 3, 4};
                             String id2 = "id2";
                             byte[] doc2 = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistDocument(id1, doc1);
-                            mRoomStorage.persistDocument(id2, doc2);
+                            mSqliteStorage.persistDocument(id1, doc1);
+                            mSqliteStorage.persistDocument(id2, doc2);
 
-                            assertThat(Arrays.equals(doc1, mRoomStorage.getDocument(id1))).isTrue();
-                            assertThat(Arrays.equals(doc2, mRoomStorage.getDocument(id2))).isTrue();
+                            assertThat(Arrays.equals(doc1, mSqliteStorage.getDocument(id1)))
+                                    .isTrue();
+                            assertThat(Arrays.equals(doc2, mSqliteStorage.getDocument(id2)))
+                                    .isTrue();
                         })
                 .get();
     }
 
     @Test
     public void getDocument_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, () -> mRoomStorage.getDocument("id"));
+        assertThrows(IllegalThreadStateException.class, () -> mSqliteStorage.getDocument("id"));
     }
 
     @Test
     public void getMetadata_multipleDocs_rightMetadataReturned() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id1 = "id1";
                             byte[] metadata1 = new byte[] {1, 2, 3, 4};
                             String id2 = "id2";
                             byte[] metadata2 = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistMetadata(id1, metadata1);
-                            mRoomStorage.persistMetadata(id2, metadata2);
+                            mSqliteStorage.persistMetadata(id1, metadata1);
+                            mSqliteStorage.persistMetadata(id2, metadata2);
 
-                            assertThat(Arrays.equals(metadata1, mRoomStorage.getMetadata(id1)))
+                            assertThat(Arrays.equals(metadata1, mSqliteStorage.getMetadata(id1)))
                                     .isTrue();
-                            assertThat(Arrays.equals(metadata2, mRoomStorage.getMetadata(id2)))
+                            assertThat(Arrays.equals(metadata2, mSqliteStorage.getMetadata(id2)))
                                     .isTrue();
                         })
                 .get();
@@ -344,24 +346,28 @@ public final class RoomStorageTest {
 
     @Test
     public void getMetadata_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, () -> mRoomStorage.getMetadata("id"));
+        assertThrows(IllegalThreadStateException.class, () -> mSqliteStorage.getMetadata("id"));
     }
 
     @Test
     public void getSchema_multipleDocs_rightMetadataReturned() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id1 = "id1";
                             byte[] schema1 = new byte[] {1, 2, 3, 4};
                             String id2 = "id2";
                             byte[] schema2 = new byte[] {5, 6, 7, 8};
-                            mRoomStorage.persistDocumentSchema(id1, schema1);
-                            mRoomStorage.persistDocumentSchema(id2, schema2);
+                            mSqliteStorage.persistDocumentSchema(id1, schema1);
+                            mSqliteStorage.persistDocumentSchema(id2, schema2);
 
-                            assertThat(Arrays.equals(schema1, mRoomStorage.getDocumentSchema(id1)))
+                            assertThat(
+                                            Arrays.equals(
+                                                    schema1, mSqliteStorage.getDocumentSchema(id1)))
                                     .isTrue();
-                            assertThat(Arrays.equals(schema2, mRoomStorage.getDocumentSchema(id2)))
+                            assertThat(
+                                            Arrays.equals(
+                                                    schema2, mSqliteStorage.getDocumentSchema(id2)))
                                     .isTrue();
                         })
                 .get();
@@ -369,163 +375,171 @@ public final class RoomStorageTest {
 
     @Test
     public void getSchema_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, () -> mRoomStorage.getDocumentSchema("id"));
+        assertThrows(
+                IllegalThreadStateException.class, () -> mSqliteStorage.getDocumentSchema("id"));
     }
 
     @Test
     public void deleteDatabase_persistedDataDeleted() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
                             byte[] doc = new byte[] {1, 2, 3, 4};
                             byte[] schema = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistMetadata(id, metadata);
-                            mRoomStorage.persistDocument(id, doc);
-                            mRoomStorage.persistDocumentSchema(id, schema);
+                            mSqliteStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistDocument(id, doc);
+                            mSqliteStorage.persistDocumentSchema(id, schema);
 
-                            mRoomStorage.deleteDatabase();
+                            mSqliteStorage.deleteDatabase();
                             // Re-open the db.
-                            mRoomStorage.open();
+                            mSqliteStorage.open();
 
-                            assertThat(mRoomStorage.getDocument("id")).isNull();
-                            assertThat(mRoomStorage.getMetadata("id")).isNull();
-                            assertThat(mRoomStorage.getDocumentSchema("id")).isNull();
+                            assertThat(mSqliteStorage.getDocument("id")).isNull();
+                            assertThat(mSqliteStorage.getMetadata("id")).isNull();
+                            assertThat(mSqliteStorage.getDocumentSchema("id")).isNull();
                         })
                 .get();
     }
 
     @Test
     public void deleteDatabase_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, () -> mRoomStorage.deleteDatabase());
+        assertThrows(IllegalThreadStateException.class, () -> mSqliteStorage.deleteDatabase());
     }
 
     @Test
     public void close_notAccessibleAfterwards() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
-                            mRoomStorage.persistMetadata(id, metadata);
+                            mSqliteStorage.persistMetadata(id, metadata);
 
-                            mRoomStorage.close();
+                            mSqliteStorage.close();
 
                             assertThrows(
-                                    StorageException.class, () -> mRoomStorage.getDocument("id"));
+                                    StorageException.class, () -> mSqliteStorage.getDocument("id"));
                             assertThrows(
-                                    StorageException.class, () -> mRoomStorage.getMetadata("id"));
-                            assertThrows(
-                                    StorageException.class,
-                                    () -> mRoomStorage.getDocumentSchema("id"));
+                                    StorageException.class, () -> mSqliteStorage.getMetadata("id"));
                             assertThrows(
                                     StorageException.class,
-                                    () -> mRoomStorage.persistDocument("id", new byte[0]));
+                                    () -> mSqliteStorage.getDocumentSchema("id"));
                             assertThrows(
                                     StorageException.class,
-                                    () -> mRoomStorage.persistMetadata("id", new byte[0]));
+                                    () -> mSqliteStorage.persistDocument("id", new byte[0]));
                             assertThrows(
                                     StorageException.class,
-                                    () -> mRoomStorage.persistDocumentSchema("id", new byte[0]));
+                                    () -> mSqliteStorage.persistMetadata("id", new byte[0]));
+                            assertThrows(
+                                    StorageException.class,
+                                    () -> mSqliteStorage.persistDocumentSchema("id", new byte[0]));
+                            assertThrows(
+                                    StorageException.class,
+                                    () -> mSqliteStorage.getAllDocumentIds());
+                            assertThrows(
+                                    StorageException.class,
+                                    () -> mSqliteStorage.deleteDocuments(List.of("id")));
                         })
                 .get();
     }
 
     @Test
     public void close_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, mRoomStorage::close);
+        assertThrows(IllegalThreadStateException.class, mSqliteStorage::close);
     }
 
     @Test
     public void transact_metadataRolledBackOnFailure() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] metadata = new byte[] {1, 2, 3, 4};
 
                             try {
-                                mRoomStorage.transact(
+                                mSqliteStorage.transact(
                                         storage -> {
-                                            mRoomStorage.persistMetadata(id, metadata);
+                                            mSqliteStorage.persistMetadata(id, metadata);
                                             throw new RuntimeException();
                                         });
                             } catch (StorageException e) {
                                 // Do nothing.
                             }
 
-                            assertThat(mRoomStorage.getMetadata(id)).isNull();
+                            assertThat(mSqliteStorage.getMetadata(id)).isNull();
                         })
                 .get();
     }
 
     @Test
     public void transact_contentRolledBackOnFailure() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] content = new byte[] {1, 2, 3, 4};
 
                             try {
-                                mRoomStorage.transact(
+                                mSqliteStorage.transact(
                                         storage -> {
-                                            mRoomStorage.persistDocument(id, content);
+                                            mSqliteStorage.persistDocument(id, content);
                                             throw new RuntimeException();
                                         });
                             } catch (StorageException e) {
                                 // Do nothing.
                             }
 
-                            assertThat(mRoomStorage.getDocument(id)).isNull();
+                            assertThat(mSqliteStorage.getDocument(id)).isNull();
                         })
                 .get();
     }
 
     @Test
     public void transact_schemaRolledBackOnFailure() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
                             String id = "id";
                             byte[] schema = new byte[] {1, 2, 3, 4};
 
                             try {
-                                mRoomStorage.transact(
+                                mSqliteStorage.transact(
                                         storage -> {
-                                            mRoomStorage.persistDocumentSchema(id, schema);
+                                            mSqliteStorage.persistDocumentSchema(id, schema);
                                             throw new RuntimeException();
                                         });
                             } catch (StorageException e) {
                                 // Do nothing.
                             }
 
-                            assertThat(mRoomStorage.getDocumentSchema(id)).isNull();
+                            assertThat(mSqliteStorage.getDocumentSchema(id)).isNull();
                         })
                 .get();
     }
 
     @Test
     public void transact_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, () -> mRoomStorage.transact(unused -> {}));
+        assertThrows(
+                IllegalThreadStateException.class, () -> mSqliteStorage.transact(unused -> {}));
     }
 
     @Test
     public void open_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, mRoomStorage::open);
+        assertThrows(IllegalThreadStateException.class, mSqliteStorage::open);
     }
 
     @Test
     public void getAllDocumentIds_returnAllIds() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
-                            mRoomStorage.persistDocument("id1", new byte[0]);
-                            mRoomStorage.persistDocumentSchema("id2", new byte[0]);
-                            mRoomStorage.persistMetadata("id3", new byte[0]);
+                            mSqliteStorage.persistDocument("id1", new byte[0]);
+                            mSqliteStorage.persistDocumentSchema("id2", new byte[0]);
+                            mSqliteStorage.persistMetadata("id3", new byte[0]);
 
-                            assertThat(mRoomStorage.getAllDocumentIds())
+                            assertThat(mSqliteStorage.getAllDocumentIds())
                                     .containsExactly("id1", "id2", "id3");
                         })
                 .get();
@@ -533,23 +547,23 @@ public final class RoomStorageTest {
 
     @Test
     public void getAllDocumentIds_throwFromWrongThread() {
-        assertThrows(IllegalThreadStateException.class, mRoomStorage::getAllDocumentIds);
+        assertThrows(IllegalThreadStateException.class, mSqliteStorage::getAllDocumentIds);
     }
 
     @Test
     public void deleteDocuments_documentsDeleted() throws Exception {
-        mRoomStorage
+        mSqliteStorage
                 .runInIoThread(
                         () -> {
-                            mRoomStorage.persistDocument("id1", new byte[0]);
-                            mRoomStorage.persistDocumentSchema("id2", new byte[0]);
-                            mRoomStorage.persistMetadata("id3", new byte[0]);
+                            mSqliteStorage.persistDocument("id1", new byte[0]);
+                            mSqliteStorage.persistDocumentSchema("id2", new byte[0]);
+                            mSqliteStorage.persistMetadata("id3", new byte[0]);
 
-                            mRoomStorage.deleteDocuments(List.of("id1", "id2"));
+                            mSqliteStorage.deleteDocuments(List.of("id1", "id2"));
 
-                            assertThat(mRoomStorage.getDocument("id1")).isNull();
-                            assertThat(mRoomStorage.getDocumentSchema("id2")).isNull();
-                            assertThat(mRoomStorage.getMetadata("id3")).isNotNull();
+                            assertThat(mSqliteStorage.getDocument("id1")).isNull();
+                            assertThat(mSqliteStorage.getDocumentSchema("id2")).isNull();
+                            assertThat(mSqliteStorage.getMetadata("id3")).isNotNull();
                         })
                 .get();
     }
@@ -558,14 +572,14 @@ public final class RoomStorageTest {
     public void deleteDocuments_throwFromWrongThread() {
         assertThrows(
                 IllegalThreadStateException.class,
-                () -> mRoomStorage.deleteDocuments(List.of("id")));
+                () -> mSqliteStorage.deleteDocuments(List.of("id")));
     }
 
     @Test
     public void shutdownIoThread_success() {
-        mRoomStorage.shutdownIoThread();
+        mSqliteStorage.shutdownIoThread();
 
-        assertThat(isFutureFailed(mRoomStorage.runInIoThread(() -> {}))).isTrue();
-        assertThat(isFutureFailed(mRoomStorage.submitToIoThread(() -> true))).isTrue();
+        assertThat(isFutureFailed(mSqliteStorage.runInIoThread(() -> {}))).isTrue();
+        assertThat(isFutureFailed(mSqliteStorage.submitToIoThread(() -> true))).isTrue();
     }
 }
