@@ -19,6 +19,7 @@ package com.android.crossdevicesync.feature.airplanemode;
 import static android.companion.AssociationRequest.DEVICE_PROFILE_WATCH;
 import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC;
 import static android.companion.CompanionDeviceManager.FLAG_AIRPLANE_MODE;
+import static android.os.UserHandle.USER_ALL;
 import static android.provider.Settings.Global.AIRPLANE_MODE_SYNC;
 
 import android.annotation.NonNull;
@@ -93,7 +94,6 @@ public class AirplaneModeSyncManager
                                     APM_ENABLED_PATH, RecordType.TYPE_REGISTER, APM_ENABLED_VERSION)
                             .build());
 
-    private final Context mContext;
     private final NetworkManager mNetworkManager;
     private final AirplaneModeController mAirplaneModeController;
     private final MetadataPublisher mMetadataPublisher;
@@ -101,10 +101,9 @@ public class AirplaneModeSyncManager
     private final DeviceUtils mDeviceUtils;
     private final Executor mMainExecutor;
     private final SharedDataStoreHandle<String> mSharedDataStoreHandle;
+    private final boolean mIsApmSyncSupported;
 
     private final Object mLock = new Object();
-
-    private Boolean mSupportedRes;
 
     @GuardedBy("mLock")
     @Nullable
@@ -138,7 +137,6 @@ public class AirplaneModeSyncManager
             Executor mainExecutor,
             StringConverter stringConverter,
             SharedDataStoreHandle.Factory sharedDataStoreHandleFactory) {
-        mContext = context;
         mNetworkManager = networkManager;
         mAirplaneModeController = airplaneModeController;
         mMetadataPublisher = metadataPublisher;
@@ -148,11 +146,14 @@ public class AirplaneModeSyncManager
         mSharedDataStoreHandle =
                 sharedDataStoreHandleFactory.create(
                         DATA_STORE_NAME, stringConverter, getSchemaProvider());
+        mIsApmSyncSupported =
+                Flags.syncAirplaneModeWithWatches()
+                        && context.getResources().getBoolean(R.bool.config_supportAirplaneModeSync);
     }
 
     @Override
     public void init() {
-        if (!Flags.syncAirplaneModeWithWatches()) {
+        if (!mIsApmSyncSupported) {
             return;
         }
         Trace.beginSection("AirplaneModeSyncManager.init");
@@ -172,7 +173,7 @@ public class AirplaneModeSyncManager
                 mAirplaneModeState = apmEnabled;
                 mIsKidsWatch = isKidsWatch;
                 mStarted = true;
-                setApmSyncSupportedMetadataLocked();
+                mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, !mIsKidsWatch);
                 mAirplaneModeController.registerAirplaneModeChangedListener(this);
                 mDeviceUtils.registerKidsWatchChangeListener(this);
                 onAirplaneModeSyncEnabledStateChanged(syncEnabled);
@@ -203,7 +204,7 @@ public class AirplaneModeSyncManager
                                 if (mState != STATE_ACTIVE) {
                                     return;
                                 }
-                                SharedDataStore.Record record = doc.getRecord(APM_ENABLED_PATH);
+                                var record = doc.getRecord(APM_ENABLED_PATH);
                                 if (record == null) {
                                     return;
                                 }
@@ -244,9 +245,7 @@ public class AirplaneModeSyncManager
                         transactLocked(
                                 localDataStore,
                                 "Update local state",
-                                doc -> {
-                                    doc.putData(APM_ENABLED_PATH, toAirplaneModeState(enabled));
-                                });
+                                doc -> doc.putData(APM_ENABLED_PATH, toAirplaneModeState(enabled)));
                     }
                 }
             }
@@ -261,31 +260,12 @@ public class AirplaneModeSyncManager
         try {
             synchronized (mLock) {
                 mIsKidsWatch = isKidsWatch;
-                setApmSyncSupportedMetadataLocked();
+                mMetadataPublisher.putBooleanMetaData(USER_ALL, APM_SYNC_SUPPORTED, !mIsKidsWatch);
                 maybeUpdateDataStoreLocked();
             }
         } finally {
             Trace.endSection();
         }
-    }
-
-    @GuardedBy("mLock")
-    private void setApmSyncSupportedMetadataLocked() {
-        mMetadataPublisher.putBooleanMetaData(
-                UserHandle.USER_ALL, APM_SYNC_SUPPORTED, isSyncSupportedLocked());
-    }
-
-    @GuardedBy("mLock")
-    private boolean isSyncSupportedLocked() {
-        return isSupportedRes() && !mIsKidsWatch;
-    }
-
-    private boolean isSupportedRes() {
-        if (mSupportedRes == null) {
-            mSupportedRes =
-                    mContext.getResources().getBoolean(R.bool.config_supportAirplaneModeSync);
-        }
-        return mSupportedRes;
     }
 
     private void transactLocked(
@@ -331,7 +311,7 @@ public class AirplaneModeSyncManager
 
     @GuardedBy("mLock")
     private void maybeUpdateDataStoreLocked() {
-        if (!mStarted || !isSyncSupportedLocked()) {
+        if (!mStarted || mIsKidsWatch) {
             maybeCloseDataStoreLocked();
         } else {
             maybeOpenDataStoreLocked();
@@ -352,29 +332,23 @@ public class AirplaneModeSyncManager
                         FrameworkStatsLog
                                 .CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_AIRPLANE_MODE_SYNC,
                         remoteDevice -> {
-                            // Whether this device is a watch, or the remote device is a watch.
-                            return (mDeviceUtils.isWatch()
-                                            || remoteDevice.getDeviceProfile()
-                                                    == DEVICE_PROFILE_WATCH)
-                                    &&
-                                    // Whether the remote device supports sync and has the sync
-                                    // toggle enabled.
-                                    remoteDevice
-                                            .getAssociationInfoCache()
-                                            .getMetadata(FEATURE_CROSS_DEVICE_SYNC)
-                                            .getBoolean(APM_SYNC_SUPPORTED)
-                                    && remoteDevice
-                                            .getAssociationInfoCache()
-                                            .getMetadata(FEATURE_CROSS_DEVICE_SYNC)
-                                            .getBoolean(AIRPLANE_MODE_SYNC)
-                                    && (remoteDevice
-                                                            .getAssociationInfoCache()
-                                                            .getSystemDataSyncFlags()
+                            // Check if this device is a watch, or the remote device is a watch.
+                            if (!mDeviceUtils.isWatch()
+                                    && !DEVICE_PROFILE_WATCH.equals(
+                                            remoteDevice.getDeviceProfile())) {
+                                return false;
+                            }
+                            var associationInfo = remoteDevice.getAssociationInfoCache();
+                            var metadata = associationInfo.getMetadata(FEATURE_CROSS_DEVICE_SYNC);
+                            // Whether the remote device supports sync and has the sync
+                            // toggle enabled.
+                            return metadata.getBoolean(APM_SYNC_SUPPORTED)
+                                    && metadata.getBoolean(AIRPLANE_MODE_SYNC)
+                                    && (associationInfo.getSystemDataSyncFlags()
                                                     & FLAG_AIRPLANE_MODE)
                                             != 0
-                                    &&
                                     // Whether the sync toggle is enabled in this device
-                                    mSyncEnabled.get();
+                                    && mSyncEnabled.get();
                         });
         mNetwork = network;
 
@@ -451,7 +425,7 @@ public class AirplaneModeSyncManager
 
     @Override
     public void destroy() {
-        if (!Flags.syncAirplaneModeWithWatches()) {
+        if (!mIsApmSyncSupported) {
             return;
         }
         Trace.beginSection("AirplaneModeSyncManager.destroy");
@@ -502,7 +476,7 @@ public class AirplaneModeSyncManager
 
     @Override
     public void dump(@NonNull IndentingPrintWriter pw) {
-        if (!Flags.syncAirplaneModeWithWatches()) {
+        if (!mIsApmSyncSupported) {
             return;
         }
         synchronized (mLock) {
@@ -523,18 +497,13 @@ public class AirplaneModeSyncManager
     }
 
     private static String stateToString(int state) {
-        switch (state) {
-            case STATE_INACTIVE:
-                return "INACTIVE";
-            case STATE_OPENING_DATA_STORE:
-                return "OPENING_DATA_STORE";
-            case STATE_ACTIVE:
-                return "ACTIVE";
-            case STATE_CLOSING_DATA_STORE:
-                return "CLOSING_DATA_STORE";
-            default:
-                return "UNKNOWN(" + state + ")";
-        }
+        return switch (state) {
+            case STATE_INACTIVE -> "INACTIVE";
+            case STATE_OPENING_DATA_STORE -> "OPENING_DATA_STORE";
+            case STATE_ACTIVE -> "ACTIVE";
+            case STATE_CLOSING_DATA_STORE -> "CLOSING_DATA_STORE";
+            default -> "UNKNOWN(" + state + ")";
+        };
     }
 
     private static void logD(String log) {

@@ -31,8 +31,6 @@ import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import java.util.concurrent.Callable;
-
 /**
  * A {@link SharedDataStoreHandle} that represents a {@link SharedDataStore}.
  *
@@ -224,7 +222,7 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
                     throw new IllegalStateException("Cannot delete locked data store " + mName);
                 }
                 Log.w(TAG, "Deleting data store \"" + mName + "\".");
-                return mStorage.submitToIoThread((Callable<Boolean>) () -> doDelete(forDestroying));
+                return mStorage.submitToIoThread(() -> doDelete(forDestroying));
             } catch (IllegalStateException e) {
                 return Futures.immediateFailedFuture(e);
             }
@@ -276,15 +274,11 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
     }
 
     private static String stateToString(int state) {
-        switch (state) {
-            case STATE_OPEN:
-                return "OPEN";
-            case STATE_DESTROYING:
-                return "DESTROYING";
-            case STATE_DESTROYED:
-                return "DESTROYED";
-            default:
-                return "UNKNOWN(" + state + ")";
-        }
+        return switch (state) {
+            case STATE_OPEN -> "OPEN";
+            case STATE_DESTROYING -> "DESTROYING";
+            case STATE_DESTROYED -> "DESTROYED";
+            default -> "UNKNOWN(" + state + ")";
+        };
     }
 }

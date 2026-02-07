@@ -110,7 +110,7 @@ public class NotificationConfig {
     }
 
     private android.app.Notification createDndSyncedAndroidNotification() {
-        return new android.app.Notification.Builder(mContext, "dnd_sync_channel")
+        return new android.app.Notification.Builder(mContext, DND_SYNC_NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(
                         mContext.getString(R.string.do_not_disturb_sync_notification_title))
                 .setContentText(
