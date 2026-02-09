@@ -30,9 +30,8 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
-import com.android.crossdevicesync.data.proto.DocMetadata;
-import com.android.crossdevicesync.data.proto.DocMetadata.DocumentMetadata;
-import com.android.crossdevicesync.data.proto.NetworkMessageOuterClass.NetworkMessage;
+import com.android.crossdevicesync.data.model.DocumentMetadata;
+import com.android.crossdevicesync.data.model.NetworkMessage;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
@@ -42,16 +41,14 @@ import com.google.android.submerge.DataStore;
 import com.google.android.submerge.NetworkInterface;
 import com.google.android.submerge.OlderBaseNeededException;
 import com.google.android.submerge.StorageInterface;
-import com.google.android.submerge.StorageInterface.StorageException;
 import com.google.android.submerge.TimestampProvider;
 import com.google.android.submerge.VersionVector;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.MustBeClosed;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -245,11 +242,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         }
         for (DocumentSchemaInfo schema : mSchemaProvider.getAllDocumentSchema()) {
             String docId = schema.getDocId();
-            try (
-                    // Create a new submerge data store with timestamp == 0 so that changes made
-                    // during data migration are less likely to override concurrent change from
-                    // remote devices.
-                    DataStore<T> documentDataStore =
+            // Create a new submerge data store with timestamp == 0 so that changes made
+            // during data migration are less likely to override concurrent change from
+            // remote devices.
+            try (DataStore<T> documentDataStore =
                             openDocumentDataStore(nodeId, /* timestampProvider= */ () -> 0);
                     SubmergeDocument<T> document = openDocument(nodeId, documentDataStore, docId)) {
                 int previousVersion = document.getSchemaVersion();
@@ -354,8 +350,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     @SuppressWarnings("MustBeClosedChecker")
     @MustBeClosed
     private SubmergeDocument<T> openDocument(
-            String nodeId, DataStore<T> documentDataStore, String docId)
-            throws InvalidProtocolBufferException, StorageException {
+            String nodeId, DataStore<T> documentDataStore, String docId) throws IOException {
         DocumentMetadata metadata = loadDocMetadata(docId);
         return new SubmergeDocument<>(
                 mName, docId, documentDataStore.newDocumentTransaction(docId), nodeId, metadata);
@@ -456,13 +451,12 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         }
     }
 
-    private DocMetadata.DocumentMetadata loadDocMetadata(String docId)
-            throws StorageException, InvalidProtocolBufferException {
+    private DocumentMetadata loadDocMetadata(String docId) throws IOException {
         byte[] metadataBytes = mStorage.getMetadata(docId);
         if (metadataBytes == null) {
-            return DocMetadata.DocumentMetadata.getDefaultInstance();
+            return new DocumentMetadata(0, new ArrayList<>());
         }
-        return DocMetadata.DocumentMetadata.parseFrom(metadataBytes);
+        return DocumentMetadata.parseFrom(metadataBytes);
     }
 
     /** Called on IO thread when a network message is received. */
@@ -499,20 +493,20 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         NetworkMessage networkMessage;
         try {
             networkMessage = NetworkMessage.parseFrom(message);
-        } catch (InvalidProtocolBufferException e) {
+        } catch (IOException e) {
             Log.e(TAG, "onNetworkUpdate: failed to parse network message", e);
             return;
         }
-        if (networkMessage.hasReceiverNodeId()
-                && !myNodeId.equals(networkMessage.getReceiverNodeId())) {
+        if (!networkMessage.receiverNodeId().isEmpty()
+                && !myNodeId.equals(networkMessage.receiverNodeId())) {
             // The message is targeting another node. Ignore.
             return;
         }
-        String docId = networkMessage.getDocId();
+        String docId = networkMessage.docId();
         byte[] responseUpdate = null;
         byte[] responseVersionVector = null;
         boolean broadcastedVersion = false;
-        if (networkMessage.hasDocUpdate()) {
+        if (networkMessage.docUpdate().length > 0) {
             Log.d(TAG, "Received network update for " + getDebugDocIdentityString(docId));
             boolean remoteChangeSynced = false;
             try {
@@ -521,10 +515,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                 docId,
                                 doc ->
                                         ((SubmergeDocument<T>) doc)
-                                                .mergeNetworkUpdate(
-                                                        networkMessage
-                                                                .getDocUpdate()
-                                                                .toByteArray()));
+                                                .mergeNetworkUpdate(networkMessage.docUpdate()));
                 if (!changedPaths.isEmpty()) {
                     mRemoteChangeListeners.forEach(record -> record.onRemoteChange(changedPaths));
                     remoteChangeSynced = true;
@@ -552,11 +543,10 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                         getRemoteChangeSyncEvent(/* success= */ remoteChangeSynced), myFeature);
             }
         }
-        if (networkMessage.hasDocVersion()) {
+        if (networkMessage.docVersion().length > 0) {
             Log.d(TAG, "Received version vector for " + getDebugDocIdentityString(docId));
             try (VersionVector otherVersion =
-                            VersionVector.fromByteArray(
-                                    networkMessage.getDocVersion().toByteArray());
+                            VersionVector.fromByteArray(networkMessage.docVersion());
                     VersionVector myVersion = submergeDataStore.getDocumentVersion(docId)) {
                 if (isPartiallyOlder(otherVersion, myVersion)) {
                     responseUpdate = submergeDataStore.calculateDelta(docId, otherVersion);
@@ -586,7 +576,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                 + ".");
                 Map<String, Long> unicastMessages =
                         mDocUnicastMessageIds.computeIfAbsent(docId, k -> new HashMap<>());
-                String targetNode = networkMessage.getSenderNodeId();
+                String targetNode = networkMessage.senderNodeId();
                 Long existingMessage = unicastMessages.get(targetNode);
                 if (existingMessage != null) {
                     mNetwork.cancelMessage(existingMessage);
@@ -638,18 +628,13 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         if (docUpdate == null && version == null) {
             throw new IllegalArgumentException("Must have a docUpdate or version.");
         }
-        NetworkMessage.Builder builder = NetworkMessage.newBuilder().setDocId(docId);
-        if (docUpdate != null) {
-            builder.setDocUpdate(ByteString.copyFrom(docUpdate));
-        }
-        if (version != null) {
-            builder.setDocVersion(ByteString.copyFrom(version));
-        }
-        builder.setSenderNodeId(senderNodeId);
-        if (receiverNodeId != null) {
-            builder.setReceiverNodeId(receiverNodeId);
-        }
-        return builder.build().toByteArray();
+        return new NetworkMessage(
+                        docId,
+                        senderNodeId,
+                        receiverNodeId == null ? "" : receiverNodeId,
+                        version == null ? new byte[0] : version,
+                        docUpdate == null ? new byte[0] : docUpdate)
+                .toByteArray();
     }
 
     @Override

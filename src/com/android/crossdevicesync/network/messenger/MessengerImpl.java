@@ -35,15 +35,13 @@ import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-import com.android.crossdevicesync.network.proto.CdmMessage;
-import com.android.crossdevicesync.network.proto.CdmMessage.BatchedMessage;
-import com.android.crossdevicesync.network.proto.CdmMessage.Message;
+import com.android.crossdevicesync.network.model.BatchedMessage;
+import com.android.crossdevicesync.network.model.Message;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -257,13 +255,13 @@ public class MessengerImpl implements Messenger {
                 BatchedMessage batchedMessage;
                 try {
                     batchedMessage = BatchedMessage.parseFrom(message);
-                } catch (InvalidProtocolBufferException e) {
+                } catch (IOException e) {
                     Log.e(TAG, "onMessage: failed to parse incoming message!", e);
                     return;
                 }
-                List<Message> messages = new ArrayList(batchedMessage.getMessagesList());
-                messages.sort(Comparator.comparingLong(Message::getHandleId));
-                List<Long> ackIds = batchedMessage.getAckIdsList();
+                List<Message> messages = new ArrayList(batchedMessage.messages());
+                messages.sort(Comparator.comparingLong(Message::handleId));
+                List<Long> ackIds = batchedMessage.ackIds();
                 Log.d(
                         TAG,
                         "onMessage: received "
@@ -284,7 +282,7 @@ public class MessengerImpl implements Messenger {
                 if (!messages.isEmpty()) {
                     for (Message m : messages) {
                         if (state.noteReceivedMessageLocked(
-                                m.getHandleId(), batchedMessage.getSenderInstanceId())) {
+                                m.handleId(), batchedMessage.senderInstanceId())) {
                             notifyMessageLocked(associationId, m);
                         }
                     }
@@ -305,9 +303,9 @@ public class MessengerImpl implements Messenger {
                         l.second.execute(
                                 () ->
                                         l.first.onMessage(
-                                                message.getNetworkId(),
+                                                message.networkId(),
                                                 associationId,
-                                                message.getPayload().toByteArray())));
+                                                message.payload())));
     }
 
     @Override
@@ -409,11 +407,7 @@ public class MessengerImpl implements Messenger {
                                     + handleId
                                     + ":association#"
                                     + associationId,
-                            Message.newBuilder()
-                                    .setHandleId(handleId)
-                                    .setNetworkId(networkId)
-                                    .setPayload(ByteString.copyFrom(message))
-                                    .build());
+                            new Message(handleId, networkId, message));
             mMessageHandles.put(handleId, handle);
             handle.addListener(MessengerImpl.this::invalidate, Runnable::run);
             return handle;
@@ -651,7 +645,7 @@ public class MessengerImpl implements Messenger {
 
         @GuardedBy("mLock")
         private void maybeSendCDMMessageLocked(long now) {
-            List<CdmMessage.Message> messages = new ArrayList<>(mMessageHandles.size());
+            List<Message> messages = new ArrayList<>(mMessageHandles.size());
             for (MessageHandle handle : mMessageHandles.values()) {
                 if (handle.isDone() || handle.getState() == MessageHandle.STATE_SENDING) {
                     // No need to send.
@@ -680,12 +674,7 @@ public class MessengerImpl implements Messenger {
                 return;
             }
             byte[] encodedMessage =
-                    BatchedMessage.newBuilder()
-                            .addAllMessages(messages)
-                            .addAllAckIds(acks)
-                            .setSenderInstanceId(MessengerImpl.this.hashCode())
-                            .build()
-                            .toByteArray();
+                    new BatchedMessage(messages, acks, MessengerImpl.this.hashCode()).toByteArray();
             Log.d(
                     TAG,
                     "Sending "

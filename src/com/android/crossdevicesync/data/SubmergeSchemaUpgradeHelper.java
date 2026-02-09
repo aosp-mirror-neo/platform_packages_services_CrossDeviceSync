@@ -17,7 +17,7 @@ package com.android.crossdevicesync.data;
 
 import androidx.annotation.Nullable;
 
-import com.android.crossdevicesync.data.proto.DocMetadata;
+import com.android.crossdevicesync.data.model.DocumentMetadata;
 import com.android.crossdevicesync.data.storage.IStorage;
 
 import com.google.android.submerge.Converter;
@@ -30,6 +30,7 @@ import com.google.errorprone.annotations.MustBeClosed;
 
 import org.checkerframework.checker.signedness.qual.Unsigned;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +103,7 @@ public class SubmergeSchemaUpgradeHelper<T> {
      * @throws TransactionException if error happens when committing the schema change.
      */
     public byte[] upgradeDocumentSchema(DocumentSchemaInfo schema)
-            throws IllegalSchemaChangeException, TransactionException {
+            throws IllegalSchemaChangeException, TransactionException, IOException {
         // Group paths by version.
         Map<Integer, List<PathSchemaInfo>> versionToPathSchema = new TreeMap<>();
         for (PathSchemaInfo pathSchema : schema.getPathSchema()) {
@@ -168,7 +169,7 @@ public class SubmergeSchemaUpgradeHelper<T> {
                 docId,
                 schemaDataStore.newDocumentTransaction(docId),
                 getSchemaNodeId(docId),
-                DocMetadata.DocumentMetadata.getDefaultInstance());
+                new DocumentMetadata(0, new ArrayList<>()));
     }
 
     private static class NoOpNetworkInterface implements NetworkInterface {

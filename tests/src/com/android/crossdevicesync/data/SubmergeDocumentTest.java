@@ -28,8 +28,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
-import com.android.crossdevicesync.data.proto.DocMetadata;
-import com.android.crossdevicesync.data.proto.DocMetadata.RecordMetadata;
+import com.android.crossdevicesync.data.model.DocumentMetadata;
+import com.android.crossdevicesync.data.model.DocumentMetadata.RecordMetadata;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;
 
@@ -53,6 +53,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
@@ -525,19 +526,19 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
         mDocument.addUnmergedSchema("/vector");
         mDocument.addSetSchema("/set");
 
-        assertThat(mDocument.getMetaData().getRecordMetadataCount()).isEqualTo(3);
-        for (RecordMetadata recordMetadata : mDocument.getMetaData().getRecordMetadataList()) {
-            assertThat(recordMetadata.getLastModifiedByLocalDevice()).isTrue();
+        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(3);
+        for (RecordMetadata recordMetadata : mDocument.getMetaData().recordMetadataList()) {
+            assertThat(recordMetadata.lastModifiedByLocalDevice()).isTrue();
         }
 
         mDocument.removePath("/set");
 
-        assertThat(mDocument.getMetaData().getRecordMetadataCount()).isEqualTo(2);
+        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(2);
 
         mDocument.removePath("/");
 
         // Assert that metadata is cleared.
-        assertThat(mDocument.getMetaData().getRecordMetadataCount()).isEqualTo(0);
+        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(0);
     }
 
     @Test
@@ -647,7 +648,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                         DOC_ID,
                         mMockTransaction,
                         mDeviceNodeId,
-                        DocMetadata.DocumentMetadata.newBuilder().build());
+                        new DocumentMetadata(0, new ArrayList<>()));
         byte[] update = new byte[0];
         doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
 
@@ -664,7 +665,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                         DOC_ID,
                         mMockTransaction,
                         mDeviceNodeId,
-                        DocMetadata.DocumentMetadata.newBuilder().build());
+                        new DocumentMetadata(0, new ArrayList<>()));
         byte[] update = new byte[0];
         doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
 
@@ -701,7 +702,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                 DOC_ID,
                 mSubmergeDataStore.newDocumentTransaction(DOC_ID),
                 nodeId,
-                DocMetadata.DocumentMetadata.newBuilder().build());
+                new DocumentMetadata(0, new ArrayList<>()));
     }
 
     private void validateRawGetOrInsertRegisterNode(String path) throws Exception {
