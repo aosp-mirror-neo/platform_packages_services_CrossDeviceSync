@@ -28,6 +28,7 @@ import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVEN
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.Nullable;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
@@ -39,9 +40,6 @@ import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.Pair;
 
-import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
-
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
@@ -51,6 +49,7 @@ import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.messenger.Messenger;
 import com.android.crossdevicesync.network.messenger.Messenger.MessageListener;
 import com.android.crossdevicesync.network.scanner.Scanner;
+import com.android.internal.annotations.GuardedBy;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;

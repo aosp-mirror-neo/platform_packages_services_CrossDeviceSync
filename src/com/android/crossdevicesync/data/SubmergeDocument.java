@@ -17,15 +17,14 @@ package com.android.crossdevicesync.data;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.Nullable;
 import android.util.ArrayMap;
 import android.util.Log;
-
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.SmartAutoClosable;
 import com.android.crossdevicesync.data.model.DocumentMetadata;
 import com.android.crossdevicesync.data.model.DocumentMetadata.RecordMetadata;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.FunctionalUtils.ThrowingBiConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingSupplier;

@@ -25,13 +25,12 @@ import android.os.ResultReceiver;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
-import androidx.annotation.VisibleForTesting;
-
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.notification.NotificationHelper;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -154,6 +153,7 @@ public class SyncService extends Service {
     public class TestBinder extends Binder {
         public SyncService getService() {
             return SyncService.this;
+
         }
     }
 }

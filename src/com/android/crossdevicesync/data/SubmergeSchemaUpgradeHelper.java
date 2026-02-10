@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.data;
 
-import androidx.annotation.Nullable;
+import android.annotation.Nullable;
 
 import com.android.crossdevicesync.data.model.DocumentMetadata;
 import com.android.crossdevicesync.data.storage.IStorage;

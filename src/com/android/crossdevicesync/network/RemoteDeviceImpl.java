@@ -17,11 +17,10 @@ package com.android.crossdevicesync.network;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.companion.AssociationInfo;
 import android.util.IndentingPrintWriter;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 
 /** A class representing a remote device. */
 class RemoteDeviceImpl implements NetworkManager.RemoteDevice {

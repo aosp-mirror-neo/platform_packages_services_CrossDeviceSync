@@ -15,9 +15,8 @@
  */
 package com.android.crossdevicesync.data.storage;
 
+import android.annotation.Nullable;
 import android.util.Log;
-
-import androidx.annotation.Nullable;
 
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 

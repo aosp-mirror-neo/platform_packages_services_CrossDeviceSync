@@ -30,8 +30,6 @@ import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-
 import com.android.crossdevicesync.common.DeviceUtils;
 import com.android.crossdevicesync.data.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.RecordType;
@@ -47,6 +45,7 @@ import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.crossdevicesync.notification.NotificationReason;
 import com.android.internal.R;
+import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.connectivity.Flags;
 

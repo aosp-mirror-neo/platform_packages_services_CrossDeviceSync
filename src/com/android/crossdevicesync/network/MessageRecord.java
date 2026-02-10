@@ -15,13 +15,12 @@
  */
 package com.android.crossdevicesync.network;
 
+import android.annotation.Nullable;
 import android.os.UserHandle;
-
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Collection;
 import java.util.HashMap;

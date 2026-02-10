@@ -19,6 +19,7 @@ import static com.android.crossdevicesync.common.Utils.toIntArray;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.Nullable;
 import android.companion.ActionRequest;
 import android.companion.ActionResult;
 import android.content.Context;
@@ -27,14 +28,12 @@ import android.util.ArraySet;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.Dumpable;
+import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;

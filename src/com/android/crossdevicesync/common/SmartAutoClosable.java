@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.common;
 
-import androidx.annotation.Nullable;
+import android.annotation.Nullable;
 
 /**
  * A wrapper of auto-closeable object that is allowed to be kept open. This is useful when combined

@@ -26,6 +26,8 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.app.modes.ContextualMode;
 import android.app.modes.ContextualModeManager.ContextualModeListener;
 import android.app.modes.ContextualModesMutation;
@@ -37,11 +39,6 @@ import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
-
-import androidx.annotation.GuardedBy;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
 import com.android.crossdevicesync.common.Dumpable;
@@ -57,6 +54,8 @@ import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
 import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.crossdevicesync.notification.NotificationReason;
+import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;

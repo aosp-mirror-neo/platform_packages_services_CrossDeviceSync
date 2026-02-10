@@ -25,7 +25,7 @@ import android.os.UserManager;
 import android.util.Log;
 import android.util.Pair;
 
-import androidx.annotation.GuardedBy;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
 import java.util.List;

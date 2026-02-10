@@ -22,10 +22,9 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.annotations.GuardedBy;
 
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
