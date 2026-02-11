@@ -30,16 +30,11 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Companion device manager wrapper. */
-@Singleton
 public class CompanionDeviceManagerProxyImpl implements CompanionDeviceManagerProxy {
 
     private final CompanionDeviceManager mCompanionDeviceManager;
 
-    @Inject
     public CompanionDeviceManagerProxyImpl(Context context) {
         mCompanionDeviceManager = context.getSystemService(CompanionDeviceManager.class);
     }

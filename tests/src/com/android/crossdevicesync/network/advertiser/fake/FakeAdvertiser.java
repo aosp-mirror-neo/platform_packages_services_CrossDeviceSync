@@ -18,21 +18,17 @@ package com.android.crossdevicesync.network.advertiser.fake;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.network.advertiser.Advertiser;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.inject.Inject;
 
 /** A fake implementation of {@link Advertiser} for use in tests. */
-@SyncServiceSingleton
 public class FakeAdvertiser implements Advertiser {
     private final Set<FakeAdvertisingSession> mSessions = new HashSet<>();
     private boolean mIsDestroyed = false;
 
-    @Inject
     public FakeAdvertiser() {}
 
     @Override

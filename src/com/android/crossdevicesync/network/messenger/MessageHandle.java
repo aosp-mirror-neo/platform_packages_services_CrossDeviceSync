@@ -24,7 +24,7 @@ import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.Dumpable;
-import com.android.crossdevicesync.network.proto.CdmMessage.Message;
+import com.android.crossdevicesync.network.model.Message;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -72,20 +72,20 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     private Throwable mError;
 
     MessageHandle(
-            Object lock,
+            Object networkLock,
             Clock clock,
             long handleId,
             int maxAttempts,
             String name,
             @Nullable Message message) {
-        if (message != null && message.getHandleId() != handleId) {
+        if (message != null && message.handleId() != handleId) {
             throw new IllegalArgumentException(
                     "Mismatched handle id! handleId="
                             + handleId
-                            + ", message.getHandleId()="
-                            + message.getHandleId());
+                            + ", message.handleId()="
+                            + message.handleId());
         }
-        mLock = lock;
+        mLock = networkLock;
         mClock = clock;
         mHandleId = handleId;
         mMaxAttempts = maxAttempts;
@@ -299,7 +299,9 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
             pw.println("lastChangeTimestamp=" + mLastChangeTimestamp);
             pw.println("failedAttempts=" + mFailedAttempts);
             pw.println("error=" + mError);
-            pw.println("messageSize=" + mMessage.getPayload().size());
+            if (mMessage != null) {
+                pw.println("messageSize=" + mMessage.payload().length);
+            }
             pw.decreaseIndent();
         }
     }

@@ -27,5 +27,5 @@ public interface SharedDataStoreFactory<T> {
 
     /** Create a new instance of {@link SharedDataStore} */
     @NonNull
-    SharedDataStore<T> create();
+    SharedDataStore<T> create(@NonNull SharedDataStoreHandle<T> handle);
 }

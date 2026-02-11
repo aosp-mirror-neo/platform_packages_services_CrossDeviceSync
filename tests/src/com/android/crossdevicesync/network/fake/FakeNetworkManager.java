@@ -23,7 +23,6 @@ import android.util.Pair;
 import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.network.NetworkManager;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,9 +37,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import javax.inject.Inject;
-
-@SyncServiceSingleton
 public class FakeNetworkManager implements NetworkManager {
 
     private final Map<Integer, FakeRemoteDevice> mRemoteDevices = new HashMap<>();
@@ -48,8 +44,7 @@ public class FakeNetworkManager implements NetworkManager {
     private boolean mInitialized = false;
     private int mNextAssociationId = 1;
 
-    @Inject
-    FakeNetworkManager() {}
+    public FakeNetworkManager() {}
 
     @Override
     public void init() {

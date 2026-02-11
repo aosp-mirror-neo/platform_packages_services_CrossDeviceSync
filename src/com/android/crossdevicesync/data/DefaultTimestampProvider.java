@@ -18,21 +18,15 @@ package com.android.crossdevicesync.data;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import com.google.android.submerge.TimestampProvider;
 
 import java.time.DateTimeException;
 
-import javax.inject.Inject;
-
 /** Default implementation of {@link TimestampProvider}. */
-@SyncServiceSingleton
 public class DefaultTimestampProvider implements TimestampProvider {
     private static final String TAG = "DefaultTimestampProvider";
 
-    @Inject
-    DefaultTimestampProvider() {}
+    public DefaultTimestampProvider() {}
 
     @Override
     public long now() {

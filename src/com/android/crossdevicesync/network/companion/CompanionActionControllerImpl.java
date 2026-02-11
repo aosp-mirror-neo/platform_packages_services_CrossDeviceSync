@@ -35,9 +35,6 @@ import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.Dumpable;
-import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.network.dagger.qualifier.NetworkLock;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -49,10 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import javax.inject.Inject;
-
 /** Implementation of {@link CompanionActionController}. */
-@SyncServiceSingleton
 public class CompanionActionControllerImpl implements CompanionActionController {
     private static final String TAG = "CompanionActionCtrl";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
@@ -77,14 +71,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
     @GuardedBy("mLock")
     private long mNextInvalidationTime = Long.MAX_VALUE;
 
-    @Inject
-    CompanionActionControllerImpl(
-            @NetworkLock Object lock,
+    public CompanionActionControllerImpl(
+            Object networkLock,
             Context context,
             CompanionDeviceManagerProxy companionDeviceManager,
-            @Main DelayedExecutor mainExecutor,
+            DelayedExecutor mainExecutor,
             Clock clock) {
-        mLock = lock;
+        mLock = networkLock;
         mPackageName = context.getPackageName();
         mCompanionDeviceManager = companionDeviceManager;
         mMainExecutor = mainExecutor;

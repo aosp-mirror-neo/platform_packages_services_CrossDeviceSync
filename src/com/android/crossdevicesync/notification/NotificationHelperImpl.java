@@ -22,14 +22,8 @@ import android.content.SharedPreferences;
 import android.os.UserHandle;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-
 import com.android.crossdevicesync.common.Clock;
-import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 import com.android.crossdevicesync.user.UserHelper;
-
-import dagger.Lazy;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -38,33 +32,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
-
-import javax.inject.Inject;
+import java.util.function.Supplier;
 
 /** Implementation of {@link NotificationHelper}. */
-@SyncServiceSingleton
 public class NotificationHelperImpl implements NotificationHelper, UserHelper.UserListener {
     private static final String TAG = "NotificationHelper";
 
     private final SharedPreferences mSharedPreferences;
     private final Clock mClock;
     private final NotificationManagerProxy mNotificationManager;
-    private final Lazy<NotificationConfig> mNotificationConfig;
+    private final Supplier<NotificationConfig> mNotificationConfig;
     private final Executor mMainExecutor;
     private final UserHelper mUserHelper;
 
     private final Object mLock = new Object();
 
-    @GuardedBy("mLock")
     private boolean mInitialized = false;
 
-    @Inject
     public NotificationHelperImpl(
             SharedPreferences sharedPreferences,
             Clock clock,
             NotificationManagerProxy notificationManager,
-            Lazy<NotificationConfig> notificationConfig,
-            @Main Executor mainExecutor,
+            Supplier<NotificationConfig> notificationConfig,
+            Executor mainExecutor,
             UserHelper userHelper) {
         mSharedPreferences = sharedPreferences;
         mClock = clock;

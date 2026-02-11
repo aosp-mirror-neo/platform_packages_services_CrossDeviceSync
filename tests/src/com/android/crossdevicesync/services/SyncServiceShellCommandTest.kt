@@ -23,17 +23,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import java.io.FileInputStream
 import java.nio.charset.StandardCharsets
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class SyncServiceShellCommandTest : SyncServiceComponentTestBase() {
-
-    @Before
-    override fun setUp() {
-        super.setUp()
-    }
+class SyncServiceShellCommandTest : SyncServiceTestBase() {
 
     @Test
     fun testOnCommand_resetNotifications_succeeds() {

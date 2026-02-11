@@ -35,6 +35,7 @@ public class Utils {
         return res;
     }
 
+    /** Get exception from a future if it failed. */
     @Nullable
     public static Throwable getException(Future<?> future) {
         try {
@@ -48,6 +49,7 @@ public class Utils {
         }
     }
 
+    /** Check if a future has succeeded. */
     public static boolean isFutureSucceeded(Future<?> future) {
         if (!future.isDone()) {
             return false;
@@ -55,6 +57,7 @@ public class Utils {
         return getException(future) == null;
     }
 
+    /** Check if a future has failed. */
     public static boolean isFutureFailed(Future<?> future) {
         if (!future.isDone()) {
             return false;

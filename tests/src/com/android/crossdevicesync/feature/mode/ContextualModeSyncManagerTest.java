@@ -32,7 +32,7 @@ import android.service.notification.Flags;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,16 +44,14 @@ import java.util.Map;
 
 @RunWith(AndroidJUnit4.class)
 @EnableFlags(Flags.FLAG_ENABLE_DND_SYNC)
-public class ContextualModeSyncManagerTest extends SyncServiceComponentTestBase {
+public class ContextualModeSyncManagerTest extends SyncServiceTestBase {
     @Rule public final SetFlagsRule rule = new SetFlagsRule();
 
     private FakeModeSyncControllerFactory mModeSyncControllerFactory;
     private ContextualModeSyncManager mModeSyncManager;
 
     @Before
-    @Override
     public void setUp() {
-        super.setUp();
         // Default user has DND.
         mFakeContextualModeManager.addOrUpdateMode(
                 mContext.getUser(),

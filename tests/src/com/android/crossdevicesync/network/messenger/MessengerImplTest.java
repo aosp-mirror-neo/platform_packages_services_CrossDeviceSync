@@ -31,8 +31,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionController;
-import com.android.crossdevicesync.network.proto.CdmMessage;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.network.model.BatchedMessage;
+import com.android.crossdevicesync.network.model.Message;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 import com.android.internal.util.ArrayUtils;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -49,7 +50,7 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @RunWith(AndroidJUnit4.class)
-public class MessengerImplTest extends SyncServiceComponentTestBase {
+public class MessengerImplTest extends SyncServiceTestBase {
     private static final String TEST_NETWORK = "test_network";
 
     private MessengerImpl mRemoteMessenger1;
@@ -60,7 +61,6 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mMessengerImpl.init();
         RemoteDeviceContext remoteContext1 = simulateConnectedRemoteDevice(/* associationId= */ 1);
         mRemoteMessenger1 = remoteContext1.getMessenger();
@@ -915,17 +915,9 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
                 });
 
         // Manually create a message with a higher handleId (e.g., 2).
-        CdmMessage.Message message2 =
-                CdmMessage.Message.newBuilder()
-                        .setHandleId(2)
-                        .setNetworkId(TEST_NETWORK)
-                        .setPayload(com.google.protobuf.ByteString.copyFrom(new byte[] {2}))
-                        .build();
+        Message message2 = new Message(2, TEST_NETWORK, new byte[] {2});
         byte[] batchedMessage2 =
-                CdmMessage.BatchedMessage.newBuilder()
-                        .addMessages(message2)
-                        .setSenderInstanceId(mRemoteMessenger1.hashCode())
-                        .build()
+                new BatchedMessage(List.of(message2), List.of(), mRemoteMessenger1.hashCode())
                         .toByteArray();
 
         // Simulate receiving the newer message first.
@@ -939,17 +931,9 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         assertMessagesEqual(incomingMessages.get(0), Pair.create(TEST_NETWORK, new byte[] {2}));
 
         // Manually create a message with a lower handleId (e.g., 1).
-        CdmMessage.Message message1 =
-                CdmMessage.Message.newBuilder()
-                        .setHandleId(1)
-                        .setNetworkId(TEST_NETWORK)
-                        .setPayload(com.google.protobuf.ByteString.copyFrom(new byte[] {1}))
-                        .build();
+        Message message1 = new Message(1, TEST_NETWORK, new byte[] {1});
         byte[] batchedMessage1 =
-                CdmMessage.BatchedMessage.newBuilder()
-                        .addMessages(message1)
-                        .setSenderInstanceId(mRemoteMessenger1.hashCode())
-                        .build()
+                new BatchedMessage(List.of(message1), List.of(), mRemoteMessenger1.hashCode())
                         .toByteArray();
 
         // Simulate receiving the older message second.
@@ -1033,9 +1017,8 @@ public class MessengerImplTest extends SyncServiceComponentTestBase {
         assertThat(Arrays.equals(m1.second, m2.second)).isTrue();
     }
 
-    private static class RemoteDeviceContext extends SyncServiceComponentTestBase {
+    private static class RemoteDeviceContext extends SyncServiceTestBase {
         RemoteDeviceContext() {
-            super.setUp();
             mFakeCompanionActionController.init();
         }
 

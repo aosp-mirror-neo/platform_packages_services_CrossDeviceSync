@@ -20,10 +20,8 @@ import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
-import com.android.crossdevicesync.dagger.qualifier.Main;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 import com.android.crossdevicesync.user.UserHelper;
 
 import java.util.HashMap;
@@ -34,10 +32,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-
 /** Contextual mode sync feature manager. */
-@SyncServiceSingleton
 public class ContextualModeSyncManager implements FeatureManager, UserHelper.UserListener {
     private static final String TAG = "CtxModeSyncManager";
     private final ContextualModeSyncController.Factory mModeSyncControllerFactory;
@@ -49,17 +44,16 @@ public class ContextualModeSyncManager implements FeatureManager, UserHelper.Use
     private boolean mModeSyncSupported;
     private boolean mInitialized;
 
-    @Inject
-    ContextualModeSyncManager(
+    public ContextualModeSyncManager(
             ContextualModeSyncController.Factory modeSyncControllerFactory,
             UserHelper userHelper,
             ContextualModeManagerProxy contextualModeManager,
-            @Main Executor executor,
+            Executor mainExecutor,
             MetadataPublisher metadataPublisher) {
         mModeSyncControllerFactory = modeSyncControllerFactory;
         mUserHelper = userHelper;
         mContextualModeManager = contextualModeManager;
-        mMainExecutor = executor;
+        mMainExecutor = mainExecutor;
         mMetadataPublisher = metadataPublisher;
     }
 

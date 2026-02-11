@@ -33,6 +33,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.rule.ServiceTestRule;
 
 import com.android.crossdevicesync.services.SyncService;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 @RunWith(AndroidJUnit4.class)
-public final class BootReceiverTest extends ApplicationComponentTestBase {
+public final class BootReceiverTest extends SyncServiceTestBase {
     private static final long STOP_SERVICE_TIMEOUT_SEC = 5;
 
     @Rule public final ServiceTestRule mServiceRule = new ServiceTestRule();
@@ -60,7 +61,7 @@ public final class BootReceiverTest extends ApplicationComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
+        SyncService.sInjector = new TestSyncServiceInjector();
     }
 
     @After
@@ -69,6 +70,7 @@ public final class BootReceiverTest extends ApplicationComponentTestBase {
             mService.stopAndWait(STOP_SERVICE_TIMEOUT_SEC, TimeUnit.SECONDS);
             mService = null;
         }
+        SyncService.sInjector = null;
     }
 
     @Test

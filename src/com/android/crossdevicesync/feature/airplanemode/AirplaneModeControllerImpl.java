@@ -23,17 +23,11 @@ import android.net.ConnectivityManager;
 import android.provider.Settings;
 import android.util.Log;
 
-import com.android.crossdevicesync.dagger.qualifier.Main;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-
 /** Implementation of {@link AirplaneModeController}. */
-@SyncServiceSingleton
 public class AirplaneModeControllerImpl implements AirplaneModeController {
     private static final String TAG = "AirplaneModeController";
     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
@@ -43,11 +37,10 @@ public class AirplaneModeControllerImpl implements AirplaneModeController {
     private final ContentObserver mAirplaneModeContentObserver;
     private final ContentObserver mAirplaneModeSyncContentObserver;
 
-    @Inject
-    public AirplaneModeControllerImpl(Context context, @Main Executor executor) {
+    public AirplaneModeControllerImpl(Context context, Executor mainExecutor) {
         mContext = context;
         mAirplaneModeContentObserver =
-                new ContentObserver(executor, /* unused= */ 0) {
+                new ContentObserver(mainExecutor, /* unused= */ 0) {
                     @Override
                     public void onChange(boolean selfChange) {
                         boolean apmEnabled = isAirplaneModeEnabled();
@@ -58,7 +51,7 @@ public class AirplaneModeControllerImpl implements AirplaneModeController {
                     }
                 };
         mAirplaneModeSyncContentObserver =
-                new ContentObserver(executor, /* unused= */ 0) {
+                new ContentObserver(mainExecutor, /* unused= */ 0) {
                     @Override
                     public void onChange(boolean selfChange) {
                         boolean apmSyncEnabled = isAirplaneModeSyncEnabled();

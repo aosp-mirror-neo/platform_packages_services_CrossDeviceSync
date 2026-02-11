@@ -18,19 +18,14 @@ package com.android.crossdevicesync.data;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
 
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
-
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-
-import javax.inject.Inject;
 
 /**
  * Default implementation of {@link DeviceNodeIdProvider} that generates a random UUID and reuse the
  * same id afterwards.
  */
-@SyncServiceSingleton
 public class DeviceNodeIdProviderImpl implements DeviceNodeIdProvider {
     /** Prefix of keys that store the node id of a data store. */
     private static final String KEY_NODE_ID_PREFIX = "node_id_";
@@ -41,8 +36,7 @@ public class DeviceNodeIdProviderImpl implements DeviceNodeIdProvider {
     private static final int MAX_ATTEMPT_FOR_NEW_ID = 10;
     private final SharedPreferences mSharedPreferences;
 
-    @Inject
-    DeviceNodeIdProviderImpl(SharedPreferences sharedPreferences) {
+    public DeviceNodeIdProviderImpl(SharedPreferences sharedPreferences) {
         mSharedPreferences = sharedPreferences;
     }
 

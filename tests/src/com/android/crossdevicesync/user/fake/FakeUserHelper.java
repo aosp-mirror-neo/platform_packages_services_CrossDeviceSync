@@ -28,16 +28,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
-@Singleton
 public class FakeUserHelper implements UserHelper {
     private final List<Pair<Executor, UserListener>> mListeners = new ArrayList<>();
     private final Set<UserHandle> mUsers = new HashSet<>();
 
-    @Inject
-    FakeUserHelper(Context context) {
+    public FakeUserHelper(Context context) {
         // Add self.
         mUsers.add(context.getUser());
     }

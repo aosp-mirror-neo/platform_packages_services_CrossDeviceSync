@@ -19,7 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(AndroidJUnit4.class)
-public class MessageHandleTest extends SyncServiceComponentTestBase {
+public class MessageHandleTest extends SyncServiceTestBase {
     private static final String HANDLE_NAME = "test";
     private static final int MAX_ATTEMPTS = 3;
     private static final long TEST_HANDLE_ID = 1L;
@@ -41,7 +41,6 @@ public class MessageHandleTest extends SyncServiceComponentTestBase {
 
     @Before
     public void setUp() {
-        super.setUp();
         mHandle =
                 new MessageHandle(
                         mLock,

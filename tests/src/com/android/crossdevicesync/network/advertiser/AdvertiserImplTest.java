@@ -20,19 +20,18 @@ import static com.google.common.truth.Truth.assertThat;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase;
+import com.android.crossdevicesync.services.SyncServiceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(AndroidJUnit4.class)
-public class AdvertiserImplTest extends SyncServiceComponentTestBase {
+public class AdvertiserImplTest extends SyncServiceTestBase {
     private static final String REQUEST_NAME = "test";
 
     @Before
     public void setUp() {
-        super.setUp();
         mFakeCompanionActionController.init();
     }
 

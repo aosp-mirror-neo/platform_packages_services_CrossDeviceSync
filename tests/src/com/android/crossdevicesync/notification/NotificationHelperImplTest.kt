@@ -22,19 +22,13 @@ import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.crossdevicesync.R
 import com.android.crossdevicesync.notification.NotificationReason.AIRPLANE_MODE_SYNCED
-import com.android.crossdevicesync.services.SyncServiceComponentTestBase
+import com.android.crossdevicesync.services.SyncServiceTestBase
 import com.google.common.truth.Truth.assertThat
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class NotificationHelperImplTest : SyncServiceComponentTestBase() {
-
-    @Before
-    override fun setUp() {
-        super.setUp()
-    }
+class NotificationHelperImplTest : SyncServiceTestBase() {
 
     @Test
     fun testInit_registersUserListener() {

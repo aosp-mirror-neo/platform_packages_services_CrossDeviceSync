@@ -23,16 +23,11 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.os.UserHandle;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Implementation of {@link NotificationManagerProxy}. */
-@Singleton
 public class NotificationManagerProxyImpl implements NotificationManagerProxy {
 
     private final NotificationManager mNotificationManager;
 
-    @Inject
     public NotificationManagerProxyImpl(Context context) {
         mNotificationManager = context.getSystemService(NotificationManager.class);
     }

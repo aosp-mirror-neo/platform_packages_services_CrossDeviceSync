@@ -27,13 +27,11 @@ import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
 
-import com.android.crossdevicesync.data.dagger.qualifier.GlobalStorage;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.feature.FeatureManager;
 import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.notification.NotificationHelper;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -42,12 +40,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import javax.inject.Inject;
-import javax.inject.Provider;
+import java.util.function.Supplier;
 
 /** The main service hosting cross device sync features. */
-@SyncServiceSingleton
 public class SyncService extends Service {
     private static final String TAG = "SyncService";
 
@@ -56,47 +51,48 @@ public class SyncService extends Service {
     public static final String ACTION_BIND_FOR_TESTING =
             "com.android.crossdevicesync.action.BIND_FOR_TESTING";
 
-    private final NetworkManager mNetworkManager;
-    private final MetadataPublisher mMetadataPublisher;
-    private final NotificationHelper mNotificationHelper;
-    private final IStorage mGlobalStorage;
-    private final SyncServiceShellCommand mSyncServiceShellCommand;
-    private final Map<Class<?>, Provider<FeatureManager>> mFeatureManagerProviders;
+    /** Sets the {@link SyncServiceInjector} to be used. Only used for testing. */
+    @VisibleForTesting public static volatile SyncServiceInjector sInjector;
+
+    private NetworkManager mNetworkManager;
+    private MetadataPublisher mMetadataPublisher;
+    private NotificationHelper mNotificationHelper;
+    private IStorage mGlobalStorage;
+    private SyncServiceShellCommand mSyncServiceShellCommand;
+    private Map<String, Supplier<FeatureManager>> mFeatureManagerSuppliers;
     private final Set<FeatureManager> mFeatureManagers = new HashSet<>();
 
     @Nullable private CountDownLatch mDestroyLatch;
 
-    @Inject
-    public SyncService(
-            NetworkManager networkManager,
-            MetadataPublisher metadataPublisher,
-            NotificationHelper notificationHelper,
-            @GlobalStorage IStorage globalStorage,
-            SyncServiceShellCommand syncServiceShellCommand,
-            Map<Class<?>, Provider<FeatureManager>> featureManagerProviders) {
-        mNetworkManager = networkManager;
-        mMetadataPublisher = metadataPublisher;
-        mNotificationHelper = notificationHelper;
-        mGlobalStorage = globalStorage;
-        mSyncServiceShellCommand = syncServiceShellCommand;
-        mFeatureManagerProviders = featureManagerProviders;
+    public SyncService() {}
+
+    private void initialize() {
+        SyncServiceInjector injector =
+                sInjector != null ? sInjector : new SyncServiceInjectorImpl(this);
+        mNetworkManager = injector.getNetworkManager();
+        mMetadataPublisher = injector.getMetadataPublisher();
+        mNotificationHelper = injector.getNotificationHelper();
+        mGlobalStorage = injector.getGlobalStorage();
+        mSyncServiceShellCommand = injector.getSyncServiceShellCommand();
+        mFeatureManagerSuppliers = injector.getFeatureManagers();
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.i(TAG, "onCreate()");
+        initialize();
         mNetworkManager.init();
         mMetadataPublisher.init();
         mNotificationHelper.init();
-        for (var entry : mFeatureManagerProviders.entrySet()) {
+        for (var entry : mFeatureManagerSuppliers.entrySet()) {
             try {
-                Log.i(TAG, "Initializing " + entry.getKey().getSimpleName() + "...");
+                Log.i(TAG, "Initializing " + entry.getKey() + "...");
                 FeatureManager featureManager = entry.getValue().get();
                 featureManager.init();
                 mFeatureManagers.add(featureManager);
             } catch (Throwable t) {
-                Log.e(TAG, "Failed to initialize " + entry.getKey().getSimpleName(), t);
+                Log.e(TAG, "Failed to initialize " + entry.getKey(), t);
             }
         }
     }

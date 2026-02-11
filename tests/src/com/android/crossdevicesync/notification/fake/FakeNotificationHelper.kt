@@ -19,11 +19,8 @@ package com.android.crossdevicesync.notification.fake
 import android.os.UserHandle
 import com.android.crossdevicesync.notification.NotificationHelper
 import com.android.crossdevicesync.notification.NotificationReason
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
-import javax.inject.Inject
 
-@SyncServiceSingleton
-class FakeNotificationHelper @Inject constructor() : NotificationHelper {
+class FakeNotificationHelper : NotificationHelper {
     val shownUserNotifications = mutableSetOf<Pair<String, UserHandle>>()
     var resetCalled = false
     var initialized = false

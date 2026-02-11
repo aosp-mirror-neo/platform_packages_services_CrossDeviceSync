@@ -20,15 +20,10 @@ import com.android.crossdevicesync.common.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
-@Singleton
 public class FakeClock implements Clock {
     private static final List<Runnable> sListeners = new ArrayList<>();
     private static long sCurrentTime = 0;
 
-    @Inject
     public FakeClock() {}
 
     @Override

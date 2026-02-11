@@ -27,18 +27,13 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
-
 /** Default implementation of {@link ContextualModeManagerProxy}. */
-@Singleton
 public class ContextualModeManagerProxyImpl implements ContextualModeManagerProxy {
     private static final String TAG = "CtxModeManagerProxy";
 
     private final ContextualModeManager mContextualModeManager;
 
-    @Inject
-    ContextualModeManagerProxyImpl(Context context) {
+    public ContextualModeManagerProxyImpl(Context context) {
         mContextualModeManager = context.getSystemService(ContextualModeManager.class);
     }
 

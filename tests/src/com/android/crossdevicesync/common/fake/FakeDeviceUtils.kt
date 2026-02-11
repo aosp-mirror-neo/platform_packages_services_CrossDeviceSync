@@ -16,12 +16,9 @@
 package com.android.crossdevicesync.common.fake
 
 import com.android.crossdevicesync.common.DeviceUtils
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** Fake implementation of [DeviceUtils]. */
-@Singleton
-class FakeDeviceUtils @Inject constructor() : DeviceUtils {
+class FakeDeviceUtils : DeviceUtils {
     private var isWatch: Boolean = false
 
     /** Whether the device is a watch or not. */

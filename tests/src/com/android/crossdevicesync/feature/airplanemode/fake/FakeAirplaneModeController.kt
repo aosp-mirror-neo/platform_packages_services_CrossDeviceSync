@@ -17,13 +17,10 @@ package com.android.crossdevicesync.feature.airplanemode.fake
 
 /** Fake implementation of [AirplaneModeController] for testing. */
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeController
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
 /** A Fake implementation of [AirplaneModeController]. */
-@SyncServiceSingleton
-class FakeAirplaneModeController @Inject constructor() : AirplaneModeController {
+class FakeAirplaneModeController : AirplaneModeController {
     private val airplaneModeState = AtomicBoolean(false)
     private val airplaneModeSyncEnabledState = AtomicBoolean(true)
     private val listeners = mutableListOf<AirplaneModeController.Listener>()

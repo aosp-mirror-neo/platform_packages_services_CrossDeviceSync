@@ -19,27 +19,19 @@ import android.os.PersistableBundle;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.metadata.MetadataPublisher;
-import com.android.crossdevicesync.services.dagger.SyncServiceSingleton;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.inject.Inject;
-
 /** Fake implementation of {@link MetadataPublisher}. */
-@SyncServiceSingleton
 public class FakeMetadataPublisher implements MetadataPublisher {
     private final Map<Integer, PersistableBundle> mUserMetadata = new HashMap<>();
     private boolean mIsInitialized = false;
 
-    @Inject
-    FakeMetadataPublisher() {}
+    public FakeMetadataPublisher() {}
 
     @Override
     public void init() {
-        if (mIsInitialized) {
-            throw new IllegalStateException("Already initialized!");
-        }
         mIsInitialized = true;
     }
 

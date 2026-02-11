@@ -25,11 +25,11 @@ import androidx.annotation.Nullable;
  * <p>For example:
  *
  * {@snippet :
- *     try (SmartAutoClosable resource = new SmartAutoClosable(openResource())) {
- *       ...
+ *     try (SmartAutoClosable<T> resource = new SmartAutoClosable<T>(openResource())) {
+ *       // ...
  *       if (shouldKeepOpen) {
  *         // Keep resource open when necessary.
- *         resource.setkeepOpen(true);
+ *         resource.setKeepOpen(true);
  *       }
  *     }
  * }
@@ -45,10 +45,11 @@ public class SmartAutoClosable<T extends AutoCloseable> implements AutoCloseable
     }
 
     /** Set whether the inner object should be kept open. */
-    public void setkeepOpen(boolean keepOpen) {
+    public void setKeepOpen(boolean keepOpen) {
         mKeepOpen = keepOpen;
     }
 
+    /** Unwrap the inner object. */
     @Nullable
     public T unwrap() {
         return mInner;

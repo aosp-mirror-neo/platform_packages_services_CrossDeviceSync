@@ -16,12 +16,9 @@
 package com.android.crossdevicesync.common.fake
 
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /** Fake implementation of [FrameworkStatsLogProxy] for testing. */
-@Singleton
-class FakeFrameworkStatsLogProxy @Inject constructor() : FrameworkStatsLogProxy {
+class FakeFrameworkStatsLogProxy : FrameworkStatsLogProxy {
     private val mWrites = mutableListOf<WriteCall>()
 
     override fun logSyncEvent(event: Int, feature: Int) {
