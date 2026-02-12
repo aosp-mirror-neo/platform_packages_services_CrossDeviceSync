@@ -25,7 +25,6 @@ import android.util.Log;
 
 import com.android.crossdevicesync.flags.Flags;
 import com.android.crossdevicesync.services.SyncService;
-import com.android.internal.R;
 
 /** Broadcast receiver that reacts to boot signals. */
 public class BootReceiver extends BroadcastReceiver {
@@ -37,7 +36,6 @@ public class BootReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "onReceive: " + intent);
         if (Flags.startSyncServiceOnBoot()
-                && context.getResources().getBoolean(R.bool.config_supportAirplaneModeSync)
                 && Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
             if (context.getUser().equals(UserHandle.SYSTEM)) {
                 Log.d(TAG, "Starting SyncService.");
