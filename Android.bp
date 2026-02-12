@@ -63,6 +63,7 @@ android_app {
         optimized_shrink_resources: true,
         proguard_flags_files: ["proguard.flags"],
     },
+    flags_packages: ["com_android_crossdevicesync_flags"],
 }
 
 android_test {
@@ -95,5 +96,4 @@ android_test {
     test_suites: ["device-tests"],
     test_config: "tests/AndroidTest.xml",
     manifest: "tests/AndroidManifest.xml",
-    additional_manifests: ["AndroidManifest.xml"],
 }

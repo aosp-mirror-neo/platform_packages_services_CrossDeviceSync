@@ -34,7 +34,6 @@ import androidx.test.rule.ServiceTestRule;
 
 import com.android.crossdevicesync.services.SyncService;
 import com.android.crossdevicesync.services.SyncServiceTestBase;
-import com.android.internal.R;
 
 import org.junit.After;
 import org.junit.Before;
@@ -76,8 +75,7 @@ public final class BootReceiverTest extends SyncServiceTestBase {
 
     @Test
     @EnableFlags({FLAG_START_SYNC_SERVICE_ON_BOOT})
-    public void testLockedBootCompleted_syncServiceStarted() throws TimeoutException {
-        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, true);
+    public void testLockedBootCompleted_flagEnabled_syncServiceStarted() throws TimeoutException {
         Intent intent = new Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED);
 
         mBootReceiver.onReceive(mContext, intent);
@@ -91,22 +89,6 @@ public final class BootReceiverTest extends SyncServiceTestBase {
     @Test
     @DisableFlags({FLAG_START_SYNC_SERVICE_ON_BOOT})
     public void testLockedBootCompleted_flagDisabled_syncServiceNotStarted() {
-        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, true);
-        Intent intent = new Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED);
-
-        mBootReceiver.onReceive(mContext, intent);
-
-        assertThrows(
-                TimeoutException.class,
-                () ->
-                        mServiceRule.bindService(
-                                getSyncServiceIntent(), mConnection, /* flags= */ 0));
-    }
-
-    @Test
-    @EnableFlags({FLAG_START_SYNC_SERVICE_ON_BOOT})
-    public void testLockedBootCompleted_configDisabled_syncServiceNotStarted() {
-        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false);
         Intent intent = new Intent(Intent.ACTION_LOCKED_BOOT_COMPLETED);
 
         mBootReceiver.onReceive(mContext, intent);
