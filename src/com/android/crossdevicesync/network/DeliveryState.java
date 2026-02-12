@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.network;
 
-import androidx.annotation.Nullable;
+import android.annotation.Nullable;
 
 import com.android.crossdevicesync.network.scanner.Scanner.ScanningSession;
 

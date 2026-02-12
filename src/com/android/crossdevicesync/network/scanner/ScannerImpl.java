@@ -18,9 +18,8 @@ package com.android.crossdevicesync.network.scanner;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-
 import com.android.crossdevicesync.network.companion.CompanionActionController;
+import com.android.internal.annotations.GuardedBy;
 
 import java.util.HashSet;
 import java.util.List;

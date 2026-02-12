@@ -15,7 +15,7 @@
  */
 package com.android.crossdevicesync.data;
 
-import androidx.annotation.Nullable;
+import android.annotation.Nullable;
 
 import com.google.android.submerge.Converter;
 

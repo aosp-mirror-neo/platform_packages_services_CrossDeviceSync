@@ -15,11 +15,10 @@
  */
 package com.android.crossdevicesync.network;
 
+import android.annotation.Nullable;
 import android.companion.AssociationInfo;
 import android.companion.CompanionDeviceManager;
 import android.os.UserHandle;
-
-import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.internal.util.FrameworkStatsLog;

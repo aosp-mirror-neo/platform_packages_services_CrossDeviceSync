@@ -24,9 +24,6 @@ import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
-import androidx.annotation.GuardedBy;
-import androidx.annotation.VisibleForTesting;
-
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.NetworkManager;
@@ -34,6 +31,8 @@ import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.crossdevicesync.network.NetworkManager.RemoteDevice;
 import com.android.crossdevicesync.user.UserHelper;
+import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.HashMap;
 import java.util.HashSet;

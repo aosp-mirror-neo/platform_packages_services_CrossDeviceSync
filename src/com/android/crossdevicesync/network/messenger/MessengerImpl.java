@@ -20,6 +20,7 @@ import static com.android.crossdevicesync.common.Utils.isFutureFailed;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.Nullable;
 import android.companion.CompanionDeviceManager;
 import android.os.Trace;
 import android.util.ArrayMap;
@@ -27,16 +28,14 @@ import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.Pair;
 
-import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.model.BatchedMessage;
 import com.android.crossdevicesync.network.model.Message;
+import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;

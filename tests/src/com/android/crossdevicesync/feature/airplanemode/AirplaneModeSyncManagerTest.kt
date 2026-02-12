@@ -60,6 +60,7 @@ class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
     @Before
     fun setUp() {
         mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, true)
+        initializeAirplaneModeSyncManager()
         mFakeNetworkManager.init()
         mFakeMetadataPublisher.init()
         mRemoteDeviceContext = RemoteDeviceContext()
@@ -240,6 +241,16 @@ class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
     @Test
     @DisableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testInit_flagDisabled_doesNothing() {
+        initializeAirplaneModeSyncManager()
+        mAirplaneModeSyncManager.init()
+        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).isEmpty).isTrue()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testInit_configDisabled_doesNothing() {
+        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
+        initializeAirplaneModeSyncManager()
         mAirplaneModeSyncManager.init()
         assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).isEmpty).isTrue()
     }
@@ -247,6 +258,16 @@ class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
     @Test
     @DisableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testDestroy_flagDisabled_doesNothing() {
+        initializeAirplaneModeSyncManager()
+        // No exception should be thrown.
+        mAirplaneModeSyncManager.destroy()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDestroy_configDisabled_doesNothing() {
+        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
+        initializeAirplaneModeSyncManager()
         // No exception should be thrown.
         mAirplaneModeSyncManager.destroy()
     }
@@ -254,6 +275,20 @@ class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
     @Test
     @DisableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
     fun testDump_flagDisabled_doesNothing() {
+        initializeAirplaneModeSyncManager()
+        val stringWriter = StringWriter()
+        val pw = IndentingPrintWriter(stringWriter, "  ")
+
+        mAirplaneModeSyncManager.dump(pw)
+
+        assertThat(stringWriter.toString()).isEmpty()
+    }
+
+    @Test
+    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
+    fun testDump_configDisabled_doesNothing() {
+        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
+        initializeAirplaneModeSyncManager()
         val stringWriter = StringWriter()
         val pw = IndentingPrintWriter(stringWriter, "  ")
 
@@ -406,15 +441,6 @@ class AirplaneModeSyncManagerTest : SyncServiceTestBase() {
             .isNotNull()
         // Verify remote device is set.
         verifyRemoteAirplaneModeEnabled(true)
-    }
-
-    @Test
-    @EnableFlags(Flags.FLAG_SYNC_AIRPLANE_MODE_WITH_WATCHES)
-    fun testInit_configIsNotSupported_publishesNotSupported() {
-        mFakeResources.overrideResource(R.bool.config_supportAirplaneModeSync, false)
-        mAirplaneModeSyncManager.init()
-        assertThat(mFakeMetadataPublisher.getMetadata(USER_ALL).getBoolean(APM_SYNC_SUPPORTED))
-            .isFalse()
     }
 
     @Test

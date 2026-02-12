@@ -15,16 +15,15 @@
  */
 package com.android.crossdevicesync.network.messenger;
 
+import android.annotation.Nullable;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 import android.util.Pair;
 
-import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
-
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.crossdevicesync.network.model.Message;
+import com.android.internal.annotations.GuardedBy;
 
 import com.google.common.util.concurrent.ListenableFuture;
 

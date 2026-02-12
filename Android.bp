@@ -44,7 +44,6 @@ android_app {
     srcs: ["src/**/*.java"],
     static_libs: [
         "CrossDeviceSync-res",
-        "androidx.annotation_annotation",
         "com_android_crossdevicesync_flags_lib",
         "connectivity_flags_lib",
         "error_prone_annotations",

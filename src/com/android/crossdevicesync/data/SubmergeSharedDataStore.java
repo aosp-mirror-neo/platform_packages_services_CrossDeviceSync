@@ -23,11 +23,9 @@ import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.IntDef;
+import android.annotation.Nullable;
 import android.os.Trace;
 import android.util.Log;
-
-import androidx.annotation.GuardedBy;
-import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.model.DocumentMetadata;
@@ -35,6 +33,7 @@ import com.android.crossdevicesync.data.model.NetworkMessage;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
+import com.android.internal.annotations.GuardedBy;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.DataStore;

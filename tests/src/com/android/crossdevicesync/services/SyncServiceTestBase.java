@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 
 /** Base class for tests. */
 public abstract class SyncServiceTestBase extends ApplicationTestBase {
-    protected final AirplaneModeSyncManager mAirplaneModeSyncManager;
+    protected AirplaneModeSyncManager mAirplaneModeSyncManager;
     protected final StringConverter mStringConverter;
     protected final NetworkManagerImpl mNetworkManagerImpl;
     protected final MessengerImpl mMessengerImpl;
@@ -94,17 +94,7 @@ public abstract class SyncServiceTestBase extends ApplicationTestBase {
 
         mSyncServiceShellCommand = new SyncServiceShellCommand(mFakeNotificationHelper);
 
-        mAirplaneModeSyncManager =
-                new AirplaneModeSyncManager(
-                        mApplication,
-                        mFakeNetworkManager,
-                        mFakeAirplaneModeController,
-                        mFakeMetadataPublisher,
-                        mFakeNotificationHelper,
-                        mFakeDeviceUtil,
-                        mMainExecutor,
-                        mStringConverter,
-                        mSharedDataStoreHandleFactory);
+        initializeAirplaneModeSyncManager();
 
         mFakeNotificationHelper.init();
 
@@ -143,6 +133,20 @@ public abstract class SyncServiceTestBase extends ApplicationTestBase {
                         () -> new NotificationConfig(mContext, mFakeDeviceUtil),
                         mMainExecutor,
                         mFakeUserHelper);
+    }
+
+    protected void initializeAirplaneModeSyncManager() {
+        mAirplaneModeSyncManager =
+                new AirplaneModeSyncManager(
+                        mApplication,
+                        mFakeNetworkManager,
+                        mFakeAirplaneModeController,
+                        mFakeMetadataPublisher,
+                        mFakeNotificationHelper,
+                        mFakeDeviceUtil,
+                        mMainExecutor,
+                        mStringConverter,
+                        mSharedDataStoreHandleFactory);
     }
 
     protected boolean useRealSharedDataStoreImpl() {

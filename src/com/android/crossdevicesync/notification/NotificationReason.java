@@ -16,7 +16,7 @@
 
 package com.android.crossdevicesync.notification;
 
-import androidx.annotation.StringDef;
+import android.annotation.StringDef;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
