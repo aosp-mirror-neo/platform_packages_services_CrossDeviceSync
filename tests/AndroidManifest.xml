@@ -22,7 +22,6 @@
         android:name="com.android.crossdevicesync.TestApplication"
         android:debuggable="true"
         android:testOnly="true"
-        android:featureFlag="com.android.crossdevicesync.flags.start_sync_service_on_boot"
         tools:replace="android:name">
         <uses-library android:name="android.test.runner" />
     </application>
