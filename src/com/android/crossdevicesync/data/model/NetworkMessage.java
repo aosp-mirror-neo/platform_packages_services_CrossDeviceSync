@@ -17,11 +17,10 @@
 package com.android.crossdevicesync.data.model;
 
 import android.annotation.NonNull;
+import android.util.proto.ProtoInputStream;
+import android.util.proto.ProtoOutputStream;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
@@ -38,35 +37,45 @@ public record NetworkMessage(
 
     /** Serializes this {@link NetworkMessage} into a byte array. */
     public byte[] toByteArray() {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(baos)) {
-            out.writeUTF(docId);
-            out.writeUTF(senderNodeId);
-            out.writeUTF(receiverNodeId);
-            out.writeInt(docVersion.length);
-            out.write(docVersion);
-            out.writeInt(docUpdate.length);
-            out.write(docUpdate);
-            out.flush();
-            return baos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("NetworkMessage serialization failed", e);
-        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ProtoOutputStream proto = new ProtoOutputStream(baos);
+        proto.write(NetworkMessageProto.DOC_ID, docId);
+        proto.write(NetworkMessageProto.SENDER_NODE_ID, senderNodeId);
+        proto.write(NetworkMessageProto.RECEIVER_NODE_ID, receiverNodeId);
+        proto.write(NetworkMessageProto.DOC_VERSION, docVersion);
+        proto.write(NetworkMessageProto.DOC_UPDATE, docUpdate);
+        proto.flush();
+        return baos.toByteArray();
     }
 
     /** Deserializes a {@link NetworkMessage} record from a byte array. */
     public static NetworkMessage parseFrom(byte[] data) throws IOException {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
-                DataInputStream in = new DataInputStream(bais)) {
-            String docId = in.readUTF();
-            String senderNodeId = in.readUTF();
-            String receiverNodeId = in.readUTF();
-            byte[] docVersion = new byte[in.readInt()];
-            in.readFully(docVersion);
-            byte[] docUpdate = new byte[in.readInt()];
-            in.readFully(docUpdate);
-            return new NetworkMessage(docId, senderNodeId, receiverNodeId, docVersion, docUpdate);
+        ProtoInputStream proto = new ProtoInputStream(data);
+        String docId = "";
+        String senderNodeId = "";
+        String receiverNodeId = "";
+        byte[] docVersion = new byte[0];
+        byte[] docUpdate = new byte[0];
+
+        try {
+            while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
+                switch (proto.getFieldNumber()) {
+                    case (int) NetworkMessageProto.DOC_ID ->
+                            docId = proto.readString(NetworkMessageProto.DOC_ID);
+                    case (int) NetworkMessageProto.SENDER_NODE_ID ->
+                            senderNodeId = proto.readString(NetworkMessageProto.SENDER_NODE_ID);
+                    case (int) NetworkMessageProto.RECEIVER_NODE_ID ->
+                            receiverNodeId = proto.readString(NetworkMessageProto.RECEIVER_NODE_ID);
+                    case (int) NetworkMessageProto.DOC_VERSION ->
+                            docVersion = proto.readBytes(NetworkMessageProto.DOC_VERSION);
+                    case (int) NetworkMessageProto.DOC_UPDATE ->
+                            docUpdate = proto.readBytes(NetworkMessageProto.DOC_UPDATE);
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to parse NetworkMessage from proto", e);
         }
+        return new NetworkMessage(docId, senderNodeId, receiverNodeId, docVersion, docUpdate);
     }
 
     @Override

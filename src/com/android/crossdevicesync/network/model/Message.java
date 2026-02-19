@@ -17,11 +17,10 @@
 package com.android.crossdevicesync.network.model;
 
 import android.annotation.NonNull;
+import android.util.proto.ProtoInputStream;
+import android.util.proto.ProtoOutputStream;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
@@ -33,40 +32,53 @@ public record Message(long handleId, @NonNull String networkId, @NonNull byte[] 
 
     /** Serializes this {@link Message} into a byte array. */
     public byte[] toByteArray() {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(baos)) {
-            writeTo(out);
-            out.flush();
-            return baos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Message serialization failed", e);
-        }
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ProtoOutputStream proto = new ProtoOutputStream(baos);
+        writeTo(proto);
+        proto.flush();
+        return baos.toByteArray();
     }
 
     /** Deserializes a {@link Message} record from a byte array. */
     public static Message parseFrom(byte[] data) throws IOException {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
-                DataInputStream in = new DataInputStream(bais)) {
-            return readFrom(in);
-        }
+        return parseFrom(new ProtoInputStream(data));
     }
 
-    /** Reads a {@link Message} record from a {@link DataInputStream}. */
-    public static Message readFrom(DataInputStream in) throws IOException {
-        long handleId = in.readLong();
-        String networkId = in.readUTF();
-        int payloadLength = in.readInt();
-        byte[] payload = new byte[payloadLength];
-        in.readFully(payload);
+    /** Deserializes a {@link Message} record from a {@link ProtoInputStream}. */
+    public static Message parseFrom(ProtoInputStream proto) throws IOException {
+        long handleId = 0;
+        String networkId = "";
+        byte[] payload = new byte[0];
+
+        try {
+            while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
+                switch (proto.getFieldNumber()) {
+                    case (int) MessageProto.HANDLE_ID ->
+                            handleId = proto.readLong(MessageProto.HANDLE_ID);
+                    case (int) MessageProto.NETWORK_ID ->
+                            networkId = proto.readString(MessageProto.NETWORK_ID);
+                    case (int) MessageProto.PAYLOAD ->
+                            payload = proto.readBytes(MessageProto.PAYLOAD);
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed to parse Message from proto", e);
+        }
         return new Message(handleId, networkId, payload);
     }
 
-    /** Writes this {@link Message} to a {@link DataOutputStream}. */
-    public void writeTo(DataOutputStream out) throws IOException {
-        out.writeLong(handleId);
-        out.writeUTF(networkId);
-        out.writeInt(payload.length);
-        out.write(payload);
+    /** Writes this {@link Message} to a {@link ProtoOutputStream}. */
+    public void writeTo(ProtoOutputStream proto) {
+        proto.write(MessageProto.HANDLE_ID, handleId);
+        proto.write(MessageProto.NETWORK_ID, networkId);
+        proto.write(MessageProto.PAYLOAD, payload);
+    }
+
+    /** Writes this {@link Message} to a {@link ProtoOutputStream} with a field ID. */
+    public void writeTo(ProtoOutputStream proto, long fieldId) {
+        long token = proto.start(fieldId);
+        writeTo(proto);
+        proto.end(token);
     }
 
     @Override

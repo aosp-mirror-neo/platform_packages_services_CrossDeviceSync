@@ -17,11 +17,10 @@
 package com.android.crossdevicesync.data.model;
 
 import android.annotation.NonNull;
+import android.util.proto.ProtoInputStream;
+import android.util.proto.ProtoOutputStream;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,38 +31,78 @@ public record DocumentMetadata(
     private static final String TAG = "DocumentMetadata";
 
     /** Metadata of a data record in a document. */
-    public record RecordMetadata(@NonNull String path, boolean lastModifiedByLocalDevice) {}
+    public record RecordMetadata(@NonNull String path, boolean lastModifiedByLocalDevice) {
+        /** Writes this {@link RecordMetadata} to a {@link ProtoOutputStream}. */
+        public void writeTo(ProtoOutputStream proto, long fieldId) {
+            long token = proto.start(fieldId);
+            proto.write(DocumentMetadataProto.RecordMetadataProto.PATH, path);
+            proto.write(
+                    DocumentMetadataProto.RecordMetadataProto.LAST_MODIFIED_BY_LOCAL_DEVICE,
+                    lastModifiedByLocalDevice);
+            proto.end(token);
+        }
+
+        /** Deserializes a {@link RecordMetadata} record from a {@link ProtoInputStream}. */
+        public static RecordMetadata parseFrom(ProtoInputStream proto) throws IOException {
+            String path = "";
+            boolean lastModifiedByLocalDevice = false;
+
+            try {
+                while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
+                    switch (proto.getFieldNumber()) {
+                        case (int) DocumentMetadataProto.RecordMetadataProto.PATH ->
+                                path =
+                                        proto.readString(
+                                                DocumentMetadataProto.RecordMetadataProto.PATH);
+                        case (int)
+                                        DocumentMetadataProto.RecordMetadataProto
+                                                .LAST_MODIFIED_BY_LOCAL_DEVICE ->
+                                lastModifiedByLocalDevice =
+                                        proto.readBoolean(
+                                                DocumentMetadataProto.RecordMetadataProto
+                                                        .LAST_MODIFIED_BY_LOCAL_DEVICE);
+                    }
+                }
+            } catch (Exception e) {
+                throw new IOException("Failed to parse RecordMetadata from proto", e);
+            }
+            return new RecordMetadata(path, lastModifiedByLocalDevice);
+        }
+    }
 
     /** Serializes this {@link DocumentMetadata} into a byte array. */
     public byte[] toByteArray() {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(baos)) {
-            out.writeInt(schemaVersion);
-            out.writeInt(recordMetadataList.size());
-            for (RecordMetadata metadata : recordMetadataList) {
-                out.writeUTF(metadata.path());
-                out.writeBoolean(metadata.lastModifiedByLocalDevice());
-            }
-            out.flush();
-            return baos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("DocumentMetadata serialization failed", e);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ProtoOutputStream proto = new ProtoOutputStream(baos);
+        proto.write(DocumentMetadataProto.SCHEMA_VERSION, schemaVersion);
+        for (RecordMetadata metadata : recordMetadataList) {
+            metadata.writeTo(proto, DocumentMetadataProto.RECORD_METADATA_LIST);
         }
+        proto.flush();
+        return baos.toByteArray();
     }
 
     /** Deserializes a {@link DocumentMetadata} record from a byte array. */
     public static DocumentMetadata parseFrom(byte[] data) throws IOException {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
-                DataInputStream in = new DataInputStream(bais)) {
-            int schemaVersion = in.readInt();
-            int size = in.readInt();
-            List<RecordMetadata> recordMetadataList = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                String path = in.readUTF();
-                boolean lastModifiedByLocalDevice = in.readBoolean();
-                recordMetadataList.add(new RecordMetadata(path, lastModifiedByLocalDevice));
+        ProtoInputStream proto = new ProtoInputStream(data);
+        int schemaVersion = 0;
+        List<RecordMetadata> recordMetadataList = new ArrayList<>();
+
+        try {
+            while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
+                switch (proto.getFieldNumber()) {
+                    case (int) DocumentMetadataProto.SCHEMA_VERSION ->
+                            schemaVersion = proto.readInt(DocumentMetadataProto.SCHEMA_VERSION);
+                    case (int) DocumentMetadataProto.RECORD_METADATA_LIST -> {
+                        long token = proto.start(DocumentMetadataProto.RECORD_METADATA_LIST);
+                        recordMetadataList.add(RecordMetadata.parseFrom(proto));
+                        proto.end(token);
+                    }
+                }
             }
-            return new DocumentMetadata(schemaVersion, recordMetadataList);
+        } catch (Exception e) {
+            throw new IOException("Failed to parse DocumentMetadata from proto", e);
         }
+        return new DocumentMetadata(schemaVersion, recordMetadataList);
     }
 }
