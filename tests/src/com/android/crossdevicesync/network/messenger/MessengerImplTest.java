@@ -114,6 +114,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // Transport request failed.
         transportRequestFuture.setException(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
 
         mFakeClock.advanceTime(RETRY_DELAY_MS);
 
@@ -138,6 +141,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
                 .getAttachTransportFuture(/* associationId= */ 1)
                 .setException(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
         mFakeClock.advanceTime(RETRY_DELAY_MS);
 
         // Second failure
@@ -146,6 +152,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
                 .setException(new Exception("transport request failed"));
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -164,6 +173,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -202,6 +214,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // We are still sending the message.
         assertThat(future.isDone()).isFalse();
+        // We didn't send detach request
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNotNull();
     }
 
     @Test
@@ -238,6 +253,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // Transport attachment failed.
         attachTransportFuture.setException(new Exception());
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -279,6 +297,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -295,6 +316,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
         assertThat(future.isDone()).isFalse();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
         mFakeClock.advanceTime(RETRY_DELAY_MS);
 
         // Second timeout
@@ -302,6 +326,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -325,6 +352,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         // Verify we are resending the message.
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(2);
+        // We didn't send detach request
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNotNull();
     }
 
     @Test
@@ -344,6 +374,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -364,11 +397,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(future.isDone()).isFalse();
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(2);
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNotNull();
 
         // Second timeout
         mFakeClock.advanceTime(WAITING_FOR_ACK_TIMEOUT);
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -398,6 +436,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(future.isDone()).isTrue();
         assertThat(remoteReceivedMessages).hasSize(1);
         assertMessagesEqual(remoteReceivedMessages.get(0), Pair.create(TEST_NETWORK, message));
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -436,6 +477,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(remoteReceivedMessages).hasSize(2);
         assertMessagesEqual(remoteReceivedMessages.get(0), Pair.create(TEST_NETWORK, message1));
         assertMessagesEqual(remoteReceivedMessages.get(1), Pair.create(TEST_NETWORK, message2));
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -456,11 +500,17 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // 2. Transport lost. Fail the transport request.
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, false);
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
                 .setException(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
 
         // 3. Fail the transport request again.
         mFakeClock.advanceTime(RETRY_DELAY_MS);
@@ -469,6 +519,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
                 .setException(new Exception("transport request failed"));
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
+        // Transport detached
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
     }
 
     @Test
@@ -625,11 +678,8 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // Verify that we will not retry sending another ACK.
         mFakeClock.advanceTime(RETRY_DELAY_MS);
-        assertThat(
-                        isFutureFailed(
-                                mFakeCompanionActionController.getAttachTransportFuture(
-                                        /* associationId= */ 1)))
-                .isTrue();
+        assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
+                .isNull();
 
         // Assert remote device timeout.
         assertThat(isFutureFailed(remoteFuture)).isTrue();

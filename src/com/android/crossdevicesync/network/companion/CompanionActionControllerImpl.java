@@ -136,60 +136,84 @@ public class CompanionActionControllerImpl implements CompanionActionController 
     @Override
     public ListenableFuture<?> attachTransport(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.transportState, /* activate= */ true, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.transportState, /* activate= */ true, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
     @Override
     public ListenableFuture<?> detachTransport(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.transportState, /* activate= */ false, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.transportState, /* activate= */ false, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
     @Override
     public ListenableFuture<?> startNearbyScanning(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.scanningState, /* activate= */ true, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.scanningState, /* activate= */ true, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
     @Override
     public ListenableFuture<?> stopNearbyScanning(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.scanningState, /* activate= */ false, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.scanningState, /* activate= */ false, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
     @Override
     public ListenableFuture<?> startNearbyAdvertising(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.advertisingState, /* activate= */ true, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.advertisingState, /* activate= */ true, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
     @Override
     public ListenableFuture<?> stopNearbyAdvertising(int associationId) {
         synchronized (mLock) {
-            throwIfUninitializedLocked();
-            long now = mClock.elapsedRealtime();
-            AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
-            return requestStateChangeLocked(state.advertisingState, /* activate= */ false, now);
+            try {
+                throwIfUninitializedLocked();
+                long now = mClock.elapsedRealtime();
+                AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
+                return requestStateChangeLocked(state.advertisingState, /* activate= */ false, now);
+            } catch (Exception e) {
+                return Futures.immediateFailedFuture(e);
+            }
         }
     }
 
