@@ -78,7 +78,7 @@ public class ContextualModeSyncController
      *
      * <p>Note: DO NOT CHANGE.
      */
-    @VisibleForTesting static final String NETWORK_ID = "contextual_mode_sync";
+    public static final String NETWORK_ID = "contextual_mode_sync";
 
     /**
      * Data store name prefix.

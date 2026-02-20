@@ -13,6 +13,7 @@
 // limitations under the License.
 
 package {
+    default_team: "trendy_team_wear_wear_frameworks",
     default_applicable_licenses: [
         "packages_services_CrossDeviceSync_license",
     ],
@@ -29,6 +30,15 @@ license {
     ],
 }
 
+filegroup {
+    name: "CrossDeviceSync-srcs",
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.proto",
+    ],
+    visibility: ["//packages/services/CrossDeviceSync/lib"],
+}
+
 android_library {
     name: "CrossDeviceSync-res",
     use_resource_processor: true,
@@ -42,8 +52,7 @@ android_app {
     certificate: "platform",
     privileged: true,
     srcs: [
-        "src/**/*.java",
-        "src/**/*.proto",
+        ":CrossDeviceSync-srcs",
     ],
     proto: {
         type: "stream",
@@ -78,8 +87,7 @@ android_test {
     defaults: ["platform_app_defaults"],
     certificate: "platform",
     srcs: [
-        "src/**/*.java",
-        "src/**/*.proto",
+        ":CrossDeviceSync-srcs",
         "tests/src/**/*.java",
         "tests/src/**/*.kt",
     ],
