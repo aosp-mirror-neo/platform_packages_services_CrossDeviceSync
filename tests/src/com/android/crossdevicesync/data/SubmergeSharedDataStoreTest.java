@@ -580,6 +580,36 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     }
 
     @Test
+    public void onNetworkMessage_malformattedInput_ignored() throws Exception {
+        // Prepare some data.
+        transactDataStore(doc -> doc.putData("/root/register", "local_data"));
+
+        // Connect with device 1.
+        connectNetworks(this, mRemoteDevice1);
+
+        // mRemoteDevice1 sends a junk message.
+        mRemoteDevice1
+                .getNetworkManager()
+                .findRemoteDevice(mFakeNetworkManager)
+                .sendMessage(NETWORK_ID, new byte[] {1, 2, 3});
+        flushNetworks(this, mRemoteDevice1);
+
+        // Verify local data is not changed.
+        transactDataStore(
+                doc -> {
+                    Record<String> r = doc.getRecord("/root/register");
+                    assertThat(r.get()).isEqualTo("local_data");
+                });
+
+        // Verify no outbound messages were sent in response.
+        int associationId =
+                mFakeNetworkManager
+                        .findRemoteDevice(mRemoteDevice1.getNetworkManager())
+                        .getAssociationId();
+        assertThat(mFakeNetworkManager.getRemoteDevice(associationId).getSentMessages()).isEmpty();
+    }
+
+    @Test
     public void testConcurrentNetworkUpdate_differentPath_merged() throws Exception {
         // Concurrent update from different devices.
         transactDataStore(doc -> doc.putData("/root/register", "abc"));

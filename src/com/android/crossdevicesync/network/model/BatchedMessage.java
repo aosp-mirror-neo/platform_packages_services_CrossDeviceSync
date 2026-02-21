@@ -17,11 +17,10 @@
 package com.android.crossdevicesync.network.model;
 
 import android.annotation.NonNull;
+import android.util.proto.ProtoInputStream;
+import android.util.proto.ProtoOutputStream;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,40 +32,44 @@ public record BatchedMessage(
 
     /** Serializes this {@link BatchedMessage} into a byte array. */
     public byte[] toByteArray() {
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(baos)) {
-            out.writeInt(messages.size());
-            for (Message m : messages) {
-                m.writeTo(out);
-            }
-            out.writeInt(ackIds.size());
-            for (long ackId : ackIds) {
-                out.writeLong(ackId);
-            }
-            out.writeLong(senderInstanceId);
-            out.flush();
-            return baos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("BatchedMessage serialization failed", e);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ProtoOutputStream proto = new ProtoOutputStream(baos);
+        for (Message m : messages) {
+            m.writeTo(proto, BatchedMessageProto.MESSAGES);
         }
+        for (long ackId : ackIds) {
+            proto.write(BatchedMessageProto.ACK_IDS, ackId);
+        }
+        proto.write(BatchedMessageProto.SENDER_INSTANCE_ID, senderInstanceId);
+        proto.flush();
+        return baos.toByteArray();
     }
 
     /** Deserializes a {@link BatchedMessage} record from a byte array. */
     public static BatchedMessage parseFrom(byte[] data) throws IOException {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(data);
-                DataInputStream in = new DataInputStream(bais)) {
-            int messagesSize = in.readInt();
-            List<Message> messages = new ArrayList<>(messagesSize);
-            for (int i = 0; i < messagesSize; i++) {
-                messages.add(Message.readFrom(in));
+        ProtoInputStream proto = new ProtoInputStream(data);
+        List<Message> messages = new ArrayList<>();
+        List<Long> ackIds = new ArrayList<>();
+        long senderInstanceId = 0;
+
+        try {
+            while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
+                switch (proto.getFieldNumber()) {
+                    case (int) BatchedMessageProto.MESSAGES -> {
+                        long token = proto.start(BatchedMessageProto.MESSAGES);
+                        messages.add(Message.parseFrom(proto));
+                        proto.end(token);
+                    }
+                    case (int) BatchedMessageProto.ACK_IDS ->
+                            ackIds.add(proto.readLong(BatchedMessageProto.ACK_IDS));
+                    case (int) BatchedMessageProto.SENDER_INSTANCE_ID ->
+                            senderInstanceId =
+                                    proto.readLong(BatchedMessageProto.SENDER_INSTANCE_ID);
+                }
             }
-            int acksSize = in.readInt();
-            List<Long> ackIds = new ArrayList<>(acksSize);
-            for (int i = 0; i < acksSize; i++) {
-                ackIds.add(in.readLong());
-            }
-            long senderInstanceId = in.readLong();
-            return new BatchedMessage(messages, ackIds, senderInstanceId);
+        } catch (Exception e) {
+            throw new IOException("Failed to parse BatchedMessage from proto", e);
         }
+        return new BatchedMessage(messages, ackIds, senderInstanceId);
     }
 }

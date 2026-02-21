@@ -885,8 +885,8 @@ public class MessengerImplTest extends SyncServiceTestBase {
     }
 
     @Test
-    public void onMessage_invalidProto_ignoresMessage() {
-        // Register a listener that will fail the test if called.
+    public void onMessage_malformattedInput_ignored() {
+        // Register a listener that should not be called.
         List<Pair<String, byte[]>> incomingMessages = new ArrayList<>();
         mMessengerImpl.registerMessageListener(
                 Runnable::run,
@@ -894,11 +894,11 @@ public class MessengerImplTest extends SyncServiceTestBase {
                     incomingMessages.add(Pair.create(networkId, msg));
                 });
 
-        // Simulate receiving a malformed message that cannot be parsed as a proto.
+        // Simulate receiving a malformed message that cannot be parsed as a proto (junk data).
         mFakeCompanionDeviceManagerProxy.simulateMessageReceived(
                 CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
                 /* associationId= */ 1,
-                new byte[] {1, 2, 3}); // Junk data
+                new byte[] {1, 2, 3});
 
         // Assert that the listener was not called and no crash occurred.
         assertThat(incomingMessages).isEmpty();
