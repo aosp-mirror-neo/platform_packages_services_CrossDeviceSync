@@ -129,34 +129,25 @@ public class SqliteStorage implements IStorage {
     }
 
     private void persistBlob(String docId, String columnName, byte[] blob) throws StorageException {
-        requireIoThread();
-        try {
-            mDatabase.beginTransaction();
-            try {
-                ContentValues values = new ContentValues();
-                values.put(columnName, blob);
-                int rows =
-                        mDatabase.update(
-                                TABLE_NAME, values, COLUMN_DOC_ID + "=?", new String[] {docId});
-                if (rows == 0) {
-                    values.put(COLUMN_DOC_ID, docId);
-                    mDatabase.insert(TABLE_NAME, null, values);
-                }
-                mDatabase.setTransactionSuccessful();
-            } finally {
-                mDatabase.endTransaction();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "persistBlob " + columnName + " failed!", e);
-            throw new StorageException();
-        }
+        transact(
+                storage -> {
+                    ContentValues values = new ContentValues();
+                    values.put(columnName, blob);
+                    int rows =
+                            mDatabase.update(
+                                    TABLE_NAME, values, COLUMN_DOC_ID + "=?", new String[] {docId});
+                    if (rows == 0) {
+                        values.put(COLUMN_DOC_ID, docId);
+                        mDatabase.insert(TABLE_NAME, null, values);
+                    }
+                });
     }
 
     @Override
-    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws Exception {
+    public void transact(ThrowingConsumer<IStorage> transactionApplier) throws StorageException {
         requireIoThread();
         if (mDatabase == null) {
-            return;
+            throw new StorageException();
         }
         mDatabase.beginTransaction();
         try {
@@ -192,32 +183,24 @@ public class SqliteStorage implements IStorage {
         if (docIds.isEmpty()) {
             return;
         }
-        try {
-            mDatabase.beginTransaction();
-            try {
-                for (int i = 0; i < docIds.size(); i += 999) {
-                    int end = Math.min(i + 999, docIds.size());
-                    List<String> subList = docIds.subList(i, end);
-                    StringBuilder whereClause = new StringBuilder(COLUMN_DOC_ID + " IN (");
-                    String[] whereArgs = new String[subList.size()];
-                    for (int j = 0; j < subList.size(); j++) {
-                        whereClause.append("?");
-                        if (j < subList.size() - 1) {
-                            whereClause.append(",");
+        transact(
+                storage -> {
+                    for (int i = 0; i < docIds.size(); i += 999) {
+                        int end = Math.min(i + 999, docIds.size());
+                        List<String> subList = docIds.subList(i, end);
+                        StringBuilder whereClause = new StringBuilder(COLUMN_DOC_ID + " IN (");
+                        String[] whereArgs = new String[subList.size()];
+                        for (int j = 0; j < subList.size(); j++) {
+                            whereClause.append("?");
+                            if (j < subList.size() - 1) {
+                                whereClause.append(",");
+                            }
+                            whereArgs[j] = subList.get(j);
                         }
-                        whereArgs[j] = subList.get(j);
+                        whereClause.append(")");
+                        mDatabase.delete(TABLE_NAME, whereClause.toString(), whereArgs);
                     }
-                    whereClause.append(")");
-                    mDatabase.delete(TABLE_NAME, whereClause.toString(), whereArgs);
-                }
-                mDatabase.setTransactionSuccessful();
-            } finally {
-                mDatabase.endTransaction();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "deleteDocuments failed!", e);
-            throw new StorageException();
-        }
+                });
     }
 
     @Override

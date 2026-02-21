@@ -350,9 +350,6 @@ public class MessengerImpl implements Messenger {
         /** Message is being sent. */
         private static final int STATE_SENDING = 4;
 
-        /** Detaching transport. */
-        private static final int STATE_DETACHING_TRANSPORT = 5;
-
         public final int associationId;
 
         @GuardedBy("mLock")
@@ -426,29 +423,24 @@ public class MessengerImpl implements Messenger {
             if (!changed) {
                 return;
             }
-            boolean shouldNoteTransportFailure = false;
             if (mState == STATE_ATTACHING_TRANSPORT) {
                 if (DEBUG) {
                     Log.d(TAG, "Requesting transport attachment for association " + associationId);
                 }
                 mAttachTransportFuture = mCompanionActionController.attachTransport(associationId);
                 mAttachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
-            } else if (mState != STATE_SENDING && mAttachTransportFuture != null) {
-                // We are neither attaching transport nor sending message. Should cancel any
-                // unfinished transport request.
-                shouldNoteTransportFailure = isFutureFailed(mAttachTransportFuture);
+            } else if (mState != STATE_SENDING
+                    && mState != STATE_WAITING_FOR_TRANSPORT
+                    && mAttachTransportFuture != null) {
+                // We are neither attaching transport nor sending message nor waiting for transport.
+                // Should cancel any unfinished transport request and send detach request.
                 mAttachTransportFuture.cancel(true);
                 mAttachTransportFuture = null;
-            }
-            if (mState == STATE_DETACHING_TRANSPORT) {
                 if (DEBUG) {
                     Log.d(TAG, "Requesting transport detachment for association " + associationId);
                 }
                 mCompanionActionController.detachTransport(associationId);
                 // For any pending messages, detaching is considered transport failure.
-                shouldNoteTransportFailure = true;
-            }
-            if (shouldNoteTransportFailure) {
                 noteTransportFailureLocked(now, new Exception(mChangeReason));
             }
         }
@@ -485,22 +477,7 @@ public class MessengerImpl implements Messenger {
         private Pair<Integer, String> getNextAssociationStateAndReasonLocked(long now) {
             if (mMessageHandles.isEmpty() && mAckHandles.isEmpty()) {
                 // Message buffer is empty.
-                switch (mState) {
-                    case STATE_IDLE, STATE_WAITING_TO_ATTACH_TRANSPORT -> {
-                        return Pair.create(STATE_IDLE, "buffer is empty");
-                    }
-                    case STATE_ATTACHING_TRANSPORT, STATE_WAITING_FOR_TRANSPORT, STATE_SENDING -> {
-                        return Pair.create(STATE_DETACHING_TRANSPORT, "buffer is empty");
-                    }
-                    case STATE_DETACHING_TRANSPORT -> {
-                        // Detaching is fire-and-forget. So advance to STATE_IDLE
-                        // immediately without waiting for the result.
-                        return Pair.create(STATE_IDLE, "buffer is empty");
-                    }
-                    default -> {
-                        throw new IllegalStateException("Unknown state: " + mState);
-                    }
-                }
+                return Pair.create(STATE_IDLE, "buffer is empty");
             }
             // Message buffer is non-empty
             final boolean hasTransport = mAssociationsWithTransport.contains(associationId);
@@ -546,9 +523,9 @@ public class MessengerImpl implements Messenger {
                     }
                     if (now - mLastChangeTimestamp >= WAITING_FOR_TRANSPORT_TIMEOUT) {
                         // Attach request succeeded but didn't see transport appear within
-                        // timeout. Detach now.
+                        // timeout. Detach now and retry later.
                         return Pair.create(
-                                STATE_DETACHING_TRANSPORT,
+                                STATE_WAITING_TO_ATTACH_TRANSPORT,
                                 "transport doesn't appear within timeout");
                     } else {
                         // Continue waiting for transport to appear.
@@ -558,15 +535,10 @@ public class MessengerImpl implements Messenger {
                 case STATE_SENDING -> {
                     if (!hasTransport) {
                         return Pair.create(
-                                STATE_DETACHING_TRANSPORT, "lost transport unexpectedly");
+                                STATE_WAITING_TO_ATTACH_TRANSPORT, "lost transport unexpectedly");
                     }
                     // Continue sending.
                     return Pair.create(mState, mChangeReason);
-                }
-                case STATE_DETACHING_TRANSPORT -> {
-                    // Detaching is fire-and-forget. So advance to STATE_WAITING_TO_ATTACH_TRANSPORT
-                    // immediately without waiting for the result.
-                    return Pair.create(STATE_WAITING_TO_ATTACH_TRANSPORT, mChangeReason);
                 }
                 default -> {
                     throw new IllegalStateException("Unknown state: " + mState);
@@ -608,10 +580,6 @@ public class MessengerImpl implements Messenger {
                         }
                     }
                     return nextInvalidation;
-                }
-                case STATE_DETACHING_TRANSPORT -> {
-                    // Detaching is fire-and-forget. So immediately invalidate for next state.
-                    return now;
                 }
                 default -> {
                     return Long.MAX_VALUE;
@@ -766,7 +734,6 @@ public class MessengerImpl implements Messenger {
                 case STATE_ATTACHING_TRANSPORT -> "ATTACHING_TRANSPORT";
                 case STATE_WAITING_FOR_TRANSPORT -> "WAITING_FOR_TRANSPORT";
                 case STATE_SENDING -> "SENDING";
-                case STATE_DETACHING_TRANSPORT -> "DETACHING_TRANSPORT";
                 default -> "UNKNOWN(" + state + ")";
             };
         }
