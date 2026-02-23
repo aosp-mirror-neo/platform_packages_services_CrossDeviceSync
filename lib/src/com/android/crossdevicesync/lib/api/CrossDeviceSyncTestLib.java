@@ -122,7 +122,8 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
                         context,
                         sharedDataStoreHandleFactory,
                         mNetworkManager,
-                        new StringConverter());
+                        new StringConverter(),
+                        companionDeviceManagerProxy);
     }
 
     /**
