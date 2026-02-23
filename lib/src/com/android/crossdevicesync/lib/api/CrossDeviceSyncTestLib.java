@@ -30,6 +30,7 @@ import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.SharedDataStoreHandleFactory;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.crossdevicesync.lib.AirplaneModeSyncDocumentImpl;
 import com.android.crossdevicesync.lib.CdmPipeImpl;
 import com.android.crossdevicesync.lib.ContextualModeSyncDocumentImpl;
 import com.android.crossdevicesync.lib.common.FakeCompanionDeviceManagerProxy;
@@ -59,6 +60,7 @@ import java.util.concurrent.Executor;
 public class CrossDeviceSyncTestLib implements AutoCloseable {
     private final CdmPipeImpl mCdmPipe;
     private final ContextualModeSyncDocumentImpl mContextualModeSyncDocument;
+    private final AirplaneModeSyncDocumentImpl mAirplaneModeSyncDocument;
     private final IStorage mStorage;
     private final NetworkManager mNetworkManager;
 
@@ -124,6 +126,14 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
                         mNetworkManager,
                         new StringConverter(),
                         companionDeviceManagerProxy);
+
+        mAirplaneModeSyncDocument =
+                new AirplaneModeSyncDocumentImpl(
+                        context,
+                        sharedDataStoreHandleFactory,
+                        mNetworkManager,
+                        new StringConverter(),
+                        companionDeviceManagerProxy);
     }
 
     /**
@@ -146,6 +156,15 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
     }
 
     /**
+     * Returns the {@link AirplaneModeSyncDocument} for managing Airplane Mode state sync.
+     *
+     * @return the Airplane Mode sync document.
+     */
+    public AirplaneModeSyncDocument getAirplaneModeSyncDocument() {
+        return mAirplaneModeSyncDocument;
+    }
+
+    /**
      * Returns the {@link CdmPipe} for simulating CDM transport.
      *
      * @return the simulated CDM transport pipe.
@@ -157,6 +176,7 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
     @Override
     public void close() {
         mContextualModeSyncDocument.close();
+        mAirplaneModeSyncDocument.close();
         mNetworkManager.destroy();
         mStorage.runInIoThread(mStorage::close);
         mStorage.shutdownIoThread();

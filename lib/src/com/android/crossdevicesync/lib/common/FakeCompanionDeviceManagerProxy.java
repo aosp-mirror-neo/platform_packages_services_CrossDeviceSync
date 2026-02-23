@@ -56,15 +56,11 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     private final CdmPipeImpl mCdmPipe;
     private AssociationInfo mDefaultAssociation;
 
-    private record AssociationListener(
-            Executor executor, OnAssociationsChangedListener listener, int userId) {}
-
     private record MessageListener(Executor executor, BiConsumer<Integer, byte[]> listener) {}
 
     private record ActionResultListener(
             String serviceName, Executor executor, BiConsumer<Integer, ActionResult> listener) {}
 
-    private final List<AssociationListener> mAssociationListeners = new ArrayList<>();
     private final List<ActionResultListener> mActionResultListeners = new ArrayList<>();
     private final Map<Integer, List<MessageListener>> mMessageListeners = new HashMap<>();
     private final Map<Integer, PersistableBundle> mLocalMetadata = new HashMap<>();
@@ -106,13 +102,12 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     @Override
     public void addOnAssociationsChangedListener(
             Executor executor, OnAssociationsChangedListener listener, @UserIdInt int userId) {
-        mAssociationListeners.add(new AssociationListener(executor, listener, userId));
         executor.execute(() -> listener.onAssociationsChanged(getAllAssociations(userId)));
     }
 
     @Override
     public void removeOnAssociationsChangedListener(OnAssociationsChangedListener listener) {
-        mAssociationListeners.removeIf(l -> l.listener.equals(listener));
+        // Do nothing
     }
 
     @Override
