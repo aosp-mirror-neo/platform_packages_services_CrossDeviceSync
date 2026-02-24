@@ -81,4 +81,9 @@ public class CallbackWaiter<T> implements Consumer<T> {
     public boolean waitFor(T expected, long timeout, TimeUnit unit) {
         return waitFor(t -> Objects.equals(t, expected), timeout, unit);
     }
+
+    /** Remove all received callback values. */
+    public void reset() {
+        mQueue.clear();
+    }
 }
