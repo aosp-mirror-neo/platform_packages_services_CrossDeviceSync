@@ -33,7 +33,7 @@ import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.feature.airplanemode.AirplaneModeSyncManager;
 import com.android.crossdevicesync.lib.api.AirplaneModeSyncDocument;
-import com.android.crossdevicesync.lib.common.FakeCompanionDeviceManagerProxy;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
@@ -62,7 +62,7 @@ public class AirplaneModeSyncDocumentImpl
             SharedDataStoreHandle.Factory factory,
             NetworkManager networkManager,
             StringConverter converter,
-            FakeCompanionDeviceManagerProxy cdm) {
+            MetadataPublisher metadataPublisher) {
         mHandle =
                 factory.create(
                         DATA_STORE_NAME,
@@ -90,8 +90,9 @@ public class AirplaneModeSyncDocumentImpl
         mDataStore = Futures.getUnchecked(mHandle.openDataStore(mNetwork));
         mDataStore.registerOnRemoteChangeListener(context.getMainExecutor(), this);
 
-        cdm.setLocalMetadata(UserHandle.USER_ALL, AirplaneModeSyncManager.APM_SYNC_SUPPORTED, true);
-        cdm.setLocalMetadata(UserHandle.USER_ALL, AIRPLANE_MODE_SYNC, true);
+        metadataPublisher.putBooleanMetaData(
+                UserHandle.USER_ALL, AirplaneModeSyncManager.APM_SYNC_SUPPORTED, true);
+        metadataPublisher.putBooleanMetaData(UserHandle.USER_ALL, AIRPLANE_MODE_SYNC, true);
     }
 
     private <R> R transactSync(TransactionApplier<String, R> applier) {

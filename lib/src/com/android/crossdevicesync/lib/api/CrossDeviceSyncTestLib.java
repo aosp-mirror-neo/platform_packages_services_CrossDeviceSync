@@ -16,6 +16,7 @@
 package com.android.crossdevicesync.lib.api;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -36,7 +37,10 @@ import com.android.crossdevicesync.lib.ContextualModeSyncDocumentImpl;
 import com.android.crossdevicesync.lib.common.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.lib.common.FakeFrameworkStatsLogProxy;
 import com.android.crossdevicesync.lib.common.FakeSharedPreferences;
+import com.android.crossdevicesync.lib.common.FakeUserHelper;
 import com.android.crossdevicesync.lib.common.InMemoryStorage;
+import com.android.crossdevicesync.metadata.MetadataPublisher;
+import com.android.crossdevicesync.metadata.MetadataPublisherImpl;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManagerImpl;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
@@ -63,6 +67,7 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
     private final AirplaneModeSyncDocumentImpl mAirplaneModeSyncDocument;
     private final IStorage mStorage;
     private final NetworkManager mNetworkManager;
+    private final MetadataPublisher mMetadataPublisher;
 
     private CrossDeviceSyncTestLib(Context context) {
         mCdmPipe = new CdmPipeImpl();
@@ -73,8 +78,8 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
         Executor mainExecutor = context.getMainExecutor();
         Clock clock = new ClockImpl();
 
-        DeviceNodeIdProvider nodeIdProvider =
-                new DeviceNodeIdProviderImpl(new FakeSharedPreferences());
+        SharedPreferences sharedPrefs = new FakeSharedPreferences();
+        DeviceNodeIdProvider nodeIdProvider = new DeviceNodeIdProviderImpl(sharedPrefs);
 
         mStorage = new InMemoryStorage();
         TimestampProvider timestampProvider = new DefaultTimestampProvider();
@@ -119,13 +124,23 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
                         frameworkStatsLogProxy);
         mNetworkManager.init();
 
+        mMetadataPublisher =
+                new MetadataPublisherImpl(
+                        sharedPrefs,
+                        mNetworkManager,
+                        companionDeviceManagerProxy,
+                        clock,
+                        mainExecutor,
+                        new FakeUserHelper(context));
+        mMetadataPublisher.init();
+
         mContextualModeSyncDocument =
                 new ContextualModeSyncDocumentImpl(
                         context,
                         sharedDataStoreHandleFactory,
                         mNetworkManager,
                         new StringConverter(),
-                        companionDeviceManagerProxy);
+                        mMetadataPublisher);
 
         mAirplaneModeSyncDocument =
                 new AirplaneModeSyncDocumentImpl(
@@ -133,7 +148,7 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
                         sharedDataStoreHandleFactory,
                         mNetworkManager,
                         new StringConverter(),
-                        companionDeviceManagerProxy);
+                        mMetadataPublisher);
     }
 
     /**
@@ -177,6 +192,7 @@ public class CrossDeviceSyncTestLib implements AutoCloseable {
     public void close() {
         mContextualModeSyncDocument.close();
         mAirplaneModeSyncDocument.close();
+        mMetadataPublisher.destroy();
         mNetworkManager.destroy();
         mStorage.runInIoThread(mStorage::close);
         mStorage.shutdownIoThread();
