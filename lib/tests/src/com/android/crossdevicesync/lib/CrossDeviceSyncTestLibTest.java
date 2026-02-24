@@ -181,13 +181,8 @@ public class CrossDeviceSyncTestLibTest {
         @Override
         public void run() {
             try {
-                while (!interrupted()) {
-                    // The read() has 100ms internal timeout and will return -1 if no message is
-                    // available.
-                    int val = mIs.read();
-                    if (val == -1) {
-                        continue;
-                    }
+                int val;
+                while ((val = mIs.read()) != -1) {
                     mOs.write(val);
                     mOs.flush();
                 }
