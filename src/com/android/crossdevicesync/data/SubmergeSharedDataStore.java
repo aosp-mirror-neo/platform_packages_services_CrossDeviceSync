@@ -627,13 +627,35 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         if (docUpdate == null && version == null) {
             throw new IllegalArgumentException("Must have a docUpdate or version.");
         }
-        return new NetworkMessage(
-                        docId,
-                        senderNodeId,
-                        receiverNodeId == null ? "" : receiverNodeId,
-                        version == null ? new byte[0] : version,
-                        docUpdate == null ? new byte[0] : docUpdate)
-                .toByteArray();
+        byte[] encodedMessage =
+                new NetworkMessage(
+                                docId,
+                                senderNodeId,
+                                receiverNodeId == null ? "" : receiverNodeId,
+                                version == null ? new byte[0] : version,
+                                docUpdate == null ? new byte[0] : docUpdate)
+                        .toByteArray();
+        if (DEBUG) {
+            int docUpdateLen = docUpdate == null ? 0 : docUpdate.length;
+            int versionLen = version == null ? 0 : version.length;
+            int receiverNodeIdLen = receiverNodeId == null ? 0 : receiverNodeId.length();
+            Log.d(
+                    TAG,
+                    "encodeMessage: docUpdateLen="
+                            + docUpdateLen
+                            + ", versionLen="
+                            + versionLen
+                            + ", docIdLen="
+                            + docId.length()
+                            + ", senderNodeIdLen="
+                            + senderNodeId.length()
+                            + ", receiverNodeIdLen="
+                            + receiverNodeIdLen
+                            + ", encodedMessageLen="
+                            + encodedMessage.length
+                            + ".");
+        }
+        return encodedMessage;
     }
 
     @Override

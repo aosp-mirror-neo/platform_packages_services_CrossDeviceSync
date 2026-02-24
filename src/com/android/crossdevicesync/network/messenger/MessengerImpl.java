@@ -649,7 +649,10 @@ public class MessengerImpl implements Messenger {
                             + " messages and "
                             + acks.size()
                             + " ACKs to association "
-                            + associationId);
+                            + associationId
+                            + ". Total size: "
+                            + encodedMessage.length
+                            + " bytes.");
             mCompanionDeviceManager.sendMessage(
                     CompanionDeviceManager.MESSAGE_ONEWAY_CROSS_DEVICE_SYNC,
                     encodedMessage,
