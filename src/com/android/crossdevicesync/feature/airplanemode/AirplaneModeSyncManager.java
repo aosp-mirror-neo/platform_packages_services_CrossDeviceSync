@@ -84,7 +84,7 @@ public class AirplaneModeSyncManager
     // Shared metadata key across apps.
     public static final String APM_SYNC_SUPPORTED = "apm_sync_supported";
 
-    static final List<DocumentSchemaInfo> DOCUMENT_SCHEMA_INFO_LIST =
+    public static final List<DocumentSchemaInfo> DOCUMENT_SCHEMA_INFO_LIST =
             Collections.singletonList(
                     DocumentSchemaInfo.builder()
                             .setDocId(DOC_ID)
@@ -453,7 +453,7 @@ public class AirplaneModeSyncManager
     }
 
     private SchemaProvider<String> getSchemaProvider() {
-        return new SchemaProvider<String>() {
+        return new SchemaProvider<>() {
             @NonNull
             @Override
             public List<DocumentSchemaInfo> getAllDocumentSchema() {
