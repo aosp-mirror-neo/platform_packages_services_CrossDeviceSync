@@ -16,11 +16,15 @@
 
 package com.android.crossdevicesync.lib.common;
 
+import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC;
+import static android.companion.CompanionDeviceManager.MESSAGE_REQUEST_METADATA_UPDATE;
+import static android.companion.cts.common.CdmMessage.MESSAGE_RESPONSE_FAILURE;
+import static android.companion.cts.common.CdmMessage.MESSAGE_RESPONSE_SUCCESS;
+
 import android.annotation.UserIdInt;
 import android.companion.ActionRequest;
 import android.companion.ActionResult;
 import android.companion.AssociationInfo;
-import android.companion.CompanionDeviceManager;
 import android.companion.CompanionDeviceManager.OnAssociationsChangedListener;
 import android.companion.DevicePresenceEvent;
 import android.companion.cts.common.CdmMessage;
@@ -82,9 +86,7 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
                         .build();
         mCdmPipe = cdmPipe;
         mCdmPipe.setInboundMessageListener(
-                msg ->
-                        handleInboundMessage(
-                                msg.getType(), DEFAULT_ASSOCIATION_ID, msg.getPayload()));
+                msg -> handleInboundMessage(DEFAULT_ASSOCIATION_ID, msg));
         Log.d(TAG, "FakeCompanionDeviceManagerProxy initialized.");
     }
 
@@ -225,22 +227,40 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
                         .build();
     }
 
+    /** Simplified version of {@link #setLocalMetadata(int, String, PersistableBundle)} */
+    public void setLocalMetadata(int userId, String key, Object val) {
+        PersistableBundle metadata =
+                getLocalMetadata(userId).getPersistableBundle(FEATURE_CROSS_DEVICE_SYNC);
+        if (metadata == null) {
+            metadata = new PersistableBundle();
+        }
+        metadata.putObject(key, val);
+        setLocalMetadata(userId, FEATURE_CROSS_DEVICE_SYNC, metadata);
+    }
+
     @Override
     public PersistableBundle getLocalMetadata(int userId) {
         PersistableBundle data = mLocalMetadata.get(userId);
         return data == null ? new PersistableBundle() : data;
     }
 
-    private void handleInboundMessage(int messageType, int associationId, byte[] data) {
-        if (messageType == CompanionDeviceManager.MESSAGE_REQUEST_METADATA_UPDATE) {
+    private void handleInboundMessage(int associationId, CdmMessage msg) {
+        int messageType = msg.getType();
+        if (messageType == MESSAGE_RESPONSE_SUCCESS || messageType == MESSAGE_RESPONSE_FAILURE) {
+            // Ignore response messages.
+            return;
+        }
+
+        if (messageType == MESSAGE_REQUEST_METADATA_UPDATE) {
             Log.d(TAG, "Inbound metadata update message received.");
-            handleInboundMetadataUpdate(data);
+            mCdmPipe.getInputStreamForCdmTransport().feedMessage(msg.success());
+            handleInboundMetadataUpdate(msg.getPayload());
         }
 
         if (mMessageListeners.containsKey(messageType)) {
             for (MessageListener messageListener : mMessageListeners.get(messageType)) {
                 messageListener.executor.execute(
-                        () -> messageListener.listener.accept(associationId, data));
+                        () -> messageListener.listener.accept(associationId, msg.getPayload()));
             }
         }
     }

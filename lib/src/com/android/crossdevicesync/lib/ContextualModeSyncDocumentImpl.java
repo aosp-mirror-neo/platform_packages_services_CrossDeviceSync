@@ -28,7 +28,9 @@ import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.StringConverter;
 import com.android.crossdevicesync.feature.mode.ContextualModeSyncController;
 import com.android.crossdevicesync.feature.mode.ModeSyncDocs;
+import com.android.crossdevicesync.feature.mode.ModeSyncMetadata;
 import com.android.crossdevicesync.lib.api.ContextualModeSyncDocument;
+import com.android.crossdevicesync.lib.common.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
@@ -62,7 +64,8 @@ public class ContextualModeSyncDocumentImpl
             Context context,
             SharedDataStoreHandle.Factory factory,
             NetworkManager networkManager,
-            StringConverter converter) {
+            StringConverter converter,
+            FakeCompanionDeviceManagerProxy cdm) {
         mHandle =
                 factory.create(
                         DATASTORE_NAME,
@@ -87,6 +90,17 @@ public class ContextualModeSyncDocumentImpl
                         device -> true);
         mDataStore = Futures.getUnchecked(mHandle.openDataStore(mNetwork));
         mDataStore.registerOnRemoteChangeListener(context.getMainExecutor(), this);
+
+        cdm.setLocalMetadata(
+                context.getUserId(),
+                ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED,
+                true);
+        cdm.setLocalMetadata(
+                context.getUserId(), ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_ENABLED, true);
+        cdm.setLocalMetadata(
+                context.getUserId(),
+                ModeSyncMetadata.METADATA_CONTEXTUAL_MODES_DOC_SCHEMA_VERSION,
+                ModeSyncDocs.CURRENT_SCHEMA_VERSION);
     }
 
     private <R> R transactSync(TransactionApplier<String, R> applier) {
