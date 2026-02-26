@@ -23,6 +23,7 @@ import android.util.Log;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.crossdevicesync.lib.api.AirplaneModeSyncDocument;
 import com.android.crossdevicesync.lib.api.CallbackWaiter;
 import com.android.crossdevicesync.lib.api.CdmPipe;
 import com.android.crossdevicesync.lib.api.ContextualModeSyncDocument;
@@ -67,8 +68,8 @@ public class CrossDeviceSyncTestLibTest {
 
     @After
     public void tearDown() throws InterruptedException {
-        mBridgeThread1.shutDownAndWait(1, TimeUnit.SECONDS);
-        mBridgeThread2.shutDownAndWait(1, TimeUnit.SECONDS);
+        mBridgeThread1.shutDownAndWait();
+        mBridgeThread2.shutDownAndWait();
         mTestLib.close();
         mRemoteTestLib.close();
     }
@@ -123,6 +124,50 @@ public class CrossDeviceSyncTestLibTest {
         assertThat(remoteDoc.isDndEnabled()).isFalse();
     }
 
+    @Test
+    public void testGetAirplaneModeSyncDocument() {
+        AirplaneModeSyncDocument doc = mTestLib.getAirplaneModeSyncDocument();
+        assertThat(doc).isNotNull();
+    }
+
+    @Test
+    public void testAirplaneModeSyncDocument() {
+        AirplaneModeSyncDocument localDoc = mTestLib.getAirplaneModeSyncDocument();
+        AirplaneModeSyncDocument remoteDoc = mRemoteTestLib.getAirplaneModeSyncDocument();
+        CallbackWaiter<Boolean> localDocWaiter = new CallbackWaiter<>();
+        CallbackWaiter<Boolean> remoteDocWaiter = new CallbackWaiter<>();
+        localDoc.addOnRemoteAirplaneModeChangedListener(Runnable::run, localDocWaiter);
+        remoteDoc.addOnRemoteAirplaneModeChangedListener(Runnable::run, remoteDocWaiter);
+
+        // Turn on APM on local doc
+        localDoc.setAirplaneModeEnabled(true);
+
+        // Assert the change is synced to remote doc
+        assertThat(remoteDocWaiter.waitFor(true, SYNC_TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+        assertThat(remoteDoc.isAirplaneModeEnabled()).isTrue();
+
+        // Turn off APM on remote doc.
+        remoteDoc.setAirplaneModeEnabled(false);
+
+        // Assert the change is synced to local doc
+        assertThat(localDocWaiter.waitFor(false, SYNC_TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+        assertThat(localDoc.isAirplaneModeEnabled()).isFalse();
+
+        // Turn on APM on remote doc
+        remoteDoc.setAirplaneModeEnabled(true);
+
+        // Assert the change is synced to remote doc
+        assertThat(localDocWaiter.waitFor(true, SYNC_TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+        assertThat(localDoc.isAirplaneModeEnabled()).isTrue();
+
+        // Turn off APM on local doc.
+        localDoc.setAirplaneModeEnabled(false);
+
+        // Assert the change is synced to remote doc
+        assertThat(remoteDocWaiter.waitFor(false, SYNC_TIMEOUT_SEC, TimeUnit.SECONDS)).isTrue();
+        assertThat(remoteDoc.isAirplaneModeEnabled()).isFalse();
+    }
+
     private static class BridgeThread extends Thread {
         private final InputStream mIs;
         private final OutputStream mOs;
@@ -146,15 +191,15 @@ public class CrossDeviceSyncTestLibTest {
                     mOs.write(val);
                     mOs.flush();
                 }
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
             mStoppedLatch.countDown();
             Log.i(TAG, "Bridge thread exited");
         }
 
-        boolean shutDownAndWait(long timeout, TimeUnit unit) throws InterruptedException {
+        boolean shutDownAndWait() throws InterruptedException {
             interrupt();
-            return mStoppedLatch.await(timeout, unit);
+            return mStoppedLatch.await(1, TimeUnit.SECONDS);
         }
     }
 }

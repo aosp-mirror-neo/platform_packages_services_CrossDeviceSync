@@ -208,6 +208,7 @@ class MessageRecord implements Dumpable {
         pw.println("flags=" + mFlags);
         pw.println("isCancelled=" + mCancelled);
         pw.println("isDone=" + isDone());
+        pw.println("size=" + message.length);
         pw.println("DeliveryStates:");
         pw.increaseIndent();
         for (Map.Entry<Integer, DeliveryState> entry : mDeliveryStates.entrySet()) {

@@ -541,7 +541,9 @@ public class NetworkManagerImpl implements NetworkManager {
                 CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_QUEUE_STARTED, network.getFeature());
         invalidate(/* async= */ true);
         if (DEBUG) {
-            Log.d(TAG, "enqueueMessage: queued message " + id + ".");
+            Log.d(
+                    TAG,
+                    "enqueueMessage: queued message " + id + " with " + message.length + " bytes.");
         }
         return id;
     }
