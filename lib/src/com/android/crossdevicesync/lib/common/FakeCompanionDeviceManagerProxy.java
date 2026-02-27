@@ -16,7 +16,6 @@
 
 package com.android.crossdevicesync.lib.common;
 
-import static android.companion.CompanionDeviceManager.FEATURE_CROSS_DEVICE_SYNC;
 import static android.companion.CompanionDeviceManager.MESSAGE_REQUEST_METADATA_UPDATE;
 import static android.companion.cts.common.CdmMessage.MESSAGE_RESPONSE_FAILURE;
 import static android.companion.cts.common.CdmMessage.MESSAGE_RESPONSE_SUCCESS;
@@ -208,6 +207,10 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
     @Override
     public void setLocalMetadata(int userId, String feature, PersistableBundle value) {
         Log.d(TAG, "Setting local metadata for user " + userId + ", feature " + feature);
+        if (userId == UserHandle.USER_ALL) {
+            // Special handle of USER_ALL since we only have 1 user.
+            userId = mDefaultAssociation.getUserId();
+        }
         PersistableBundle userMetadata =
                 mLocalMetadata.computeIfAbsent(userId, k -> new PersistableBundle());
         userMetadata.putPersistableBundle(feature, value);
@@ -222,19 +225,12 @@ public class FakeCompanionDeviceManagerProxy implements CompanionDeviceManagerPr
                         .build();
     }
 
-    /** Simplified version of {@link #setLocalMetadata(int, String, PersistableBundle)} */
-    public void setLocalMetadata(int userId, String key, Object val) {
-        PersistableBundle metadata =
-                getLocalMetadata(userId).getPersistableBundle(FEATURE_CROSS_DEVICE_SYNC);
-        if (metadata == null) {
-            metadata = new PersistableBundle();
-        }
-        metadata.putObject(key, val);
-        setLocalMetadata(userId, FEATURE_CROSS_DEVICE_SYNC, metadata);
-    }
-
     @Override
     public PersistableBundle getLocalMetadata(int userId) {
+        if (userId == UserHandle.USER_ALL) {
+            // Special handle of USER_ALL since we only have 1 user.
+            userId = mDefaultAssociation.getUserId();
+        }
         PersistableBundle data = mLocalMetadata.get(userId);
         return data == null ? new PersistableBundle() : data;
     }
