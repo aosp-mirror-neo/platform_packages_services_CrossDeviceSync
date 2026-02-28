@@ -109,7 +109,7 @@ android_test {
         "submerge_java",
         "truth",
     ],
-    jni_libs: ["submerge_java_shared"],
+    jni_libs: ["submerge_java_static_jni"],
     aaptflags: ["--extra-packages com.android.crossdevicesync"],
     platform_apis: true,
     test_suites: ["device-tests"],

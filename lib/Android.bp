@@ -53,7 +53,7 @@ android_test {
         "truth",
         "junit",
     ],
-    jni_libs: ["submerge_java_shared"],
+    jni_libs: ["submerge_java_static_jni"],
     test_suites: ["device-tests"],
     platform_apis: true,
     certificate: "platform",
