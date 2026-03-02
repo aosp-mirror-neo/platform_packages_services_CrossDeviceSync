@@ -30,6 +30,7 @@ import android.os.UserHandle;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.DeviceUtils;
 import com.android.crossdevicesync.data.DocumentSchemaInfo;
 import com.android.crossdevicesync.data.RecordType;
@@ -65,7 +66,7 @@ public class AirplaneModeSyncManager
                 AirplaneModeController.Listener,
                 DeviceUtils.Listener {
     private static final String TAG = "AirplaneModeSyncManager";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_FEATURE;
 
     private static final String DATA_STORE_NAME = "apm_sync_data_store"; // DO NOT CHANGE!
     public static final String DOC_ID = "apm_sync_doc";

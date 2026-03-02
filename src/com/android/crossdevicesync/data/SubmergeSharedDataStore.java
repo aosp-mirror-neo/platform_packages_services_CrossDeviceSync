@@ -27,6 +27,7 @@ import android.annotation.Nullable;
 import android.os.Trace;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.data.model.DocumentMetadata;
 import com.android.crossdevicesync.data.model.NetworkMessage;
@@ -66,7 +67,7 @@ import java.util.stream.Collectors;
  */
 public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkListener {
     private static final String TAG = "SubmergeSharedDataStore";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_DATA_STORE;
 
     // The data store is not initialized.
     private static final int STATE_UNINITIALIZED = 0;
@@ -506,7 +507,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
         byte[] responseVersionVector = null;
         boolean broadcastedVersion = false;
         if (networkMessage.docUpdate().length > 0) {
-            Log.d(TAG, "Received network update for " + getDebugDocIdentityString(docId));
+            Log.i(TAG, "Received network update for " + getDebugDocIdentityString(docId));
             boolean remoteChangeSynced = false;
             try {
                 List<String> changedPaths =
@@ -543,7 +544,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
             }
         }
         if (networkMessage.docVersion().length > 0) {
-            Log.d(TAG, "Received version vector for " + getDebugDocIdentityString(docId));
+            Log.i(TAG, "Received version vector for " + getDebugDocIdentityString(docId));
             try (VersionVector otherVersion =
                             VersionVector.fromByteArray(networkMessage.docVersion());
                     VersionVector myVersion = submergeDataStore.getDocumentVersion(docId)) {

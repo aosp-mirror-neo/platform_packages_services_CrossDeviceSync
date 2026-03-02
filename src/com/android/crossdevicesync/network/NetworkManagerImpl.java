@@ -42,6 +42,7 @@ import android.util.Pair;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.FrameworkStatsLogProxy;
 import com.android.crossdevicesync.network.advertiser.Advertiser;
 import com.android.crossdevicesync.network.advertiser.Advertiser.AdvertisingSession;
@@ -73,7 +74,7 @@ import java.util.function.Predicate;
 /** Default implementation of {@link NetworkManager}. */
 public class NetworkManagerImpl implements NetworkManager {
     private static final String TAG = "NetworkManager";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
 
     private final Object mLock;
     private final Executor mMainExecutor;
@@ -297,7 +298,9 @@ public class NetworkManagerImpl implements NetworkManager {
                     device = new RemoteDeviceImpl(info);
                     mRemoteDevices.put(id, device);
                     deviceChanged = true;
-                    Log.d(TAG, "Added remote device " + device);
+                    if (DEBUG) {
+                        Log.d(TAG, "Added remote device " + device);
+                    }
                 }
             }
             // Remove old info if not existing.
@@ -356,12 +359,14 @@ public class NetworkManagerImpl implements NetworkManager {
             for (RemoteDeviceImpl device : mRemoteDevices.values()) {
                 boolean hasTransport = idsWithTransport.contains(device.getAssociationId());
                 if (device.setHasTransport(hasTransport)) {
-                    Log.d(
-                            TAG,
-                            "updateTransportFlag: "
-                                    + device
-                                    + (device.hasTransport() ? " established" : " lost")
-                                    + " transport");
+                    if (DEBUG) {
+                        Log.d(
+                                TAG,
+                                "updateTransportFlag: "
+                                        + device
+                                        + (device.hasTransport() ? " established" : " lost")
+                                        + " transport");
+                    }
                     changed = true;
                     forEachNetworkLocked(
                             n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
@@ -415,7 +420,9 @@ public class NetworkManagerImpl implements NetworkManager {
                     };
             if (changed) {
                 forEachNetworkLocked(n -> n.notifyDeviceChangedLocked(device.getAssociationId()));
-                Log.d(TAG, "Device presence flag changed for " + device + ", event: " + event);
+                if (DEBUG) {
+                    Log.d(TAG, "Device presence flag changed for " + device + ", event: " + event);
+                }
                 // Device presence state changed. Need to re-evaluate network members.
                 invalidateNetworks();
             }
@@ -460,7 +467,7 @@ public class NetworkManagerImpl implements NetworkManager {
                 invalidate(/* async= */ false);
                 if (network.notifyInboundMessageLocked(associationId, message)) {
                     messageReceived = true;
-                    Log.d(
+                    Log.i(
                             TAG,
                             "onMessage: delivered message from "
                                     + getAddressString(networkId, associationId)
@@ -575,13 +582,15 @@ public class NetworkManagerImpl implements NetworkManager {
                 network == null ? Collections.emptySet() : network.getAssociationIdsLocked();
         if (network == null) {
             // The network is gone. Cancel message.
-            Log.d(
-                    TAG,
-                    "processMessage: cancelling message "
-                            + record.id
-                            + " because network "
-                            + record.networkId
-                            + " is gone.");
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "processMessage: cancelling message "
+                                + record.id
+                                + " because network "
+                                + record.networkId
+                                + " is gone.");
+            }
             record.cancelAll();
         } else if (record.isBroadcast) {
             // Add missing delivery targets.
@@ -598,28 +607,28 @@ public class NetworkManagerImpl implements NetworkManager {
                         // Delivery state unchanged
                         return;
                     }
-                    Log.d(
-                            TAG,
-                            "processMessage: delivery state of message "
-                                    + record.id
-                                    + " to "
-                                    + getAddressString(record.networkId, associationId)
-                                    + " changed to "
-                                    + DeliveryState.stateToString(nextDeliveryState)
-                                    + ". reason=\""
-                                    + changeReason
-                                    + "\"");
+                    if (DEBUG) {
+                        Log.d(
+                                TAG,
+                                "processMessage: delivery state of message "
+                                        + record.id
+                                        + " to "
+                                        + getAddressString(record.networkId, associationId)
+                                        + " changed to "
+                                        + DeliveryState.stateToString(nextDeliveryState)
+                                        + ". reason=\""
+                                        + changeReason
+                                        + "\"");
+                    }
 
                     if (nextDeliveryState == DeliveryState.SENDING) {
-                        if (DEBUG) {
-                            Log.d(
-                                    TAG,
-                                    "processMessage: sending message "
-                                            + record.id
-                                            + " to "
-                                            + getAddressString(record.networkId, associationId)
-                                            + ".");
-                        }
+                        Log.i(
+                                TAG,
+                                "processMessage: sending message "
+                                        + record.id
+                                        + " to "
+                                        + getAddressString(record.networkId, associationId)
+                                        + ".");
                         mFrameworkStatsLogProxy.logSyncEvent(
                                 CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_STARTED,
                                 record.feature);

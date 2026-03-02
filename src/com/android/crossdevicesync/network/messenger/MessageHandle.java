@@ -21,6 +21,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.android.crossdevicesync.common.Clock;
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.crossdevicesync.network.model.Message;
 import com.android.internal.annotations.GuardedBy;
@@ -38,7 +39,7 @@ import java.util.concurrent.TimeoutException;
 /** A handle containing a message and its control state. */
 class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     private static final String TAG = "MessageHandle";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
 
     public static final int STATE_WAITING_FOR_TRANSPORT = 0;
     public static final int STATE_SENDING = 1;

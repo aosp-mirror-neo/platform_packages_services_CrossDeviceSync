@@ -30,6 +30,7 @@ import android.util.Log;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.internal.annotations.GuardedBy;
@@ -48,7 +49,7 @@ import java.util.function.Function;
 /** Implementation of {@link CompanionActionController}. */
 public class CompanionActionControllerImpl implements CompanionActionController {
     private static final String TAG = "CompanionActionCtrl";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
     @VisibleForTesting static final long WAITING_TIMEOUT_MS = 2000;
 
     private final Object mLock;
@@ -262,7 +263,9 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 Log.w(TAG, "Received result for unknown association: " + associationId);
                 return;
             }
-            Log.d(TAG, "onActionResult: associationId=" + associationId + ", result=" + result);
+            if (DEBUG) {
+                Log.d(TAG, "onActionResult: associationId=" + associationId + ", result=" + result);
+            }
             ActionState actionState =
                     switch (result.getAction()) {
                         case ActionRequest.REQUEST_NEARBY_SCANNING -> state.scanningState;
@@ -385,24 +388,28 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             }
         }
         if (!associationIdsToActivate.isEmpty()) {
-            Log.d(
-                    TAG,
-                    "Requesting activation for "
-                            + actionToString(action)
-                            + " on associations"
-                            + associationIdsToActivate);
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "Requesting activation for "
+                                + actionToString(action)
+                                + " on associations"
+                                + associationIdsToActivate);
+            }
             mCompanionDeviceManager.requestAction(
                     new ActionRequest.Builder(action, ActionRequest.OP_ACTIVATE).build(),
                     mPackageName,
                     toIntArray(associationIdsToActivate));
         }
         if (!associationIdsToDeactivate.isEmpty()) {
-            Log.d(
-                    TAG,
-                    "Requesting deactivation for "
-                            + actionToString(action)
-                            + " on associations"
-                            + associationIdsToDeactivate);
+            if (DEBUG) {
+                Log.d(
+                        TAG,
+                        "Requesting deactivation for "
+                                + actionToString(action)
+                                + " on associations"
+                                + associationIdsToDeactivate);
+            }
             mCompanionDeviceManager.requestAction(
                     new ActionRequest.Builder(action, ActionRequest.OP_DEACTIVATE).build(),
                     mPackageName,
