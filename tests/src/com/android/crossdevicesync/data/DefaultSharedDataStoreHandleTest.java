@@ -27,8 +27,7 @@ import com.android.crossdevicesync.data.SharedDataStore.MutableDocument;
 import com.android.crossdevicesync.data.fake.FakeSharedDataStore;
 import com.android.crossdevicesync.data.fake.TestSharedDataStoreFactory;
 import com.android.crossdevicesync.network.NetworkManager.Network;
-
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -137,15 +136,14 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_success() throws Exception {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
 
         FakeSharedDataStore<String> dataStore =
                 (FakeSharedDataStore<String>) mDataStoreFactory.lastDataStore();
-        dataStore.getInitFuture().set(null);
+        dataStore.getInitFuture().complete(null);
 
         assertThat(isFutureSucceeded(future)).isTrue();
         assertThat(future.get()).isEqualTo(dataStore);
@@ -155,8 +153,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_recoverFromSchemaError() throws Exception {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -171,7 +168,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
         FakeSharedDataStore<String> dataStore2 =
                 (FakeSharedDataStore<String>) mDataStoreFactory.secondDataStore();
-        dataStore2.getInitFuture().set(null);
+        dataStore2.getInitFuture().complete(null);
 
         assertThat(isFutureSucceeded(future)).isTrue();
         assertThat(future.get()).isEqualTo(dataStore2);
@@ -181,8 +178,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_nonSchemaError_fail() {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -200,8 +196,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_secondInitFailWithSchemaError_fail() {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -227,8 +222,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_secondInitFailWithNonSchemaError_fail() {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -254,8 +248,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
 
     @Test
     public void openDataStore_deletionInterruptedByDestroy_fail() {
-        ListenableFuture<? extends SharedDataStore<String>> future =
-                mHandle.openDataStore(mNetwork);
+        AndroidFuture<? extends SharedDataStore<String>> future = mHandle.openDataStore(mNetwork);
 
         assertThat(future.isDone()).isFalse();
         assertThat(mDataStoreFactory.getDataStores()).hasSize(1);
@@ -335,7 +328,7 @@ public class DefaultSharedDataStoreHandleTest extends SharedDataStoreTestBase {
     }
 
     private void failInit(FakeSharedDataStore<String> dataStore, Exception e) {
-        dataStore.getInitFuture().setException(e);
+        dataStore.getInitFuture().completeExceptionally(e);
         dataStore.setAsync(false);
     }
 }

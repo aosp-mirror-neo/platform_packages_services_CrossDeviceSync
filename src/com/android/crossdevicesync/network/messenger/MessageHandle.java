@@ -18,26 +18,16 @@ package com.android.crossdevicesync.network.messenger;
 import android.annotation.Nullable;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
-import android.util.Pair;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.crossdevicesync.network.model.Message;
 import com.android.internal.annotations.GuardedBy;
-
-import com.google.common.util.concurrent.ListenableFuture;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.android.internal.infra.AndroidFuture;
 
 /** A handle containing a message and its control state. */
-class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
+class MessageHandle extends AndroidFuture<Boolean> implements Dumpable {
     private static final String TAG = "MessageHandle";
     private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
 
@@ -54,9 +44,6 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     private final long mHandleId;
     private final String mName;
     @Nullable private final Message mMessage;
-
-    @GuardedBy("mLock")
-    private final List<Pair<Runnable, Executor>> mListeners = new ArrayList<>();
 
     @GuardedBy("mLock")
     private int mState = STATE_WAITING_FOR_TRANSPORT;
@@ -99,30 +86,18 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     }
 
     @Override
-    public void addListener(Runnable listener, Executor executor) {
-        synchronized (mLock) {
-            if (!isDone()) {
-                mListeners.add(Pair.create(listener, executor));
-                return;
-            }
-            executor.execute(listener);
-        }
-    }
-
-    @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         synchronized (mLock) {
             if (isDone()) {
                 return false;
             }
             setStateLocked(STATE_CANCELLED, mClock.elapsedRealtime());
-            mLock.notifyAll();
-            notifyListenersLocked();
         }
-        return true;
+        return super.cancel(mayInterruptIfRunning);
     }
 
     public void noteSendingFailure(long now, @Nullable Throwable error) {
+        boolean failed = false;
         synchronized (mLock) {
             if (mState != STATE_SENDING) {
                 return;
@@ -131,15 +106,18 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
             if (mFailedAttempts >= mMaxAttempts) {
                 mError = error;
                 setStateLocked(STATE_FAILED, now);
-                mLock.notifyAll();
-                notifyListenersLocked();
+                failed = true;
             } else {
                 setStateLocked(STATE_PENDING_RETRY, now);
             }
         }
+        if (failed) {
+            completeExceptionally(error != null ? error : new Exception("Delivery failed"));
+        }
     }
 
     public void noteTransportFailure(long now, @Nullable Throwable error) {
+        boolean failed = false;
         synchronized (mLock) {
             if (isDone()) {
                 return;
@@ -154,11 +132,13 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
             if (mFailedAttempts >= mMaxAttempts) {
                 mError = error;
                 setStateLocked(STATE_FAILED, now);
-                mLock.notifyAll();
-                notifyListenersLocked();
+                failed = true;
             } else {
                 setStateLocked(STATE_WAITING_FOR_TRANSPORT, now);
             }
+        }
+        if (failed) {
+            completeExceptionally(error != null ? error : new Exception("Delivery failed"));
         }
     }
 
@@ -177,9 +157,8 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
                 return;
             }
             setStateLocked(STATE_DELIVERED, now);
-            mLock.notifyAll();
-            notifyListenersLocked();
         }
+        complete(true);
     }
 
     @GuardedBy("mLock")
@@ -201,11 +180,6 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
         mLastChangeTimestamp = now;
     }
 
-    @GuardedBy("mLock")
-    private void notifyListenersLocked() {
-        mListeners.forEach(pair -> pair.second.execute(pair.first));
-    }
-
     public int getState() {
         synchronized (mLock) {
             return mState;
@@ -215,59 +189,6 @@ class MessageHandle implements ListenableFuture<Boolean>, Dumpable {
     public long getLastChangeTime() {
         synchronized (mLock) {
             return mLastChangeTimestamp;
-        }
-    }
-
-    @Override
-    public boolean isCancelled() {
-        synchronized (mLock) {
-            return mState == STATE_CANCELLED;
-        }
-    }
-
-    @Override
-    public boolean isDone() {
-        synchronized (mLock) {
-            return mState == STATE_DELIVERED || mState == STATE_FAILED || mState == STATE_CANCELLED;
-        }
-    }
-
-    @Override
-    public Boolean get() throws InterruptedException, ExecutionException {
-        try {
-            return get(0, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            // This is not possible.
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Boolean get(long timeout, TimeUnit unit)
-            throws InterruptedException, ExecutionException, TimeoutException {
-        synchronized (mLock) {
-            long start = mClock.elapsedRealtime();
-            long timeoutMillis = unit.toMillis(timeout);
-            while (!isDone()) {
-                if (timeoutMillis <= 0) {
-                    mLock.wait();
-                } else {
-                    mLock.wait(timeoutMillis);
-                    if (mClock.elapsedRealtime() - start >= timeoutMillis) {
-                        throw new TimeoutException();
-                    }
-                }
-            }
-            if (mState == STATE_FAILED) {
-                if (mError != null) {
-                    throw new ExecutionException(mError);
-                }
-                throw new ExecutionException(new Exception("Delivery failed"));
-            }
-            if (mState == STATE_CANCELLED) {
-                throw new CancellationException();
-            }
-            return mState == STATE_DELIVERED;
         }
     }
 

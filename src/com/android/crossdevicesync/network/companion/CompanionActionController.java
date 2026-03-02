@@ -16,8 +16,7 @@
 package com.android.crossdevicesync.network.companion;
 
 import com.android.crossdevicesync.common.Dumpable;
-
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 /** An interface for requesting companion actions. */
 public interface CompanionActionController extends Dumpable {
@@ -29,20 +28,20 @@ public interface CompanionActionController extends Dumpable {
     void destroy();
 
     /** Requests to attach transport. */
-    ListenableFuture<?> attachTransport(int associationId);
+    AndroidFuture<?> attachTransport(int associationId);
 
     /** Requests to detach transport. */
-    ListenableFuture<?> detachTransport(int associationId);
+    AndroidFuture<?> detachTransport(int associationId);
 
     /** Requests to start scanning. */
-    ListenableFuture<?> startNearbyScanning(int associationId);
+    AndroidFuture<?> startNearbyScanning(int associationId);
 
     /** Requests to stop scanning. */
-    ListenableFuture<?> stopNearbyScanning(int associationId);
+    AndroidFuture<?> stopNearbyScanning(int associationId);
 
     /** Requests to start advertising. */
-    ListenableFuture<?> startNearbyAdvertising(int associationId);
+    AndroidFuture<?> startNearbyAdvertising(int associationId);
 
     /** Requests to stop advertising. */
-    ListenableFuture<?> stopNearbyAdvertising(int associationId);
+    AndroidFuture<?> stopNearbyAdvertising(int associationId);
 }

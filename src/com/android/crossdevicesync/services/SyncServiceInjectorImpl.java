@@ -182,7 +182,7 @@ public class SyncServiceInjectorImpl implements SyncServiceInjector {
 
         mFeatureManagers =
                 Map.of(
-                        AirplaneModeSyncManager.class.getSimpleName(),
+                        "ApmSyncManager",
                         () ->
                                 new AirplaneModeSyncManager(
                                         context,
@@ -194,7 +194,7 @@ public class SyncServiceInjectorImpl implements SyncServiceInjector {
                                         mainExecutor,
                                         stringConverter,
                                         sharedDataStoreHandleFactory),
-                        ContextualModeSyncManager.class.getSimpleName(),
+                        "CtxModeSyncManager",
                         () ->
                                 new ContextualModeSyncManager(
                                         contextualModeSyncControllerFactory,

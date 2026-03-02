@@ -61,10 +61,11 @@ android_app {
         "CrossDeviceSync-res",
         "com_android_crossdevicesync_flags_lib",
         "connectivity_flags_lib",
-        "error_prone_annotations",
-        "guava",
         "submerge_java",
         "android.service.notification.flags-aconfig-java",
+    ],
+    libs: [
+        "error_prone_annotations",
     ],
     required: ["submerge_java_shared"],
     manifest: "AndroidManifest.xml",

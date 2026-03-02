@@ -15,7 +15,10 @@
  */
 package com.android.crossdevicesync.data.fake;
 
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static com.android.crossdevicesync.common.Utils.failedAndroidFuture;
+import static com.android.crossdevicesync.common.Utils.handleAsync;
+import static com.android.crossdevicesync.common.Utils.handleFailureAsync;
+import static com.android.crossdevicesync.common.Utils.toAndroidFuture;
 
 import static java.util.Objects.requireNonNull;
 
@@ -33,12 +36,9 @@ import com.android.crossdevicesync.data.SharedDataStore;
 import com.android.crossdevicesync.data.SharedDataStoreHandle;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.infra.AndroidFuture;
 
 import com.google.android.submerge.Converter;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /** Fake implementation of {@link SharedDataStore} for testing. */
@@ -69,11 +70,11 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     private boolean mOpen;
     private boolean mAsync;
     @Nullable private String mSelfNodeId;
-    @Nullable private SettableFuture<?> mInitFuture;
-    @Nullable private SettableFuture<?> mCloseFuture;
-    @Nullable private SettableFuture<?> mTransactFuture;
-    @Nullable private ListenableFuture<?> mExternalInitFuture;
-    @Nullable private ListenableFuture<?> mExternalCloseFuture;
+    @Nullable private AndroidFuture<Void> mInitFuture;
+    @Nullable private AndroidFuture<Void> mCloseFuture;
+    @Nullable private AndroidFuture<Void> mTransactFuture;
+    @Nullable private AndroidFuture<Void> mExternalInitFuture;
+    @Nullable private AndroidFuture<Void> mExternalCloseFuture;
 
     /**
      * Create an empty shared data store with specified name, node id provider, and schema provider.
@@ -94,16 +95,16 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     }
 
     @Override
-    public ListenableFuture<?> init(Network network) {
+    public AndroidFuture<?> init(Network network) {
         if (mOpen) {
             return requireNonNull(mExternalInitFuture);
         }
         if (!mHandle.lock(this)) {
-            return Futures.immediateFailedFuture(new IllegalStateException("Already locked"));
+            return failedAndroidFuture(new IllegalStateException("Already locked"));
         }
         mOpen = true;
         mSelfNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
-        List<ListenableFuture<?>> futures = new ArrayList<>();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
         futures.add(mStorage.runInIoThread(mStorage::open));
         for (DocumentSchemaInfo schemaInfo : mSchemaProvider.getAllDocumentSchema()) {
             futures.add(
@@ -116,30 +117,19 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                             }));
         }
         if (mAsync) {
-            mInitFuture = SettableFuture.create();
+            mInitFuture = new AndroidFuture<>();
             futures.add(mInitFuture);
         }
         // Returned future should be successful only if all the pending tasks are done.
+        AndroidFuture<Void> future =
+                toAndroidFuture(CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])));
         mExternalInitFuture =
-                FluentFuture.from(Futures.allAsList(futures))
-                        .catchingAsync(
-                                Exception.class,
-                                e ->
-                                        // Close data store and re-throw if error occurs.
-                                        FluentFuture.from(close())
-                                                .catchingAsync(
-                                                        Exception.class,
-                                                        unused -> Futures.immediateFailedFuture(e),
-                                                        directExecutor())
-                                                .transformAsync(
-                                                        unused -> Futures.immediateFailedFuture(e),
-                                                        directExecutor()),
-                                directExecutor());
+                handleFailureAsync(future, t -> handleAsync(close(), (unused1, unused2) -> future));
         return mExternalInitFuture;
     }
 
     @Nullable
-    public SettableFuture<?> getInitFuture() {
+    public AndroidFuture<?> getInitFuture() {
         return mInitFuture;
     }
 
@@ -149,24 +139,22 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     }
 
     @Override
-    public <R> ListenableFuture<R> transact(String docId, TransactionApplier<T, R> applier) {
+    public <R> AndroidFuture<R> transact(String docId, TransactionApplier<T, R> applier) {
         if (mAsync) {
             // Re-use current future is possible since transact can be called multiple times
             // during test.
             if (mTransactFuture == null || mTransactFuture.isDone()) {
-                mTransactFuture = SettableFuture.create();
+                mTransactFuture = new AndroidFuture<>();
             }
-            return Futures.transformAsync(
-                    mTransactFuture,
-                    unused -> doTransact(docId, applier, /* isLocal= */ true, mSelfNodeId),
-                    directExecutor());
+            return mTransactFuture.thenCompose(
+                    unused -> doTransact(docId, applier, /* isLocal= */ true, mSelfNodeId));
         } else {
             return doTransact(docId, applier, /* isLocal= */ true, mSelfNodeId);
         }
     }
 
     /** Simulate a remote change. */
-    public <R> ListenableFuture<R> transactAsRemote(
+    public <R> AndroidFuture<R> transactAsRemote(
             String docId, TransactionApplier<T, R> applier, String remoteNodeId) {
         return doTransact(
                 docId,
@@ -190,7 +178,7 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
                 remoteNodeId);
     }
 
-    private <R> ListenableFuture<R> doTransact(
+    private <R> AndroidFuture<R> doTransact(
             String docId, TransactionApplier<T, R> applier, boolean isLocal, String nodeId) {
         return mStorage.submitToIoThread(
                 () -> {
@@ -236,22 +224,29 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
     }
 
     @Override
-    public ListenableFuture<?> close() {
+    public AndroidFuture<Void> close() {
         if (!mOpen && mExternalCloseFuture != null) {
             return mExternalCloseFuture;
         }
         mOpen = false;
+        AndroidFuture<Void> closeFuture;
         if (mAsync) {
-            mExternalCloseFuture = mCloseFuture = SettableFuture.create();
+            closeFuture = mCloseFuture = new AndroidFuture<>();
         } else {
-            mExternalCloseFuture = Futures.immediateVoidFuture();
+            closeFuture = AndroidFuture.completedFuture(null);
         }
-        mExternalCloseFuture.addListener(() -> mHandle.unlock(this), directExecutor());
+        mExternalCloseFuture =
+                handleAsync(
+                        closeFuture,
+                        (res, ex) -> {
+                            mHandle.unlock(this);
+                            return closeFuture;
+                        });
         return mExternalCloseFuture;
     }
 
     @Nullable
-    public SettableFuture<?> getCloseFuture() {
+    public AndroidFuture<?> getCloseFuture() {
         return mCloseFuture;
     }
 
@@ -265,15 +260,15 @@ public class FakeSharedDataStore<T> implements SharedDataStore<T> {
         mAsync = async;
         if (!mAsync) {
             if (mInitFuture != null) {
-                mInitFuture.set(null);
+                mInitFuture.complete(null);
                 mInitFuture = null;
             }
             if (mTransactFuture != null) {
-                mTransactFuture.set(null);
+                mTransactFuture.complete(null);
                 mTransactFuture = null;
             }
             if (mCloseFuture != null) {
-                mCloseFuture.set(null);
+                mCloseFuture.complete(null);
                 mCloseFuture = null;
             }
         }

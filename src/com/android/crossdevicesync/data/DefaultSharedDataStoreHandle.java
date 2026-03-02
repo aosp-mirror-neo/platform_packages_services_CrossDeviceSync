@@ -16,7 +16,8 @@
 
 package com.android.crossdevicesync.data;
 
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
+import static com.android.crossdevicesync.common.Utils.failedAndroidFuture;
+import static com.android.crossdevicesync.common.Utils.handleFailureAsync;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -25,10 +26,7 @@ import android.util.Log;
 import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.internal.annotations.GuardedBy;
-
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 /**
  * A {@link SharedDataStoreHandle} that represents a {@link SharedDataStore}.
@@ -114,17 +112,17 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
 
     @NonNull
     @Override
-    public ListenableFuture<? extends SharedDataStore<T>> openDataStore(@NonNull Network network) {
+    public AndroidFuture<? extends SharedDataStore<T>> openDataStore(@NonNull Network network) {
         synchronized (mLock) {
             try {
                 requireOpenLocked();
                 if (mLockedDataStore != null) {
-                    return Futures.immediateFuture(mLockedDataStore);
+                    return AndroidFuture.completedFuture(mLockedDataStore);
                 }
                 return initializeDataStore(
                         mSharedDataStoreFactory.create(this), network, /* shouldRetry= */ true);
             } catch (IllegalStateException e) {
-                return Futures.immediateFailedFuture(e);
+                return failedAndroidFuture(e);
             }
         }
     }
@@ -146,39 +144,36 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
     }
 
     @NonNull
-    private ListenableFuture<SharedDataStore<T>> initializeDataStore(
+    private AndroidFuture<SharedDataStore<T>> initializeDataStore(
             @NonNull SharedDataStore<T> dataStoreToInit,
             @NonNull Network network,
             boolean shouldRetry) {
         synchronized (mLock) {
             requireOpenLocked();
-            return FluentFuture.from(dataStoreToInit.init(network))
-                    .transform(unused -> dataStoreToInit, directExecutor())
-                    .catchingAsync(
-                            Exception.class,
-                            e -> {
-                                if (shouldRetry
-                                        && (e instanceof IllegalSchemaChangeException
-                                                || e instanceof SchemaValidationException)) {
-                                    Log.w(
-                                            TAG,
-                                            "Schema error occurred, deleting the data store "
-                                                    + dataStoreToInit,
-                                            e);
-                                    return FluentFuture.from(delete())
-                                            .transformAsync(
-                                                    unused ->
-                                                            initializeDataStore(
-                                                                    mSharedDataStoreFactory.create(
-                                                                            this),
-                                                                    network,
-                                                                    /* shouldRetry= */ false),
-                                                    directExecutor());
-                                } else {
-                                    return Futures.immediateFailedFuture(e);
-                                }
-                            },
-                            directExecutor());
+            AndroidFuture<SharedDataStore<T>> initFuture =
+                    dataStoreToInit.init(network).thenApply(unused -> dataStoreToInit);
+            return handleFailureAsync(
+                    initFuture,
+                    t -> {
+                        if (shouldRetry
+                                && (t instanceof IllegalSchemaChangeException
+                                        || t instanceof SchemaValidationException)) {
+                            Log.w(
+                                    TAG,
+                                    "Schema error occurred, deleting the data store "
+                                            + dataStoreToInit,
+                                    t);
+                            return delete().thenCompose(
+                                            unused ->
+                                                    initializeDataStore(
+                                                            mSharedDataStoreFactory.create(this),
+                                                            network,
+                                                            /* shouldRetry= */ false));
+                        } else {
+                            // Return the failed future as is.
+                            return initFuture;
+                        }
+                    });
         }
     }
 
@@ -204,12 +199,12 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
 
     @NonNull
     @Override
-    public ListenableFuture<Boolean> delete() {
+    public AndroidFuture<Boolean> delete() {
         return delete(/* forDestroying= */ false);
     }
 
     @NonNull
-    private ListenableFuture<Boolean> delete(boolean forDestroying) {
+    private AndroidFuture<Boolean> delete(boolean forDestroying) {
         synchronized (mLock) {
             try {
                 if (forDestroying) {
@@ -223,7 +218,7 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
                 Log.w(TAG, "Deleting data store \"" + mName + "\".");
                 return mStorage.submitToIoThread(() -> doDelete(forDestroying));
             } catch (IllegalStateException e) {
-                return Futures.immediateFailedFuture(e);
+                return failedAndroidFuture(e);
             }
         }
     }
@@ -237,23 +232,18 @@ public class DefaultSharedDataStoreHandle<T> implements SharedDataStoreHandle<T>
             }
             mState = STATE_DESTROYING;
             Log.i(TAG, "Destroying handle " + mName);
-            ListenableFuture<?> future =
+            AndroidFuture<?> future =
                     mLockedDataStore != null
                             ? mLockedDataStore.close()
-                            : Futures.immediateVoidFuture();
+                            : AndroidFuture.completedFuture(null);
             if (deleteDataStore) {
-                future =
-                        Futures.transformAsync(
-                                future,
-                                unused -> delete(/* forDestroying= */ true),
-                                directExecutor());
+                future = future.thenCompose(unused -> delete(/* forDestroying= */ true));
             }
-            future.addListener(
-                    () -> {
+            future.whenComplete(
+                    (unused, t) -> {
                         noteDestroyed();
                         mStorage.shutdownIoThread();
-                    },
-                    directExecutor());
+                    });
         }
     }
 

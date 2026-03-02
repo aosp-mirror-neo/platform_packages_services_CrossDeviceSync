@@ -34,7 +34,6 @@ android_library {
         "connectivity_flags_lib",
         "cts-companion-common",
         "error_prone_annotations",
-        "guava",
         "submerge_java",
         "android.service.notification.flags-aconfig-java",
     ],

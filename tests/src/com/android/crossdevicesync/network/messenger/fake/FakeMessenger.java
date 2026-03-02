@@ -18,9 +18,7 @@ package com.android.crossdevicesync.network.messenger.fake;
 import android.util.IndentingPrintWriter;
 
 import com.android.crossdevicesync.network.messenger.Messenger;
-
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
-
 
 /** A fake implementation of {@link Messenger} for use in tests. */
 public class FakeMessenger implements Messenger {
@@ -63,12 +60,12 @@ public class FakeMessenger implements Messenger {
     }
 
     @Override
-    public ListenableFuture<?> sendMessage(
+    public AndroidFuture<?> sendMessage(
             String networkId, int associationId, byte[] message, int maxDeliveryAttempts) {
         if (mIsDestroyed || !mIsInitialized) {
             throw new IllegalStateException("Messenger is destroyed or not initialized.");
         }
-        SettableFuture<Void> future = SettableFuture.create();
+        AndroidFuture<Void> future = new AndroidFuture<>();
         mSentMessages.add(
                 new SentMessage(networkId, associationId, message, maxDeliveryAttempts, future));
         return future;
@@ -125,14 +122,14 @@ public class FakeMessenger implements Messenger {
         public final int associationId;
         public final byte[] message;
         public final int maxDeliveryAttempts;
-        private final SettableFuture<Void> mFuture;
+        private final AndroidFuture<Void> mFuture;
 
         SentMessage(
                 String networkId,
                 int associationId,
                 byte[] message,
                 int maxDeliveryAttempts,
-                SettableFuture<Void> future) {
+                AndroidFuture<Void> future) {
             this.networkId = networkId;
             this.associationId = associationId;
             this.message = message;
@@ -142,15 +139,15 @@ public class FakeMessenger implements Messenger {
 
         /** Completes the future for this message successfully. */
         public void completeSuccessfully() {
-            mFuture.set(null);
+            mFuture.complete(null);
         }
 
         /** Completes the future for this message with an exception. */
         public void completeWithException(Throwable t) {
-            mFuture.setException(t);
+            mFuture.completeExceptionally(t);
         }
 
-        public SettableFuture<Void> getFuture() {
+        public AndroidFuture<Void> getFuture() {
             return mFuture;
         }
     }

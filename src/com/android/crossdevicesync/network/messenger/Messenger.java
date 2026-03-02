@@ -16,8 +16,7 @@
 package com.android.crossdevicesync.network.messenger;
 
 import com.android.crossdevicesync.common.Dumpable;
-
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -40,7 +39,7 @@ public interface Messenger extends Dumpable {
      * @param maxDeliveryAttempts the number of attempts to send the message if delivery fails.
      * @return a future that completes when the message is sent or failed.
      */
-    ListenableFuture<?> sendMessage(
+    AndroidFuture<?> sendMessage(
             String networkId, int associationId, byte[] message, int maxDeliveryAttempts);
 
     /** Register a message listener. */

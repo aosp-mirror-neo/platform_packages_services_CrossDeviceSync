@@ -52,10 +52,6 @@ import com.android.crossdevicesync.network.messenger.Messenger.MessageListener;
 import com.android.crossdevicesync.network.scanner.Scanner;
 import com.android.internal.annotations.GuardedBy;
 
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,8 +64,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /** Default implementation of {@link NetworkManager}. */
 public class NetworkManagerImpl implements NetworkManager {
@@ -639,10 +637,8 @@ public class NetworkManagerImpl implements NetworkManager {
                                         associationId,
                                         record.message,
                                         record.maxAttempts);
-                        Futures.addCallback(
-                                deliveryState.messageSendingFuture,
-                                getMessageSendingCallback(record, sendingStartTimestamp),
-                                Runnable::run);
+                        deliveryState.messageSendingFuture.whenComplete(
+                                getMessageSendingCallback(record, sendingStartTimestamp));
                     } else {
                         // State is not SENDING. Cancel the message request.
                         if (deliveryState.messageSendingFuture != null
@@ -712,23 +708,17 @@ public class NetworkManagerImpl implements NetworkManager {
         }
     }
 
-    private FutureCallback<Object> getMessageSendingCallback(
+    private BiConsumer<Object, Throwable> getMessageSendingCallback(
             MessageRecord record, final long sendingStartTimestamp) {
-        return new FutureCallback<>() {
-            @Override
-            public void onSuccess(Object result) {
-                invalidate(/* async= */ true);
-                long now = mClock.elapsedRealtime();
+        return (result, t) -> {
+            invalidate(/* async= */ true);
+            long now = mClock.elapsedRealtime();
+            if (t == null) {
                 mFrameworkStatsLogProxy.logSyncEvent(
                         CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FINISHED,
                         record.feature,
                         /* duration= */ now - sendingStartTimestamp);
-            }
-
-            @Override
-            public void onFailure(Throwable t) {
-                invalidate(/* async= */ true);
-                long now = mClock.elapsedRealtime();
+            } else {
                 mFrameworkStatsLogProxy.logSyncEvent(
                         CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_MESSAGE_SEND_FAILED,
                         record.feature,
@@ -916,8 +906,9 @@ public class NetworkManagerImpl implements NetworkManager {
         @Override
         public Map<Integer, RemoteDevice> getRemoteDevices() {
             synchronized (mLock) {
-                return Maps.filterKeys(
-                        NetworkManagerImpl.this.getRemoteDevices(), mAssociationIds::contains);
+                return NetworkManagerImpl.this.getRemoteDevices().entrySet().stream()
+                        .filter(e -> mAssociationIds.contains(e.getKey()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
         }
 

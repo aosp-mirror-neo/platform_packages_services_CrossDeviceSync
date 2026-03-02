@@ -40,9 +40,8 @@ import com.android.crossdevicesync.data.SharedDataStore.Record;
 import com.android.crossdevicesync.data.SharedDataStore.SetRecord;
 import com.android.crossdevicesync.data.SharedDataStore.UnmergedRecord;
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
-
-import com.google.common.util.concurrent.ListenableFuture;
 
 import org.junit.After;
 import org.junit.Before;
@@ -281,7 +280,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
 
     @Test
     public void testInit_upgradePathIsBad_fails() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 upgradeSchema(
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
@@ -297,7 +296,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
 
     @Test
     public void testInit_upgradeValidationFails() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 upgradeSchema(
                         /* migrator= */ null,
                         /* validator= */ doc -> {
@@ -317,7 +316,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
 
     @Test
     public void testInit_upgradeIgnoredWithSameSchemaVersion() throws Exception {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 upgradeSchema(getSchemaProvider().getAllDocumentSchema().getFirst());
 
         assertThat(future.get()).isTrue();
@@ -328,7 +327,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     @Test
     public void testInit_upgradeSchemaWithSameVersion_failedValidation() {
         // Changes schema without changing version.
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 upgradeSchema(
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
@@ -363,7 +362,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
         transactDataStore(doc -> assertThat(doc.getRecord("/root/v2/new").get()).isEqualTo("abc"));
 
         // Upgrade local device with incompatible schema.
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 upgradeSchema(
                         DocumentSchemaInfo.builder()
                                 .setDocId(DOC_ID)
@@ -386,7 +385,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
                         .setVersion(2)
                         .putPathSchema("/root/register", RecordType.TYPE_SET, 2)
                         .build();
-        ListenableFuture<Boolean> future = upgradeSchema(info);
+        AndroidFuture<Boolean> future = upgradeSchema(info);
         assertThrows(ExecutionException.class, future::get);
         assertThat(future.exceptionNow()).isInstanceOf(IllegalSchemaChangeException.class);
 
@@ -406,8 +405,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     @Test
     public void testInit_multipleCallReturnsSameSucceededFuture() {
         closeAndReCreateDataStore();
-        ListenableFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
-        ListenableFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
+        AndroidFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
+        AndroidFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(isFutureSucceeded(future1)).isTrue();
@@ -418,11 +417,11 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     public void testInit_afterFailure_returnsFailedFuture() {
         closeAndReCreateDataStore();
         mFakeStorage.setRuntimeException(new RuntimeException());
-        ListenableFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
+        AndroidFuture<?> future1 = mSubmergeSharedDataStore.init(mNetwork);
         assertThat(isFutureFailed(future1)).isTrue();
 
         // Second init shall fail
-        ListenableFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
+        AndroidFuture<?> future2 = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(isFutureFailed(future2)).isTrue();
     }
@@ -431,7 +430,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     public void testInit_afterClose_returnFailedFuture() throws Exception {
         mSubmergeSharedDataStore.close().get();
 
-        ListenableFuture<?> future = mSubmergeSharedDataStore.init(mNetwork);
+        AndroidFuture<?> future = mSubmergeSharedDataStore.init(mNetwork);
 
         assertThat(isFutureFailed(future)).isTrue();
     }
@@ -442,7 +441,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
         assertThat(mSharedDataStoreHandle.isLocked()).isTrue();
 
         // Init a new data store instance.
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mTestSharedDataStoreFactory.create(mSharedDataStoreHandle).init(mNetwork);
 
         assertThat(isFutureFailed(future)).isTrue();
@@ -541,7 +540,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
                 });
 
         // Verify their value are independent.
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mSubmergeSharedDataStore.transact(
                         "doc_1",
                         doc -> {
@@ -1016,7 +1015,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
         transactDataStore(d, verifier);
 
         // C upgrade will fail due to incompatible schema.
-        ListenableFuture<Boolean> future = upgradeSchema(c, schemaV2_CD);
+        AndroidFuture<Boolean> future = upgradeSchema(c, schemaV2_CD);
         assertThat(future.exceptionNow()).isInstanceOf(SchemaValidationException.class);
         // Reinit C from fresh state.
         reInitWithNewSchema(c, schemaV2_CD).get();
@@ -1133,7 +1132,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     public void testClose() throws Exception {
         transactDataStore(doc -> doc.putData("/root/register", "abc"));
 
-        ListenableFuture<?> future = mSubmergeSharedDataStore.close();
+        AndroidFuture<?> future = mSubmergeSharedDataStore.close();
 
         assertThat(getException(mSubmergeSharedDataStore.transact(DOC_ID, doc -> null)))
                 .isInstanceOf(IllegalStateException.class);
@@ -1146,8 +1145,8 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
 
     @Test
     public void testClose_multipleCallReturnsSameFuture() {
-        ListenableFuture<?> future1 = mSubmergeSharedDataStore.close();
-        ListenableFuture<?> future2 = mSubmergeSharedDataStore.close();
+        AndroidFuture<?> future1 = mSubmergeSharedDataStore.close();
+        AndroidFuture<?> future2 = mSubmergeSharedDataStore.close();
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(isFutureSucceeded(future1)).isTrue();
@@ -1290,23 +1289,23 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
         }
     }
 
-    private ListenableFuture<Boolean> upgradeSchema(DocumentSchemaInfo... schema) {
+    private AndroidFuture<Boolean> upgradeSchema(DocumentSchemaInfo... schema) {
         return upgradeSchema(null, null, schema);
     }
 
-    private ListenableFuture<Boolean> upgradeSchema(
+    private AndroidFuture<Boolean> upgradeSchema(
             @Nullable Consumer<MutableDocument<String>> migrator,
             @Nullable ThrowingConsumer<Document<String>> validator,
             DocumentSchemaInfo... schema) {
         return upgradeSchema(this, migrator, validator, schema);
     }
 
-    private ListenableFuture<Boolean> upgradeSchema(
+    private AndroidFuture<Boolean> upgradeSchema(
             SharedDataStoreTestBase testContext, DocumentSchemaInfo... schema) {
         return upgradeSchema(testContext, null, null, schema);
     }
 
-    private ListenableFuture<Boolean> upgradeSchema(
+    private AndroidFuture<Boolean> upgradeSchema(
             SharedDataStoreTestBase testContext,
             @Nullable Consumer<MutableDocument<String>> migrator,
             @Nullable ThrowingConsumer<Document<String>> validator,
@@ -1331,7 +1330,7 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
         testContext.initialize(getSchemaProvider());
     }
 
-    private ListenableFuture<Boolean> reInitWithNewSchema(
+    private AndroidFuture<Boolean> reInitWithNewSchema(
             SharedDataStoreTestBase testContext, DocumentSchemaInfo... schema) throws Exception {
         testContext.mSharedDataStore.close().get();
         testContext.mSharedDataStoreHandle.delete();

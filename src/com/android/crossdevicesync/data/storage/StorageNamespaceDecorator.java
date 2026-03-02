@@ -18,11 +18,11 @@ package com.android.crossdevicesync.data.storage;
 import android.annotation.Nullable;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.Utils;
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface.StorageException;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -164,12 +164,11 @@ public class StorageNamespaceDecorator implements IStorage {
     }
 
     @Override
-    public <R> ListenableFuture<R> submitToIoThread(Callable<R> task) {
+    public <R> AndroidFuture<R> submitToIoThread(Callable<R> task) {
         if (mIoThreadShutdownRequested) {
             // Simulate a shutdown response so that io thread is no longer accessible from this
             // decorator.
-            return Futures.immediateFailedFuture(
-                    new IllegalStateException("IO thread is shutdown!"));
+            return Utils.failedAndroidFuture(new IllegalStateException("IO thread is shutdown!"));
         }
         return mDelegate.submitToIoThread(task);
     }

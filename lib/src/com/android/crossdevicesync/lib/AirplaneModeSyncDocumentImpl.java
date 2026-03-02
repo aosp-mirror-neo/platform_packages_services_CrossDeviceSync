@@ -37,8 +37,6 @@ import com.android.crossdevicesync.metadata.MetadataPublisher;
 import com.android.crossdevicesync.network.NetworkManager;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 
-import com.google.common.util.concurrent.Futures;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -87,7 +85,7 @@ public class AirplaneModeSyncDocumentImpl
                         AirplaneModeSyncManager.NETWORK_ID,
                         /* feature= */ 0,
                         device -> true);
-        mDataStore = Futures.getUnchecked(mHandle.openDataStore(mNetwork));
+        mDataStore = mHandle.openDataStore(mNetwork).join();
         mDataStore.registerOnRemoteChangeListener(context.getMainExecutor(), this);
 
         metadataPublisher.putBooleanMetaData(
@@ -96,7 +94,7 @@ public class AirplaneModeSyncDocumentImpl
     }
 
     private <R> R transactSync(TransactionApplier<String, R> applier) {
-        return Futures.getUnchecked(mDataStore.transact(AirplaneModeSyncManager.DOC_ID, applier));
+        return mDataStore.transact(AirplaneModeSyncManager.DOC_ID, applier).join();
     }
 
     @Override

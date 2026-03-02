@@ -26,8 +26,7 @@ import android.companion.AssociationInfo;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.crossdevicesync.services.SyncServiceTestBase;
-
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -47,8 +46,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         assertThat(future.isDone()).isFalse();
         assertThat(
@@ -66,10 +64,8 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_duplicateCall() {
-        ListenableFuture<?> future1 =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future1 = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future2 = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(future1.isDone()).isFalse();
@@ -83,8 +79,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_alreadyScanning() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         // Success
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -98,8 +93,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_cancel() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         future.cancel(true);
 
@@ -134,8 +128,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_timeout() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         // Timeout
         mFakeClock.advanceTime(CompanionActionControllerImpl.WAITING_TIMEOUT_MS);
@@ -152,8 +145,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_alreadyTimeout() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         // Timeout
         mFakeClock.advanceTime(CompanionActionControllerImpl.WAITING_TIMEOUT_MS);
         assertThat(isFutureFailed(future)).isTrue();
@@ -172,8 +164,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_fail() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         // Fail
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -184,8 +175,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startScanning_alreadyFailed() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, false);
         assertThat(isFutureFailed(future)).isTrue();
@@ -202,8 +192,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -225,8 +214,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_alreadyStopped() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
 
         // Success
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -244,8 +232,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_alreadyCancelled() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -267,16 +254,13 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_duplicateCall() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
 
-        ListenableFuture<?> future1 =
-                mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 =
-                mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future1 = mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future2 = mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(future1.isDone()).isFalse();
@@ -295,7 +279,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_notStarted() {
-        ListenableFuture<?> future = mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.stopNearbyScanning(ASSOCIATION1_ID);
 
         // Succeed immediately.
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -309,8 +293,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_cancel() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -334,8 +317,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_timeout() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -350,8 +332,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopScanning_alreadyTimeout() {
-        ListenableFuture<?> future =
-                mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_SCANNING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -372,7 +353,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         assertThat(future.isDone()).isFalse();
@@ -391,9 +372,9 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_duplicateCall() {
-        ListenableFuture<?> future1 =
+        AndroidFuture<?> future1 =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 =
+        AndroidFuture<?> future2 =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
@@ -408,7 +389,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_alreadyAdvertising() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         // Success
@@ -423,7 +404,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_cancel() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         future.cancel(true);
@@ -459,7 +440,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_timeout() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         // Timeout
@@ -477,7 +458,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_alreadyTimeout() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         // Timeout
         mFakeClock.advanceTime(CompanionActionControllerImpl.WAITING_TIMEOUT_MS);
@@ -497,7 +478,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_fail() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         // Fail
@@ -509,7 +490,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void startAdvertising_alreadyFailed() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, false);
@@ -527,7 +508,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
@@ -550,7 +531,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_alreadyStopped() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
 
         // Success
@@ -569,7 +550,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_alreadyCancelled() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
@@ -592,15 +573,15 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_duplicateCall() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
         assertThat(isFutureSucceeded(future)).isTrue();
 
-        ListenableFuture<?> future1 =
+        AndroidFuture<?> future1 =
                 mCompanionActionController.stopNearbyAdvertising(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 =
+        AndroidFuture<?> future2 =
                 mCompanionActionController.stopNearbyAdvertising(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
@@ -620,8 +601,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_notStarted() {
-        ListenableFuture<?> future =
-                mCompanionActionController.stopNearbyAdvertising(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.stopNearbyAdvertising(ASSOCIATION1_ID);
 
         // Succeed immediately.
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -635,7 +615,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_cancel() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
@@ -660,7 +640,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_timeout() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
@@ -676,7 +656,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void stopAdvertising_alreadyTimeout() {
-        ListenableFuture<?> future =
+        AndroidFuture<?> future =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_NEARBY_ADVERTISING, true);
@@ -698,7 +678,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         assertThat(future.isDone()).isFalse();
         assertThat(
@@ -716,8 +696,8 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_duplicateCall() {
-        ListenableFuture<?> future1 = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future1 = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future2 = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(future1.isDone()).isFalse();
@@ -731,7 +711,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_alreadyAdvertising() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         // Success
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -745,7 +725,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_cancel() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         future.cancel(true);
 
@@ -780,7 +760,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_timeout() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         // Timeout
         mFakeClock.advanceTime(CompanionActionControllerImpl.WAITING_TIMEOUT_MS);
@@ -797,7 +777,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_alreadyTimeout() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         // Timeout
         mFakeClock.advanceTime(CompanionActionControllerImpl.WAITING_TIMEOUT_MS);
         assertThat(isFutureFailed(future)).isTrue();
@@ -816,7 +796,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_fail() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         // Fail
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -827,7 +807,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void attachTransport_alreadyFailed() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, false);
         assertThat(isFutureFailed(future)).isTrue();
@@ -844,7 +824,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -866,7 +846,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_alreadyStopped() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
 
         // Success
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
@@ -884,7 +864,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_alreadyCancelled() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -906,13 +886,13 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_duplicateCall() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
 
-        ListenableFuture<?> future1 = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
-        ListenableFuture<?> future2 = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future1 = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future2 = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
 
         assertThat(future1).isSameInstanceAs(future2);
         assertThat(future1.isDone()).isFalse();
@@ -931,7 +911,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_notStarted() {
-        ListenableFuture<?> future = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.detachTransport(ASSOCIATION1_ID);
 
         // Succeed immediately.
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -945,7 +925,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_cancel() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -969,7 +949,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_timeout() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -984,7 +964,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
 
     @Test
     public void detachTransport_alreadyTimeout() {
-        ListenableFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
+        AndroidFuture<?> future = mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         mFakeCompanionDeviceManagerProxy.simulateActionResult(
                 ASSOCIATION1_ID, ActionRequest.REQUEST_TRANSPORT, true);
         assertThat(isFutureSucceeded(future)).isTrue();
@@ -1006,7 +986,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
     @Test
     public void concurrentRequestsAcrossAssociations() {
         // Start scanning on ASSOCIATION1_ID
-        ListenableFuture<?> scanFuture1 =
+        AndroidFuture<?> scanFuture1 =
                 mCompanionActionController.startNearbyScanning(ASSOCIATION1_ID);
         assertThat(scanFuture1.isDone()).isFalse();
         assertThat(
@@ -1017,7 +997,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
                 .isTrue();
 
         // Start advertising on ASSOCIATION2_ID
-        ListenableFuture<?> advertiseFuture2 =
+        AndroidFuture<?> advertiseFuture2 =
                 mCompanionActionController.startNearbyAdvertising(ASSOCIATION2_ID);
         assertThat(advertiseFuture2.isDone()).isFalse();
         assertThat(
@@ -1028,7 +1008,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
                 .isTrue();
 
         // Attach transport on ASSOCIATION1_ID
-        ListenableFuture<?> transportFuture1 =
+        AndroidFuture<?> transportFuture1 =
                 mCompanionActionController.attachTransport(ASSOCIATION1_ID);
         assertThat(transportFuture1.isDone()).isFalse();
         assertThat(
@@ -1057,7 +1037,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
         assertThat(isFutureSucceeded(transportFuture1)).isTrue();
 
         // Now stop some actions concurrently
-        ListenableFuture<?> stopAdvertiseFuture2 =
+        AndroidFuture<?> stopAdvertiseFuture2 =
                 mCompanionActionController.stopNearbyAdvertising(ASSOCIATION2_ID);
         assertThat(stopAdvertiseFuture2.isDone()).isFalse();
         assertThat(
@@ -1067,7 +1047,7 @@ public class CompanionActionControllerImplTest extends SyncServiceTestBase {
                                 ActionRequest.REQUEST_NEARBY_ADVERTISING))
                 .isFalse();
 
-        ListenableFuture<?> detachTransportFuture1 =
+        AndroidFuture<?> detachTransportFuture1 =
                 mCompanionActionController.detachTransport(ASSOCIATION1_ID);
         assertThat(detachTransportFuture1.isDone()).isFalse();
         assertThat(

@@ -15,16 +15,14 @@
  */
 package com.android.crossdevicesync.data.fake
 
+import com.android.crossdevicesync.common.Utils
 import com.android.crossdevicesync.data.DeviceNodeIdProvider
 import com.android.crossdevicesync.data.SharedDataStore
 import com.android.crossdevicesync.data.SharedDataStoreFactory
 import com.android.crossdevicesync.data.SharedDataStoreHandle
 import com.android.crossdevicesync.data.storage.IStorage
 import com.android.crossdevicesync.network.NetworkManager
-import com.google.common.util.concurrent.FluentFuture
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors.directExecutor
+import com.android.internal.infra.AndroidFuture
 
 /** Fake implementation of [SharedDataStoreHandle]. */
 class FakeSharedDataStoreHandle<T>(
@@ -56,19 +54,16 @@ class FakeSharedDataStoreHandle<T>(
 
     override fun getLockedDataStore(): SharedDataStore<T>? = mLockedDataStore
 
-    override fun openDataStore(
-        network: NetworkManager.Network
-    ): ListenableFuture<SharedDataStore<T>> {
+    override fun openDataStore(network: NetworkManager.Network): AndroidFuture<SharedDataStore<T>> {
         try {
             val dataStore = mDataStoreFactory.create(this)
-            return FluentFuture.from(dataStore.init(network))
-                .transform({ dataStore }, directExecutor())
+            return dataStore.init(network).thenApply { dataStore }
         } catch (e: Exception) {
-            return Futures.immediateFailedFuture(e)
+            return Utils.failedAndroidFuture(e)
         }
     }
 
-    override fun delete(): ListenableFuture<Boolean> = mStorage.submitToIoThread(this::doDelete)
+    override fun delete(): AndroidFuture<Boolean> = mStorage.submitToIoThread(this::doDelete)
 
     private fun doDelete(): Boolean {
         if (isLocked()) {
@@ -83,10 +78,11 @@ class FakeSharedDataStoreHandle<T>(
     }
 
     override fun destroy(deleteDataStore: Boolean) {
-        var future = mLockedDataStore?.close() ?: Futures.immediateFuture(true)
+        var future: AndroidFuture<*> =
+            mLockedDataStore?.close() ?: AndroidFuture.completedFuture(true)
         if (deleteDataStore) {
-            future = Futures.transformAsync(future, { _ -> delete() }, directExecutor())
+            future = future.thenCompose { _ -> delete() }
         }
-        future.addListener({ mStorage.shutdownIoThread() }, directExecutor())
+        future.whenComplete { _, _ -> mStorage.shutdownIoThread() }
     }
 }
