@@ -18,6 +18,7 @@ package com.android.crossdevicesync.network.scanner;
 import android.util.IndentingPrintWriter;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.internal.annotations.GuardedBy;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.Executor;
 /** Default implementation of {@link Scanner}. */
 public class ScannerImpl implements Scanner {
     private static final String TAG = "Scanner";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
 
     private final Object mLock;
     private final CompanionActionController mCompanionActionController;

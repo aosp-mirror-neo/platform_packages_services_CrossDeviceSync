@@ -21,6 +21,7 @@ import android.annotation.Nullable;
 import android.util.ArrayMap;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.SmartAutoClosable;
 import com.android.crossdevicesync.data.model.DocumentMetadata;
 import com.android.crossdevicesync.data.model.DocumentMetadata.RecordMetadata;
@@ -60,7 +61,7 @@ import java.util.Set;
  */
 class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoCloseable {
     private static final String TAG = "SubmergeDocument";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_DATA_STORE;
 
     private final String mDataStoreName;
     private final String mDocId;

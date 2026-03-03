@@ -23,28 +23,36 @@ import android.content.pm.PackageManager;
 import android.os.UserHandle;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.flags.Flags;
 import com.android.crossdevicesync.services.SyncService;
 
 /** Broadcast receiver that reacts to boot signals. */
 public class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BootReceiver";
+    private static final boolean DEBUG = DebugConfig.DEBUG_SERVICE;
 
     public BootReceiver() {}
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "onReceive: " + intent);
+        if (DEBUG) {
+            Log.d(TAG, "onReceive: " + intent);
+        }
         if (Flags.startSyncServiceOnBoot()
                 && Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
             if (context.getUser().equals(UserHandle.SYSTEM)) {
-                Log.d(TAG, "Starting SyncService.");
+                if (DEBUG) {
+                    Log.d(TAG, "Starting SyncService.");
+                }
                 context.startService(new Intent(context, SyncService.class));
             } else {
-                Log.d(
-                        TAG,
-                        "Disabling boot receiver for non-system user "
-                                + context.getUser().getIdentifier());
+                if (DEBUG) {
+                    Log.d(
+                            TAG,
+                            "Disabling boot receiver for non-system user "
+                                    + context.getUser().getIdentifier());
+                }
                 context.getPackageManager()
                         .setComponentEnabledSetting(
                                 new ComponentName(context, BootReceiver.class),

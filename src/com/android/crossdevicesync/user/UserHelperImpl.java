@@ -25,6 +25,7 @@ import android.os.UserManager;
 import android.util.Log;
 import android.util.Pair;
 
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import java.util.concurrent.Executor;
 /** Default implementation of {@link UserHelper}. */
 public class UserHelperImpl implements UserHelper {
     private static final String TAG = "UserHelper";
+    private static final boolean DEBUG = DebugConfig.DEBUG_COMMON;
     private final Object mLock = new Object();
     private final Context mContext;
     private final UserManager mUserManager;
@@ -92,7 +94,9 @@ public class UserHelperImpl implements UserHelper {
             mListeners.add(new Pair<>(executor, listener));
             if (wasEmpty) {
                 registerBroadcastReceiver();
-                Log.d(TAG, "Registered user broadcast receiver.");
+                if (DEBUG) {
+                    Log.d(TAG, "Registered user broadcast receiver.");
+                }
             }
         }
     }
@@ -106,7 +110,9 @@ public class UserHelperImpl implements UserHelper {
             mListeners.removeIf(pair -> pair.second == listener);
             if (mListeners.isEmpty()) {
                 mContext.unregisterReceiver(mReceiver);
-                Log.d(TAG, "Unregistered user broadcast receiver.");
+                if (DEBUG) {
+                    Log.d(TAG, "Unregistered user broadcast receiver.");
+                }
             }
         }
     }

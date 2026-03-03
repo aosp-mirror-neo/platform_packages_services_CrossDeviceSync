@@ -34,7 +34,7 @@ import java.util.concurrent.Executor;
 /** Implementation of {@link DeviceUtils}. */
 public class DeviceUtilsImpl implements DeviceUtils {
     private static final String TAG = "WatchChecker";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_COMMON;
 
     private final Context mContext;
     private final boolean mIsWatch;

@@ -41,6 +41,7 @@ import android.util.IndentingPrintWriter;
 import android.util.Log;
 
 import com.android.crossdevicesync.common.ContextualModeManagerProxy;
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.Dumpable;
 import com.android.crossdevicesync.data.Docs;
 import com.android.crossdevicesync.data.SharedDataStore;
@@ -72,6 +73,7 @@ import java.util.function.Consumer;
 public class ContextualModeSyncController
         implements Dumpable, OnRemoteChangeListener, ContextualModeListener {
     private static final String TAG = "CtxModeSyncController";
+    private static final boolean DEBUG = DebugConfig.DEBUG_FEATURE;
 
     /**
      * Network ID.
@@ -197,7 +199,11 @@ public class ContextualModeSyncController
     @GuardedBy("mLock")
     private void maybeOpenDataStoreLocked() {
         if (mState != STATE_INACTIVE) {
-            Log.v(TAG, "maybeOpenDataStore: ignored. Current state is " + stateToString(mState));
+            if (DEBUG) {
+                Log.v(
+                        TAG,
+                        "maybeOpenDataStore: ignored. Current state is " + stateToString(mState));
+            }
             return;
         }
         Log.i(TAG, "Opening shared data store for user " + mUser + ".");
@@ -227,7 +233,11 @@ public class ContextualModeSyncController
     @GuardedBy("mLock")
     private void maybeCloseDataStoreLocked() {
         if (mState != STATE_ACTIVE) {
-            Log.v(TAG, "maybeCloseDataStore: ignored. Current state is " + stateToString(mState));
+            if (DEBUG) {
+                Log.v(
+                        TAG,
+                        "maybeCloseDataStore: ignored. Current state is " + stateToString(mState));
+            }
             return;
         }
         Log.i(TAG, "Closing shared data store for user " + mUser + ".");

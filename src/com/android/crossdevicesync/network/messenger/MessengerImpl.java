@@ -30,6 +30,7 @@ import android.util.Pair;
 
 import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
+import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.model.BatchedMessage;
@@ -55,7 +56,7 @@ import java.util.function.BiConsumer;
 /** Implementation of {@link Messenger} using CompanionDeviceManager. */
 public class MessengerImpl implements Messenger {
     private static final String TAG = "Messenger";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_NETWORK;
     @VisibleForTesting static final long RETRY_DELAY_MS = 5000;
     @VisibleForTesting static final long WAITING_FOR_TRANSPORT_TIMEOUT = 2000;
     @VisibleForTesting static final long WAITING_FOR_ACK_TIMEOUT = 2000;
@@ -261,7 +262,7 @@ public class MessengerImpl implements Messenger {
                 List<Message> messages = new ArrayList(batchedMessage.messages());
                 messages.sort(Comparator.comparingLong(Message::handleId));
                 List<Long> ackIds = batchedMessage.ackIds();
-                Log.d(
+                Log.i(
                         TAG,
                         "onMessage: received "
                                 + message.length
@@ -642,7 +643,7 @@ public class MessengerImpl implements Messenger {
             }
             byte[] encodedMessage =
                     new BatchedMessage(messages, acks, MessengerImpl.this.hashCode()).toByteArray();
-            Log.d(
+            Log.i(
                     TAG,
                     "Sending "
                             + messages.size()

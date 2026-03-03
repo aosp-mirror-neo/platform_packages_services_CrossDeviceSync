@@ -23,6 +23,8 @@ import android.net.ConnectivityManager;
 import android.provider.Settings;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.DebugConfig;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -30,7 +32,7 @@ import java.util.concurrent.Executor;
 /** Implementation of {@link AirplaneModeController}. */
 public class AirplaneModeControllerImpl implements AirplaneModeController {
     private static final String TAG = "AirplaneModeController";
-    private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DEBUG = DebugConfig.DEBUG_FEATURE;
 
     private final Context mContext;
     private final List<Listener> mListeners = new ArrayList<>();
