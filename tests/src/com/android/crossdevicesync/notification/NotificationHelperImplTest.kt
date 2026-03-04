@@ -91,12 +91,13 @@ class NotificationHelperImplTest : SyncServiceTestBase() {
         assertThat(notification.visibility).isEqualTo(Notification.VISIBILITY_PUBLIC)
         assertThat(notification.flags and Notification.FLAG_AUTO_CANCEL).isNotEqualTo(0)
         assertThat(notification.flags and Notification.FLAG_LOCAL_ONLY).isNotEqualTo(0)
-
+        val message = mContext.getString(R.string.airplane_mode_sync_notification_content)
         val extras = notification.extras
         assertThat(extras.getString(Notification.EXTRA_TITLE))
             .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_title))
-        assertThat(extras.getString(Notification.EXTRA_TEXT))
-            .isEqualTo(mContext.getString(R.string.airplane_mode_sync_notification_content))
+        assertThat(extras.getString(Notification.EXTRA_TEXT)).isEqualTo(message)
+        assertThat(extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString())
+            .isEqualTo(message)
 
         assertThat(notification.contentIntent.intent.action)
             .isEqualTo(Settings.ACTION_AIRPLANE_MODE_SETTINGS)

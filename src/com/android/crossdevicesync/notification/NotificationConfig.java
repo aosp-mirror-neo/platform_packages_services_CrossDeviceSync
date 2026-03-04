@@ -18,6 +18,7 @@ package com.android.crossdevicesync.notification;
 import static android.app.Notification.VISIBILITY_PUBLIC;
 
 import android.app.Notification.Action;
+import android.app.Notification.BigTextStyle;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -75,14 +76,14 @@ public class NotificationConfig {
     }
 
     private android.app.Notification createApmSyncedAndroidNotification() {
+        String message = mContext.getString(R.string.airplane_mode_sync_notification_content);
         android.app.Notification.Builder builder =
                 new android.app.Notification.Builder(mContext, APM_SYNC_NOTIFICATION_CHANNEL_ID)
                         .setContentTitle(
                                 mContext.getString(R.string.airplane_mode_sync_notification_title))
                         .setSmallIcon(R.drawable.ic_airplane_mode)
-                        .setContentText(
-                                mContext.getString(
-                                        R.string.airplane_mode_sync_notification_content))
+                        .setContentText(message)
+                        .setStyle(new BigTextStyle().bigText(message))
                         .setVisibility(VISIBILITY_PUBLIC)
                         .setAutoCancel(true)
                         .setLocalOnly(true);
