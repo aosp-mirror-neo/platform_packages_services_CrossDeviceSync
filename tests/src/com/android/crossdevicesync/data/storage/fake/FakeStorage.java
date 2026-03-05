@@ -17,16 +17,14 @@ package com.android.crossdevicesync.data.storage.fake;
 
 import android.annotation.Nullable;
 
+import com.android.crossdevicesync.common.Utils;
 import com.android.crossdevicesync.common.fake.SynchronousExecutorService;
 import com.android.crossdevicesync.data.storage.IStorage;
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.StorageInterface.StorageException;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 
 /** Fake implementation of {@link StorageInterface}. */
 public class FakeStorage implements IStorage {
@@ -41,8 +41,7 @@ public class FakeStorage implements IStorage {
     private final Map<String, byte[]> mDocuments = new HashMap<>();
     private final Map<String, byte[]> mMetadata = new HashMap<>();
     private final Map<String, byte[]> mSchema = new HashMap<>();
-    private final ListeningExecutorService mExecutorService =
-            MoreExecutors.listeningDecorator(new SynchronousExecutorService());
+    private final ExecutorService mExecutorService = new SynchronousExecutorService();
     private boolean mOpen;
     private RuntimeException mException;
 
@@ -158,11 +157,19 @@ public class FakeStorage implements IStorage {
     }
 
     @Override
-    public <R> ListenableFuture<R> submitToIoThread(Callable<R> task) {
+    public <R> AndroidFuture<R> submitToIoThread(Callable<R> task) {
         if (mExecutorService.isShutdown()) {
-            return Futures.immediateFailedFuture(new IllegalStateException("Shutdown"));
+            return Utils.failedAndroidFuture(new IllegalStateException("Shutdown"));
         }
-        return mExecutorService.submit(task);
+        return AndroidFuture.supplyAsync(
+                () -> {
+                    try {
+                        return task.call();
+                    } catch (Exception e) {
+                        throw new CompletionException(e);
+                    }
+                },
+                mExecutorService);
     }
 
     @Override

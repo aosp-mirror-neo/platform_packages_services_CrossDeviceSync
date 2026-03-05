@@ -22,8 +22,6 @@ import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA
 import static com.android.crossdevicesync.feature.mode.ModeSyncMetadata.METADATA_CONTEXTUAL_MODE_SYNC_SUPPORTED;
 import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC;
 
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
-
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
@@ -57,10 +55,6 @@ import com.android.crossdevicesync.notification.NotificationHelper;
 import com.android.crossdevicesync.notification.NotificationReason;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.HashMap;
 import java.util.List;
@@ -214,20 +208,18 @@ public class ContextualModeSyncController
                         NETWORK_ID,
                         CROSS_DEVICE_SYNC_EVENT__FEATURE__FEATURE_CONTEXTUAL_MODE_SYNC,
                         this::shouldSyncWithDevice);
-        Futures.addCallback(
-                mSharedDataStoreHandle.openDataStore(mNetwork),
-                new FutureCallback<SharedDataStore<String>>() {
-                    @Override
-                    public void onSuccess(SharedDataStore<String> dataStore) {
-                        onDataStoreInitialized(dataStore);
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        onDataStoreFailedToInitialize(t);
-                    }
-                },
-                mMainExecutor);
+        var ignored =
+                mSharedDataStoreHandle
+                        .openDataStore(mNetwork)
+                        .whenCompleteAsync(
+                                (dataStore, t) -> {
+                                    if (t != null) {
+                                        onDataStoreFailedToInitialize(t);
+                                    } else {
+                                        onDataStoreInitialized(dataStore);
+                                    }
+                                },
+                                mMainExecutor);
     }
 
     @GuardedBy("mLock")
@@ -244,7 +236,10 @@ public class ContextualModeSyncController
         mState = STATE_CLOSING_DATA_STORE;
         SharedDataStore<String> dataStore = requireNonNull(mSharedDataStore);
         dataStore.unregisterOnRemoteChangeListener(this);
-        dataStore.close().addListener(this::onDataStoreClosed, mMainExecutor);
+        var ignored =
+                dataStore
+                        .close()
+                        .whenCompleteAsync((unused, t) -> onDataStoreClosed(), mMainExecutor);
     }
 
     // Called in IO thread.
@@ -475,31 +470,25 @@ public class ContextualModeSyncController
 
     @GuardedBy("mLock")
     private void transactDataStoreLocked(Consumer<MutableDocument<String>> consumer) {
-        ListenableFuture<Boolean> future =
+        var ignored =
                 requireNonNull(mSharedDataStore)
                         .transact(
                                 CONTEXTUAL_MODES_DOC_ID,
                                 doc -> {
                                     consumer.accept(doc);
                                     return true;
+                                })
+                        .whenComplete(
+                                (result, t) -> {
+                                    if (t != null) {
+                                        Log.e(
+                                                TAG,
+                                                " Failed to commit data store transaction for user "
+                                                        + mUser
+                                                        + ".",
+                                                t);
+                                    }
                                 });
-        Futures.addCallback(
-                future,
-                new FutureCallback<>() {
-                    @Override
-                    public void onSuccess(Boolean result) {
-                        // Ignore.
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        Log.e(
-                                TAG,
-                                " Failed to commit data store transaction for user " + mUser + ".",
-                                t);
-                    }
-                },
-                directExecutor());
     }
 
     private boolean shouldSyncWithDevice(RemoteDevice device) {

@@ -124,7 +124,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
     @Test
     public void listenerTriggeredWhenMessageDelivered() {
         boolean[] executed = {false};
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         mHandle.noteSuccess(mFakeClock.elapsedRealtime());
 
@@ -134,7 +134,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
     @Test
     public void listenerTriggeredWhenMessageFailedEnoughTimes() {
         boolean[] executed = {false};
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
             mHandle.noteSending(mFakeClock.elapsedRealtime());
@@ -148,7 +148,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
     @Test
     public void listenerTriggeredWhenTransportRequestFailedEnoughTimes() {
         boolean[] executed = {false};
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
             mHandle.noteTransportFailure(mFakeClock.elapsedRealtime(), new Exception());
@@ -161,7 +161,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
     @Test
     public void listenerTriggeredWhenTransportAndMessageFailedEnoughTimes() {
         boolean[] executed = {false};
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         mHandle.noteTransportFailure(mFakeClock.elapsedRealtime(), new Exception());
         mHandle.noteSending(mFakeClock.elapsedRealtime());
@@ -176,7 +176,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
     @Test
     public void listenerTriggeredWhenCancelled() {
         boolean[] executed = {false};
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         mHandle.cancel(true);
 
@@ -189,7 +189,7 @@ public class MessageHandleTest extends SyncServiceTestBase {
         mHandle.noteSuccess(mFakeClock.elapsedRealtime());
         boolean[] executed = {false};
 
-        mHandle.addListener(() -> executed[0] = true, Runnable::run);
+        mHandle.whenComplete((res, ex) -> executed[0] = true);
 
         assertThat(executed[0]).isTrue();
     }

@@ -17,11 +17,11 @@ package com.android.crossdevicesync.data.storage;
 
 import android.annotation.Nullable;
 
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 import com.android.internal.util.FunctionalUtils.ThrowingRunnable;
 
 import com.google.android.submerge.StorageInterface.StorageException;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 
 import java.util.List;
@@ -81,15 +81,15 @@ public interface IStorage {
      * Submit a task to to the internal IO thread.
      *
      * @param task a task to be executed in the IO thread
-     * @return a {@link ListenableFuture} that will be completed with the result of the task
+     * @return a {@link AndroidFuture} that will be completed with the result of the task
      */
-    <R> ListenableFuture<R> submitToIoThread(Callable<R> task);
+    <R> AndroidFuture<R> submitToIoThread(Callable<R> task);
 
     /**
      * Same as {@link #submitToIoThread(Callable)} but accepts a {@link ThrowingRunnable} instead.
      */
     @CanIgnoreReturnValue
-    default ListenableFuture<Void> runInIoThread(ThrowingRunnable runnable) {
+    default AndroidFuture<Void> runInIoThread(ThrowingRunnable runnable) {
         return submitToIoThread(
                 () -> {
                     runnable.run();

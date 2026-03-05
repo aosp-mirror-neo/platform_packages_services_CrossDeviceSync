@@ -50,9 +50,6 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.connectivity.Flags;
 
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -272,25 +269,23 @@ public class AirplaneModeSyncManager
             SharedDataStore<String> dataStore,
             String name,
             Consumer<MutableDocument<String>> transaction) {
-        Futures.addCallback(
-                dataStore.transact(
-                        DOC_ID,
-                        document -> {
-                            transaction.accept(document);
-                            return null;
-                        }),
-                new FutureCallback<Void>() {
-                    @Override
-                    public void onSuccess(Void result) {
-                        logD("Transaction[" + name + "] successful");
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        Log.e(TAG, "Transaction[" + name + "] failed", t);
-                    }
-                },
-                mMainExecutor);
+        var ignored =
+                dataStore
+                        .transact(
+                                DOC_ID,
+                                document -> {
+                                    transaction.accept(document);
+                                    return null;
+                                })
+                        .whenCompleteAsync(
+                                (result, t) -> {
+                                    if (t != null) {
+                                        Log.e(TAG, "Transaction[" + name + "] failed", t);
+                                    } else {
+                                        logD("Transaction[" + name + "] successful");
+                                    }
+                                },
+                                mMainExecutor);
     }
 
     @Override
@@ -352,20 +347,18 @@ public class AirplaneModeSyncManager
                         });
         mNetwork = network;
 
-        Futures.addCallback(
-                mSharedDataStoreHandle.openDataStore(network),
-                new FutureCallback<SharedDataStore<String>>() {
-                    @Override
-                    public void onSuccess(SharedDataStore<String> dataStore) {
-                        onDataStoreInitialized(dataStore);
-                    }
-
-                    @Override
-                    public void onFailure(Throwable t) {
-                        onDataStoreFailedToInitialize(t);
-                    }
-                },
-                mMainExecutor);
+        var ignored =
+                mSharedDataStoreHandle
+                        .openDataStore(network)
+                        .whenCompleteAsync(
+                                (dataStore, t) -> {
+                                    if (t != null) {
+                                        onDataStoreFailedToInitialize(t);
+                                    } else {
+                                        onDataStoreInitialized(dataStore);
+                                    }
+                                },
+                                mMainExecutor);
     }
 
     private void onDataStoreInitialized(SharedDataStore<String> dataStore) {
@@ -404,7 +397,10 @@ public class AirplaneModeSyncManager
         mState = STATE_CLOSING_DATA_STORE;
         if (mDataStore != null) {
             mDataStore.unregisterOnRemoteChangeListener(this);
-            mDataStore.close().addListener(this::onDataStoreClosed, mMainExecutor);
+            var ignored =
+                    mDataStore
+                            .close()
+                            .whenCompleteAsync((unused, t) -> onDataStoreClosed(), mMainExecutor);
         }
     }
 

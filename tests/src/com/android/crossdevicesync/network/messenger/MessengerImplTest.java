@@ -34,10 +34,8 @@ import com.android.crossdevicesync.network.companion.fake.FakeCompanionActionCon
 import com.android.crossdevicesync.network.model.BatchedMessage;
 import com.android.crossdevicesync.network.model.Message;
 import com.android.crossdevicesync.services.SyncServiceTestBase;
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.ArrayUtils;
-
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -73,7 +71,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_illegalMaxDeliveryAttempts_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -86,7 +84,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_requestTransport() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -94,25 +92,25 @@ public class MessengerImplTest extends SyncServiceTestBase {
                         /* maxDeliveryAttempts= */ 1);
 
         assertThat(future.isDone()).isFalse();
-        SettableFuture<?> transportRequestFuture =
+        AndroidFuture<?> transportRequestFuture =
                 mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1);
         assertThat(transportRequestFuture).isNotNull();
     }
 
     @Test
     public void sendMessage_requestTransportFailed_retry() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        SettableFuture<?> transportRequestFuture =
+        AndroidFuture<?> transportRequestFuture =
                 mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1);
 
         // Transport request failed.
-        transportRequestFuture.setException(new Exception("transport request failed"));
+        transportRequestFuture.completeExceptionally(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
         // Transport detached
         assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
@@ -128,7 +126,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_requestTransportFailedTooManyTimes_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -139,7 +137,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // First failure
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception("transport request failed"));
+                .completeExceptionally(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
         // Transport detached
         assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
@@ -149,7 +147,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // Second failure
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception("transport request failed"));
+                .completeExceptionally(new Exception("transport request failed"));
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
         // Transport detached
@@ -159,7 +157,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_requestTransportFailed_noRetry_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -169,7 +167,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception("transport request failed"));
+                .completeExceptionally(new Exception("transport request failed"));
 
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
@@ -182,7 +180,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
     public void sendMessage_requestTransport_alreadyHasTransport_messageSent() {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -200,7 +198,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
     @Test
     public void sendMessage_requestTransportFailedAfterAlreadyHasTransport_messageSent() {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -210,7 +208,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // Fail the transport attachment future despite we already have a transport.
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception());
+                .completeExceptionally(new Exception());
 
         // We are still sending the message.
         assertThat(future.isDone()).isFalse();
@@ -223,7 +221,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
     public void
             sendMessage_requestTransportFailedAfterAlreadyHasTransport_notAffectingRetryCount() {
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -234,7 +232,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // increment retry count.
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception());
+                .completeExceptionally(new Exception());
         assertThat(future.isDone()).isFalse();
 
         // Transport is gone.
@@ -246,12 +244,12 @@ public class MessengerImplTest extends SyncServiceTestBase {
         // Retry after timeout.
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         assertThat(future.isDone()).isFalse();
-        SettableFuture<?> attachTransportFuture =
+        AndroidFuture<?> attachTransportFuture =
                 mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1);
         assertThat(future).isNotNull();
 
         // Transport attachment failed.
-        attachTransportFuture.setException(new Exception());
+        attachTransportFuture.completeExceptionally(new Exception());
         assertThat(isFutureFailed(future)).isTrue();
         // Transport detached
         assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
@@ -260,14 +258,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForTransportTimeout_retryAfterDetach() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
 
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
 
@@ -284,14 +284,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForTransportTimeout_noRetry_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 1);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
 
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
 
@@ -304,7 +306,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForTransportTimeoutTooManyTimes_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -313,7 +315,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(future.isDone()).isFalse();
 
         // First timeout
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
         assertThat(future.isDone()).isFalse();
         // Transport detached
@@ -322,7 +326,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(RETRY_DELAY_MS);
 
         // Second timeout
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeClock.advanceTime(WAITING_FOR_TRANSPORT_TIMEOUT);
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
@@ -333,14 +339,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForAckTimeout_retry() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         // Verify we've sent message
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
@@ -359,14 +367,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForAckTimeout_noRetry_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 1);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
 
@@ -381,14 +391,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForAckTimeoutTooManyTimes_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
 
@@ -425,7 +437,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // Send message.
         byte[] message = new byte[] {1};
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -453,14 +465,14 @@ public class MessengerImplTest extends SyncServiceTestBase {
                 });
 
         byte[] message1 = new byte[] {1};
-        ListenableFuture<Boolean> future1 =
+        AndroidFuture<Boolean> future1 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         message1,
                         /* maxDeliveryAttempts= */ 1);
         byte[] message2 = new byte[] {2};
-        ListenableFuture<Boolean> future2 =
+        AndroidFuture<Boolean> future2 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -468,7 +480,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
                         /* maxDeliveryAttempts= */ 1);
 
         // Manually complete the transport request and attach the transport.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
         assertThat(future1.isDone()).isTrue();
@@ -484,7 +498,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_waitForAckTimeout_transportRequestFail_retryAttemptReached_fail() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -493,7 +507,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(future.isDone()).isFalse();
 
         // 1. Succeed transport request, make transport available, let ACK time out.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         mFakeClock.advanceTime(WAITING_FOR_ACK_TIMEOUT);
         assertThat(future.isDone()).isFalse();
@@ -506,7 +522,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception("transport request failed"));
+                .completeExceptionally(new Exception("transport request failed"));
         assertThat(future.isDone()).isFalse();
         // Transport detached
         assertThat(mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1))
@@ -516,7 +532,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(RETRY_DELAY_MS);
         mFakeCompanionActionController
                 .getAttachTransportFuture(/* associationId= */ 1)
-                .setException(new Exception("transport request failed"));
+                .completeExceptionally(new Exception("transport request failed"));
         assertThat(future.isDone()).isTrue();
         assertThat(isFutureFailed(future)).isTrue();
         // Transport detached
@@ -530,7 +546,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mAllowInboundMessages = true;
 
         // Remote sends a message, max 2 attempts.
-        ListenableFuture<Boolean> remoteFuture =
+        AndroidFuture<Boolean> remoteFuture =
                 mRemoteMessenger1.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -547,7 +563,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(remoteFuture.isDone()).isFalse(); // It's now pending retry, but not "done".
 
         // Now, local device gets transport and sends the ACK for the first message.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
         // Verify the original remote future succeeds upon receiving the late ACK.
@@ -560,7 +578,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mAllowInboundMessages = true;
 
         // Remote sends a message, max 2 attempts.
-        ListenableFuture<Boolean> remoteFuture =
+        AndroidFuture<Boolean> remoteFuture =
                 mRemoteMessenger1.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -577,7 +595,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(remoteFuture.isDone()).isFalse();
 
         // Now, local device gets transport and sends the ACK for the first message.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
         // Verify the original remote future succeeds upon receiving the late ACK.
@@ -586,14 +606,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void sendMessage_transportGoneWhileWaitingAck_retry() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
 
@@ -602,7 +624,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeClock.advanceTime(RETRY_DELAY_MS);
 
         // Transport is re-established.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
         // Verify that the message is retried.
@@ -623,7 +647,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
                 TEST_NETWORK, /* associationId= */ 1, new byte[] {2}, /* maxDeliveryAttempts= */ 1);
 
         // Manually complete the transport request and attach the transport.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mAllowOutboundMessages = true; // Allow the batched message to be sent.
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
 
@@ -662,7 +688,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // Incoming message.
         byte[] message = new byte[] {1};
-        ListenableFuture<?> remoteFuture =
+        AndroidFuture<?> remoteFuture =
                 mRemoteMessenger1.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -671,10 +697,10 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertMessagesEqual(incomingMessages.get(0), Pair.create(TEST_NETWORK, message));
 
         // Fail the transport request.
-        SettableFuture<?> requestTransportFuture =
+        AndroidFuture<?> requestTransportFuture =
                 mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1);
         assertThat(requestTransportFuture).isNotNull();
-        requestTransportFuture.setException(new Exception("transport request failed"));
+        requestTransportFuture.completeExceptionally(new Exception("transport request failed"));
 
         // Verify that we will not retry sending another ACK.
         mFakeClock.advanceTime(RETRY_DELAY_MS);
@@ -698,7 +724,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // Incoming message.
         byte[] message = new byte[] {1};
-        ListenableFuture<?> remoteFuture =
+        AndroidFuture<?> remoteFuture =
                 mRemoteMessenger1.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -749,7 +775,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mFakeCompanionActionController.setAutomaticallyAttachTransport(true);
 
         // Remote device send message 1
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mRemoteMessenger1.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -782,25 +808,25 @@ public class MessengerImplTest extends SyncServiceTestBase {
         mAllowOutboundMessages = true;
         mAllowInboundMessages = true;
 
-        ListenableFuture<Boolean> future1 =
+        AndroidFuture<Boolean> future1 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 1);
-        ListenableFuture<Boolean> future2 =
+        AndroidFuture<Boolean> future2 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {2},
                         /* maxDeliveryAttempts= */ 1);
-        ListenableFuture<Boolean> future3 =
+        AndroidFuture<Boolean> future3 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 2,
                         new byte[] {3},
                         /* maxDeliveryAttempts= */ 1);
-        ListenableFuture<Boolean> future4 =
+        AndroidFuture<Boolean> future4 =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 2,
@@ -808,9 +834,13 @@ public class MessengerImplTest extends SyncServiceTestBase {
                         /* maxDeliveryAttempts= */ 1);
 
         // Manually complete the transport request and attach the transport for both associations.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 2).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 2)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 2, true);
 
         // Verify that the futures succeeded and the messages were batched.
@@ -841,13 +871,13 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
         // Send broadcast message.
         Pair<String, byte[]> message = Pair.create(TEST_NETWORK, new byte[] {1});
-        ListenableFuture<?> future1 =
+        AndroidFuture<?> future1 =
                 mMessengerImpl.sendMessage(
                         message.first,
                         /* associationId= */ 1,
                         message.second,
                         /* maxDeliveryAttempts= */ 2);
-        ListenableFuture<?> future2 =
+        AndroidFuture<?> future2 =
                 mMessengerImpl.sendMessage(
                         message.first,
                         /* associationId= */ 2,
@@ -872,7 +902,7 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void cancel_transportRequestCancelled() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -889,14 +919,16 @@ public class MessengerImplTest extends SyncServiceTestBase {
 
     @Test
     public void cancel_messageNotSent() {
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
                         new byte[] {1},
                         /* maxDeliveryAttempts= */ 2);
         assertThat(future.isDone()).isFalse();
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
 
         future.cancel(true);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
@@ -905,11 +937,10 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).isEmpty();
     }
 
-
     @Test
     public void cancel_whileWaitingForAck_preventsRetry() {
         // Send a message with 2 delivery attempts.
-        ListenableFuture<Boolean> future =
+        AndroidFuture<Boolean> future =
                 mMessengerImpl.sendMessage(
                         TEST_NETWORK,
                         /* associationId= */ 1,
@@ -918,7 +949,9 @@ public class MessengerImplTest extends SyncServiceTestBase {
         assertThat(future.isDone()).isFalse();
 
         // Allow transport to connect and the message to be sent once.
-        mFakeCompanionActionController.getAttachTransportFuture(/* associationId= */ 1).set(null);
+        mFakeCompanionActionController
+                .getAttachTransportFuture(/* associationId= */ 1)
+                .complete(null);
         mFakeCompanionDeviceManagerProxy.setTransportAttachedState(/* associationId= */ 1, true);
         assertThat(mFakeCompanionDeviceManagerProxy.getSentMessages()).hasSize(1);
 

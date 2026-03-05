@@ -24,17 +24,17 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import com.android.crossdevicesync.common.Utils;
+import com.android.internal.infra.AndroidFuture;
 import com.android.internal.util.FunctionalUtils.ThrowingConsumer;
 
 import com.google.android.submerge.StorageInterface.StorageException;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /** Implementation of {@link IStorage} using SQLite. */
@@ -55,7 +55,7 @@ public class SqliteStorage implements IStorage {
 
     @Nullable private DatabaseHelper mDbHelper;
     @Nullable private SQLiteDatabase mDatabase;
-    @Nullable private volatile ListeningExecutorService mIoThreadExecutorService;
+    @Nullable private volatile ExecutorService mIoThreadExecutorService;
 
     public SqliteStorage(Context context, String name) {
         mContext = context.createDeviceProtectedStorageContext();
@@ -227,31 +227,37 @@ public class SqliteStorage implements IStorage {
     }
 
     @Override
-    public <R> ListenableFuture<R> submitToIoThread(Callable<R> task) {
-        ListeningExecutorService ioExecutorService = getOrCreateIoThreadExecutor();
+    public <R> AndroidFuture<R> submitToIoThread(Callable<R> task) {
+        ExecutorService ioExecutorService = getOrCreateIoThreadExecutor();
         if (ioExecutorService.isShutdown()) {
-            return Futures.immediateFailedFuture(
-                    new IllegalStateException("IO thread is shutdown!"));
+            return Utils.failedAndroidFuture(new IllegalStateException("IO thread is shutdown!"));
         }
-        return ioExecutorService.submit(task);
+        return AndroidFuture.supplyAsync(
+                () -> {
+                    try {
+                        return task.call();
+                    } catch (Exception e) {
+                        throw new CompletionException(e);
+                    }
+                },
+                ioExecutorService);
     }
 
     @Override
     public void shutdownIoThread() {
-        ListeningExecutorService ioExecutorService = mIoThreadExecutorService;
+        ExecutorService ioExecutorService = mIoThreadExecutorService;
         if (ioExecutorService != null) {
             ioExecutorService.shutdown();
         }
     }
 
-    private ListeningExecutorService getOrCreateIoThreadExecutor() {
+    private ExecutorService getOrCreateIoThreadExecutor() {
         if (mIoThreadExecutorService != null) {
             return mIoThreadExecutorService;
         }
         synchronized (this) {
             if (mIoThreadExecutorService == null) {
-                ListeningExecutorService executor =
-                        MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+                ExecutorService executor = Executors.newSingleThreadExecutor();
                 executor.execute(() -> IS_IO_THREAD.set(true));
                 mIoThreadExecutorService = executor;
             }

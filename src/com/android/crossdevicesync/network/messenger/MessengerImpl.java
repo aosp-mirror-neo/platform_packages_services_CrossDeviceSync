@@ -32,14 +32,13 @@ import com.android.crossdevicesync.common.Clock;
 import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.DelayedExecutor;
+import com.android.crossdevicesync.common.Utils;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
 import com.android.crossdevicesync.network.model.BatchedMessage;
 import com.android.crossdevicesync.network.model.Message;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -135,11 +134,11 @@ public class MessengerImpl implements Messenger {
     }
 
     @Override
-    public ListenableFuture<Boolean> sendMessage(
+    public AndroidFuture<Boolean> sendMessage(
             String networkId, int associationId, byte[] message, int maxDeliveryAttempts) {
         synchronized (mLock) {
             if (maxDeliveryAttempts < 1) {
-                return Futures.immediateFailedFuture(
+                return Utils.failedAndroidFuture(
                         new IllegalArgumentException(
                                 "Illegal maxDeliveryAttempts: " + maxDeliveryAttempts));
             }
@@ -370,7 +369,7 @@ public class MessengerImpl implements Messenger {
 
         @Nullable
         @GuardedBy("mLock")
-        private ListenableFuture<?> mAttachTransportFuture;
+        private AndroidFuture<?> mAttachTransportFuture;
 
         /**
          * The maximum message handle id we received from this association. This will be used to
@@ -406,8 +405,8 @@ public class MessengerImpl implements Messenger {
                                     + associationId,
                             new Message(handleId, networkId, message));
             mMessageHandles.put(handleId, handle);
-            handle.addListener(MessengerImpl.this::invalidate, Runnable::run);
-            return handle;
+            return (MessageHandle)
+                    handle.whenComplete((unused, t) -> MessengerImpl.this.invalidate());
         }
 
         @GuardedBy("mLock")
@@ -428,8 +427,10 @@ public class MessengerImpl implements Messenger {
                 if (DEBUG) {
                     Log.d(TAG, "Requesting transport attachment for association " + associationId);
                 }
-                mAttachTransportFuture = mCompanionActionController.attachTransport(associationId);
-                mAttachTransportFuture.addListener(MessengerImpl.this::invalidate, Runnable::run);
+                mAttachTransportFuture =
+                        mCompanionActionController
+                                .attachTransport(associationId)
+                                .whenComplete((unused, t) -> MessengerImpl.this.invalidate());
             } else if (mState != STATE_SENDING
                     && mState != STATE_WAITING_FOR_TRANSPORT
                     && mAttachTransportFuture != null) {
@@ -440,7 +441,7 @@ public class MessengerImpl implements Messenger {
                 if (DEBUG) {
                     Log.d(TAG, "Requesting transport detachment for association " + associationId);
                 }
-                mCompanionActionController.detachTransport(associationId);
+                var ignored = mCompanionActionController.detachTransport(associationId);
                 // For any pending messages, detaching is considered transport failure.
                 noteTransportFailureLocked(now, new Exception(mChangeReason));
             }
@@ -692,7 +693,7 @@ public class MessengerImpl implements Messenger {
                             /* name= */ "ackHandle#" + handleId + ":association#" + associationId,
                             /* message= */ null);
             mAckHandles.put(handleId, handle);
-            handle.addListener(MessengerImpl.this::invalidate, Runnable::run);
+            handle.whenComplete((unused, t) -> MessengerImpl.this.invalidate());
             boolean shouldDeliver = handleId > mMaxReceivedHandleId;
             mMaxReceivedHandleId = Math.max(mMaxReceivedHandleId, handleId);
             if (!shouldDeliver) {

@@ -20,9 +20,9 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.infra.AndroidFuture;
 
 import com.google.android.submerge.Converter;
-import com.google.common.util.concurrent.ListenableFuture;
 
 /**
  * A handle to a {@link SharedDataStore}. Used to perform operations without opening a {@link
@@ -61,17 +61,17 @@ public interface SharedDataStoreHandle<T> {
      * @return a future containing the initialized data store, or an exception
      */
     @NonNull
-    ListenableFuture<? extends SharedDataStore<T>> openDataStore(@NonNull Network network);
+    AndroidFuture<? extends SharedDataStore<T>> openDataStore(@NonNull Network network);
 
     /**
      * Delete the shared data store. This operation is non-recoverable.
      *
-     * @return a {@link ListenableFuture} that completes with a boolean indicating if the data store
-     *     is successfully deleted.
+     * @return a {@link AndroidFuture} that completes with a boolean indicating if the data store is
+     *     successfully deleted.
      * @throws IllegalStateException if the data store is locked.
      */
     @NonNull
-    ListenableFuture<Boolean> delete();
+    AndroidFuture<Boolean> delete();
 
     /** Orderly close the data store if it's open, and release all resources. */
     default void destroy() {

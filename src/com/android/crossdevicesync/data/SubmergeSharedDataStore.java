@@ -15,10 +15,11 @@
  */
 package com.android.crossdevicesync.data;
 
+import static com.android.crossdevicesync.common.Utils.failedAndroidFuture;
+import static com.android.crossdevicesync.common.Utils.handleAsync;
+import static com.android.crossdevicesync.common.Utils.handleFailureAsync;
 import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_NOT_CHANGING_LOCAL_STATE;
 import static com.android.internal.util.FrameworkStatsLog.CROSS_DEVICE_SYNC_EVENT__EVENT__EVENT_INBOUND_SYNC_UPDATES_LOCAL_STATE;
-
-import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 
 import static java.util.Objects.requireNonNull;
 
@@ -35,6 +36,7 @@ import com.android.crossdevicesync.data.storage.IStorage;
 import com.android.crossdevicesync.network.NetworkManager.Network;
 import com.android.crossdevicesync.network.NetworkManager.NetworkListener;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.infra.AndroidFuture;
 
 import com.google.android.submerge.Converter;
 import com.google.android.submerge.DataStore;
@@ -43,9 +45,6 @@ import com.google.android.submerge.OlderBaseNeededException;
 import com.google.android.submerge.StorageInterface;
 import com.google.android.submerge.TimestampProvider;
 import com.google.android.submerge.VersionVector;
-import com.google.common.util.concurrent.FluentFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.MustBeClosed;
 
 import java.io.IOException;
@@ -135,11 +134,11 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     @GuardedBy("mLock")
     @Nullable
-    private ListenableFuture<Boolean> mInitFuture;
+    private AndroidFuture<Boolean> mInitFuture;
 
     @GuardedBy("mLock")
     @Nullable
-    private ListenableFuture<Boolean> mCloseFuture;
+    private AndroidFuture<Boolean> mCloseFuture;
 
     public SubmergeSharedDataStore(
             String name,
@@ -174,7 +173,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
 
     @SuppressWarnings("MustBeClosedChecker")
     @Override
-    public ListenableFuture<Boolean> init(Network network) {
+    public AndroidFuture<Boolean> init(Network network) {
         synchronized (mLock) {
             try {
                 if (isOpen()) {
@@ -190,31 +189,17 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 mNodeId = mDeviceNodeIdProvider.getOrCreateNodeIdForDataStore(mName);
                 mSubmergeDataStore = openDocumentDataStore(mNodeId, mTimestampProvider);
                 // Init the storage and upgrade the data store asynchronously.
+                AndroidFuture<Boolean> doInitFuture = mStorage.submitToIoThread(this::doInit);
                 mInitFuture =
-                        FluentFuture.from(mStorage.submitToIoThread(this::doInit))
-                                .catchingAsync(
-                                        Exception.class,
-                                        e -> {
-                                            // If init fails, close the data store and rethrow the
-                                            // error.
-                                            Log.e(TAG, "Failed to init data store", e);
-                                            return FluentFuture.from(close())
-                                                    .catchingAsync(
-                                                            Exception.class,
-                                                            unused ->
-                                                                    Futures.immediateFailedFuture(
-                                                                            e),
-                                                            directExecutor())
-                                                    .transformAsync(
-                                                            unused ->
-                                                                    Futures.immediateFailedFuture(
-                                                                            e),
-                                                            directExecutor());
-                                        },
-                                        directExecutor());
+                        handleFailureAsync(
+                                doInitFuture,
+                                t -> {
+                                    Log.e(TAG, "Failed to init data store", t);
+                                    return handleAsync(close(), (unused1, unused2) -> doInitFuture);
+                                });
                 return mInitFuture;
             } catch (IllegalStateException e) {
-                return Futures.immediateFailedFuture(e);
+                return failedAndroidFuture(e);
             }
         }
     }
@@ -398,7 +383,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     }
 
     @Override
-    public <U> ListenableFuture<U> transact(String docId, TransactionApplier<T, U> applier) {
+    public <U> AndroidFuture<U> transact(String docId, TransactionApplier<T, U> applier) {
         synchronized (mLock) {
             try {
                 requireStateLocked(STATE_UPGRADING, STATE_OPEN);
@@ -407,7 +392,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                 }
                 return mStorage.submitToIoThread(() -> doTransact(docId, applier));
             } catch (IllegalStateException e) {
-                return Futures.immediateFailedFuture(e);
+                return failedAndroidFuture(e);
             }
         }
     }
@@ -676,7 +661,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
     }
 
     @Override
-    public ListenableFuture<Boolean> close() {
+    public AndroidFuture<Boolean> close() {
         synchronized (mLock) {
             if (mState == STATE_CLOSED) {
                 // Duplicate call.
@@ -711,7 +696,7 @@ public class SubmergeSharedDataStore<T> implements SharedDataStore<T>, NetworkLi
                                 });
             } else {
                 mHandle.unlock(this);
-                mCloseFuture = Futures.immediateFuture(true);
+                mCloseFuture = AndroidFuture.completedFuture(true);
             }
             return mCloseFuture;
         }

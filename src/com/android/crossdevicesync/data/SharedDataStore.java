@@ -18,9 +18,9 @@ package com.android.crossdevicesync.data;
 import android.annotation.Nullable;
 
 import com.android.crossdevicesync.network.NetworkManager.Network;
+import com.android.internal.infra.AndroidFuture;
 
 import com.google.android.submerge.StorageInterface.StorageException;
-import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.List;
 import java.util.Map;
@@ -40,7 +40,7 @@ public interface SharedDataStore<T> {
      * Initialize the data store. A data store is usable only after this method is called.
      *
      * @param network the network to be used for syncing.
-     * @return a listenable future to get notified when initialization is done or failed. {@link
+     * @return a {@link AndroidFuture} to get notified when initialization is done or failed. {@link
      *     IllegalSchemaChangeException} will be passed to the future if the schema upgrade fails
      *     due to illegal schema. {@link SchemaValidationException} will be passed to the future if
      *     the data store upgrade results in invalid data. {@link StorageException} will be passed
@@ -48,7 +48,7 @@ public interface SharedDataStore<T> {
      *     usually non-recoverable, so you may want to delete the entire data store and rebuild it
      *     from empty state.
      */
-    ListenableFuture<?> init(Network network);
+    AndroidFuture<?> init(Network network);
 
     /**
      * Gets the local device node id. This is a unique string representing a device that
@@ -62,18 +62,18 @@ public interface SharedDataStore<T> {
      * {@link Document} should be done in the {@link TransactionApplier#transact(MutableDocument)}
      * method synchronously. After the method returns, the transaction will be committed if no error
      * occurs. The calling thread will be notified the transaction result via a {@link
-     * ListenableFuture}.
+     * AndroidFuture}.
      *
      * @param <R> the type of return value of the transaction.
      * @param docId id of the document to interact with. If the document doesn't exist, a new
      *     document will be lazily created by this transaction.
-     * @return a listenable future to get notified when the transaction is done or aborted due to
-     *     error. The applier can optionally return a result, which will be delivered to the
-     *     listenable future. {@link SchemaValidationException} will be passed to the future if the
-     *     change failed schema validation. {@link StorageException} will be passed to the future if
-     *     the underlying persistent data store fails.
+     * @return a {@link AndroidFuture} to get notified when the transaction is done or aborted due
+     *     to error. The applier can optionally return a result, which will be delivered to the
+     *     {@link AndroidFuture}. {@link SchemaValidationException} will be passed to the future if
+     *     the change failed schema validation. {@link StorageException} will be passed to the
+     *     future if the underlying persistent data store fails.
      */
-    <R> ListenableFuture<R> transact(String docId, TransactionApplier<T, R> applier);
+    <R> AndroidFuture<R> transact(String docId, TransactionApplier<T, R> applier);
 
     /** Register a listener for monitoring remote change. */
     void registerOnRemoteChangeListener(Executor executor, OnRemoteChangeListener listener);
@@ -83,14 +83,14 @@ public interface SharedDataStore<T> {
 
     /**
      * Close the data store. Any further interactions with this data store will fail. Also returns a
-     * {@link ListenableFuture} to notify callers when all resources are released. Note that the
-     * close state is immediately effective. The actual resource cleanup (e.g. close the database,
+     * {@link AndroidFuture} to notify callers when all resources are released. Note that the close
+     * state is immediately effective. The actual resource cleanup (e.g. close the database,
      * shutdown IO thread, etc) may happen asynchronously and will be notified via the {@link
-     * ListenableFuture}.
+     * AndroidFuture}.
      *
-     * @return a {@link ListenableFuture} to get notified when all resources are closed
+     * @return a {@link AndroidFuture} to get notified when all resources are closed
      */
-    ListenableFuture<?> close();
+    AndroidFuture<?> close();
 
     /** Check if the data store is open. */
     boolean isOpen();

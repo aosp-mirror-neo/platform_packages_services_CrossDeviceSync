@@ -23,10 +23,7 @@ import androidx.annotation.Nullable;
 
 import com.android.crossdevicesync.common.fake.FakeCompanionDeviceManagerProxy;
 import com.android.crossdevicesync.network.companion.CompanionActionController;
-
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,9 +31,9 @@ import java.util.Map;
 /** A fake implementation of {@link CompanionActionController}. */
 public class FakeCompanionActionController implements CompanionActionController {
     private final FakeCompanionDeviceManagerProxy mCompanionDeviceManager;
-    private final Map<Integer, SettableFuture<?>> mTransportRequests = new HashMap<>();
-    private final Map<Integer, SettableFuture<?>> mScanningRequests = new HashMap<>();
-    private final Map<Integer, SettableFuture<?>> mAdvertisingRequests = new HashMap<>();
+    private final Map<Integer, AndroidFuture<?>> mTransportRequests = new HashMap<>();
+    private final Map<Integer, AndroidFuture<?>> mScanningRequests = new HashMap<>();
+    private final Map<Integer, AndroidFuture<?>> mAdvertisingRequests = new HashMap<>();
     private boolean mAutomaticallyAttachTransport;
     private boolean mInitialized;
 
@@ -62,13 +59,17 @@ public class FakeCompanionActionController implements CompanionActionController 
             return;
         }
         mInitialized = false;
-        mTransportRequests.values().forEach(f -> f.setException(new RuntimeException("destroyed")));
+        mTransportRequests
+                .values()
+                .forEach(f -> f.completeExceptionally(new RuntimeException("destroyed")));
         mTransportRequests.clear();
-        mScanningRequests.values().forEach(f -> f.setException(new RuntimeException("destroyed")));
+        mScanningRequests
+                .values()
+                .forEach(f -> f.completeExceptionally(new RuntimeException("destroyed")));
         mScanningRequests.clear();
         mAdvertisingRequests
                 .values()
-                .forEach(f -> f.setException(new RuntimeException("destroyed")));
+                .forEach(f -> f.completeExceptionally(new RuntimeException("destroyed")));
         mAdvertisingRequests.clear();
     }
 
@@ -79,81 +80,81 @@ public class FakeCompanionActionController implements CompanionActionController 
     }
 
     @Override
-    public ListenableFuture<?> attachTransport(int associationId) {
+    public AndroidFuture<?> attachTransport(int associationId) {
         throwIfUninitialized();
-        SettableFuture<?> future = newFutureIfAbsentOrFailed(mTransportRequests, associationId);
+        AndroidFuture<?> future = newFutureIfAbsentOrFailed(mTransportRequests, associationId);
         if (mAutomaticallyAttachTransport && !future.isDone()) {
             mCompanionDeviceManager.setTransportAttachedState(associationId, true);
-            future.set(null);
+            future.complete(null);
         }
         return future;
     }
 
     @Override
-    public ListenableFuture<?> detachTransport(int associationId) {
+    public AndroidFuture<?> detachTransport(int associationId) {
         throwIfUninitialized();
-        SettableFuture<?> future = mTransportRequests.remove(associationId);
+        AndroidFuture<?> future = mTransportRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
         }
-        return Futures.immediateFuture(true);
+        return AndroidFuture.completedFuture(true);
     }
 
     @Nullable
-    public SettableFuture<?> getAttachTransportFuture(int associationId) {
+    public AndroidFuture<?> getAttachTransportFuture(int associationId) {
         throwIfUninitialized();
         return mTransportRequests.get(associationId);
     }
 
     @Override
-    public ListenableFuture<?> startNearbyScanning(int associationId) {
+    public AndroidFuture<?> startNearbyScanning(int associationId) {
         throwIfUninitialized();
         return newFutureIfAbsentOrFailed(mScanningRequests, associationId);
     }
 
     @Override
-    public ListenableFuture<?> stopNearbyScanning(int associationId) {
+    public AndroidFuture<?> stopNearbyScanning(int associationId) {
         throwIfUninitialized();
-        SettableFuture<?> future = mScanningRequests.remove(associationId);
+        AndroidFuture<?> future = mScanningRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
         }
-        return Futures.immediateFuture(true);
+        return AndroidFuture.completedFuture(true);
     }
 
     @Nullable
-    public SettableFuture<?> getScanningFuture(int associationId) {
+    public AndroidFuture<?> getScanningFuture(int associationId) {
         throwIfUninitialized();
         return mScanningRequests.get(associationId);
     }
 
     @Override
-    public ListenableFuture<?> startNearbyAdvertising(int associationId) {
+    public AndroidFuture<?> startNearbyAdvertising(int associationId) {
         throwIfUninitialized();
         return newFutureIfAbsentOrFailed(mAdvertisingRequests, associationId);
     }
 
     @Override
-    public ListenableFuture<?> stopNearbyAdvertising(int associationId) {
+    public AndroidFuture<?> stopNearbyAdvertising(int associationId) {
         throwIfUninitialized();
-        SettableFuture<?> future = mAdvertisingRequests.remove(associationId);
+        AndroidFuture<?> future = mAdvertisingRequests.remove(associationId);
         if (future != null) {
             future.cancel(true);
         }
-        return Futures.immediateFuture(true);
+        return AndroidFuture.completedFuture(true);
     }
 
     @Nullable
-    public SettableFuture<?> getAdvertisingFuture(int associationId) {
+    public AndroidFuture<?> getAdvertisingFuture(int associationId) {
         throwIfUninitialized();
         return mAdvertisingRequests.get(associationId);
     }
 
-    private static SettableFuture<?> newFutureIfAbsentOrFailed(
-            Map<Integer, SettableFuture<?>> map, int associationId) {
-        SettableFuture<?> future = map.get(associationId);
+    private static AndroidFuture<?> newFutureIfAbsentOrFailed(
+            Map<Integer, AndroidFuture<?>> map, int associationId) {
+        AndroidFuture<?> future = map.get(associationId);
         if (future == null || (future.isDone() && isFutureFailed(future))) {
-            future = SettableFuture.create();
+            future = new AndroidFuture<>();
             map.put(associationId, future);
         }
         return future;

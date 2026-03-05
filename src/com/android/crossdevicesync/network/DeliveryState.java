@@ -18,8 +18,7 @@ package com.android.crossdevicesync.network;
 import android.annotation.Nullable;
 
 import com.android.crossdevicesync.network.scanner.Scanner.ScanningSession;
-
-import com.google.common.util.concurrent.ListenableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 /** A class representing a message delivery state. */
 class DeliveryState {
@@ -44,7 +43,7 @@ class DeliveryState {
     public int state;
     public long lastStateChangeTimestamp;
     public String reason;
-    @Nullable public ListenableFuture<?> messageSendingFuture;
+    @Nullable public AndroidFuture<?> messageSendingFuture;
     @Nullable public ScanningSession scanningSession;
 
     DeliveryState(long now) {

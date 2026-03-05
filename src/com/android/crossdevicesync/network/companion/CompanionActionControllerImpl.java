@@ -33,12 +33,10 @@ import com.android.crossdevicesync.common.CompanionDeviceManagerProxy;
 import com.android.crossdevicesync.common.DebugConfig;
 import com.android.crossdevicesync.common.DelayedExecutor;
 import com.android.crossdevicesync.common.Dumpable;
+import com.android.crossdevicesync.common.Utils;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import com.android.internal.infra.AndroidFuture;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -135,7 +133,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
     }
 
     @Override
-    public ListenableFuture<?> attachTransport(int associationId) {
+    public AndroidFuture<?> attachTransport(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -143,13 +141,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.transportState, /* activate= */ true, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
 
     @Override
-    public ListenableFuture<?> detachTransport(int associationId) {
+    public AndroidFuture<?> detachTransport(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -157,13 +155,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.transportState, /* activate= */ false, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
 
     @Override
-    public ListenableFuture<?> startNearbyScanning(int associationId) {
+    public AndroidFuture<?> startNearbyScanning(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -171,13 +169,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.scanningState, /* activate= */ true, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
 
     @Override
-    public ListenableFuture<?> stopNearbyScanning(int associationId) {
+    public AndroidFuture<?> stopNearbyScanning(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -185,13 +183,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.scanningState, /* activate= */ false, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
 
     @Override
-    public ListenableFuture<?> startNearbyAdvertising(int associationId) {
+    public AndroidFuture<?> startNearbyAdvertising(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -199,13 +197,13 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.advertisingState, /* activate= */ true, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
 
     @Override
-    public ListenableFuture<?> stopNearbyAdvertising(int associationId) {
+    public AndroidFuture<?> stopNearbyAdvertising(int associationId) {
         synchronized (mLock) {
             try {
                 throwIfUninitializedLocked();
@@ -213,7 +211,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                 AssociationState state = getOrCreateAssociationStateLocked(associationId, now);
                 return requestStateChangeLocked(state.advertisingState, /* activate= */ false, now);
             } catch (Exception e) {
-                return Futures.immediateFailedFuture(e);
+                return Utils.failedAndroidFuture(e);
             }
         }
     }
@@ -232,11 +230,12 @@ public class CompanionActionControllerImpl implements CompanionActionController 
     }
 
     @GuardedBy("mLock")
-    private ListenableFuture<?> requestStateChangeLocked(
+    private AndroidFuture<?> requestStateChangeLocked(
             ActionState state, boolean activate, long now) {
-        ListenableFuture<?> future = state.noteRequest(activate, now);
-        future.addListener(
-                () -> {
+        AndroidFuture<?> future = state.noteRequest(activate, now);
+        invalidate();
+        return future.whenComplete(
+                (unused, t) -> {
                     if (!future.isCancelled()) {
                         return;
                     }
@@ -246,10 +245,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                             invalidate();
                         }
                     }
-                },
-                Runnable::run);
-        invalidate();
-        return future;
+                });
     }
 
     private void onActionResult(int associationId, ActionResult result) {
@@ -582,14 +578,14 @@ public class CompanionActionControllerImpl implements CompanionActionController 
 
         private int mState;
         private long mLastChangeTimestamp;
-        @Nullable private SettableFuture<Boolean> mFuture;
+        @Nullable private AndroidFuture<Boolean> mFuture;
 
         ActionState(long now) {
             mState = STATE_DEACTIVATED;
             mLastChangeTimestamp = now;
         }
 
-        public ListenableFuture<Boolean> noteRequest(boolean activate, long now) {
+        public AndroidFuture<Boolean> noteRequest(boolean activate, long now) {
             if (hasRequestedActivation() == activate) {
                 // Duplicate request.
                 if (isRequestQueued() || isWaitingWithTimeout()) {
@@ -597,7 +593,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                     return requireNonNull(mFuture);
                 } else if (isActivated() || isDeactivated()) {
                     // Already done.
-                    return Futures.immediateFuture(true);
+                    return AndroidFuture.completedFuture(true);
                 } else if (setState(
                         now,
                         activate
@@ -606,7 +602,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                         "Continue waiting")) {
                     // Previous request is cancelled or timeout before received result. Create a
                     // new future to track request.
-                    mFuture = SettableFuture.create();
+                    mFuture = new AndroidFuture<>();
                     return mFuture;
                 }
             }
@@ -615,10 +611,10 @@ public class CompanionActionControllerImpl implements CompanionActionController 
                     now,
                     activate ? STATE_QUEUED_FOR_ACTIVATION : STATE_QUEUED_FOR_DEACTIVATION,
                     "Request queued")) {
-                mFuture = SettableFuture.create();
+                mFuture = new AndroidFuture<>();
                 return mFuture;
             } else {
-                return Futures.immediateFailedFuture(new Exception("Unable to queue request"));
+                return Utils.failedAndroidFuture(new Exception("Unable to queue request"));
             }
         }
 
@@ -645,7 +641,7 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             return noteCancellation(mFuture, now, reason);
         }
 
-        public boolean noteCancellation(ListenableFuture<?> future, long now, String reason) {
+        public boolean noteCancellation(AndroidFuture<?> future, long now, String reason) {
             if (mFuture != future) {
                 // Mismatched future meaning the request we try to cancel no longer exist.
                 return false;
@@ -688,15 +684,15 @@ public class CompanionActionControllerImpl implements CompanionActionController 
             }
             if (prevRequestedActivation != hasRequestedActivation()) {
                 // Change of direction. Fail the previous request.
-                mFuture.setException(new Exception(reason));
+                mFuture.completeExceptionally(new Exception(reason));
                 mFuture = null;
             } else if (isActivated() || isDeactivated()) {
                 // Request is completed. Report success.
-                mFuture.set(true);
+                mFuture.complete(true);
                 mFuture = null;
             } else if (prevWaitingWithTimeout && !isWaitingWithTimeout()) {
                 // Timeout reached or future cancelled.
-                mFuture.setException(new Exception(reason));
+                mFuture.completeExceptionally(new Exception(reason));
                 mFuture = null;
             }
             return true;
