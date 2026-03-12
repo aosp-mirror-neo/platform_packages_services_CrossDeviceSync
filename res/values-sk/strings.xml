@@ -19,7 +19,7 @@
     <string name="app_label" msgid="8317618268687481611">"Synchronizácia medzi zariadeniami"</string>
     <string name="airplane_mode_sync_notification_channel_name" msgid="6564497319920541027">"Synchronizácia v režime v lietadle"</string>
     <string name="airplane_mode_sync_notification_title" msgid="7088001983683120469">"Režim v lietadle"</string>
-    <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Režim v lietadle sa odteraz bude synchronizovať medzi telefónom a hodinkami.\n\nPredvoľby synchronizácie režimu môžete spravovať v nastaveniach hodiniek a telefónu."</string>
+    <string name="airplane_mode_sync_notification_content" msgid="9114975580468630060">"Režim v lietadle sa odteraz bude synchronizovať medzi telefónom a hodinkami.\n\nPredvoľby synchronizácie režimu môžete spravovať v nastaveniach hodiniek aj telefónu."</string>
     <string name="apm_sync_notification_settings_action" msgid="5047802942977350991">"Spravovať nastavenia"</string>
     <string name="do_not_disturb_sync_notification_channel_name" msgid="2633023256459106594">"Synchronizácia režimu bez vyrušení"</string>
     <string name="do_not_disturb_sync_notification_title" msgid="6289972027187909815">"Režim bez vyrušení"</string>
