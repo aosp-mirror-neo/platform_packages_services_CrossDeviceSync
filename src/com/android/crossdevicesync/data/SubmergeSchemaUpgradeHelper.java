@@ -169,7 +169,7 @@ public class SubmergeSchemaUpgradeHelper<T> {
                 docId,
                 schemaDataStore.newDocumentTransaction(docId),
                 getSchemaNodeId(docId),
-                new DocumentMetadata(0, new ArrayList<>()));
+                new DocumentMetadata(0, new ArrayList<>(), new byte[0]));
     }
 
     private static class NoOpNetworkInterface implements NetworkInterface {
