@@ -95,7 +95,7 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
 
     @Override
     public int getSchemaVersion() {
-        return getMetaData().schemaVersion();
+        return mSchemaVersion;
     }
 
     void setSchemaVersion(int version) {
@@ -758,9 +758,9 @@ class SubmergeDocument<T> implements SharedDataStore.MutableDocument<T>, AutoClo
         }
     }
 
-    public DocumentMetadata getMetaData() {
+    public List<RecordMetadata> getAllRecordMetaData() {
         requireDocumentOpen();
-        return new DocumentMetadata(mSchemaVersion, new ArrayList<>(mRecordMetadataMap.values()));
+        return List.copyOf(mRecordMetadataMap.values());
     }
 
     private abstract class SubmergeRecord implements AutoCloseable {

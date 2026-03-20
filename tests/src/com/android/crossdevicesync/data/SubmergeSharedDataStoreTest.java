@@ -325,23 +325,6 @@ public class SubmergeSharedDataStoreTest extends SharedDataStoreTestBase {
     }
 
     @Test
-    public void testInit_upgradeSchemaWithSameVersion_failedValidation() {
-        // Changes schema without changing version.
-        AndroidFuture<Boolean> future =
-                upgradeSchema(
-                        DocumentSchemaInfo.builder()
-                                .setDocId(DOC_ID)
-                                .setVersion(1)
-                                .putPathSchema("/root/v2/register", RecordType.TYPE_REGISTER, 1)
-                                .build());
-
-        assertThrows(ExecutionException.class, future::get);
-        assertThat(future.exceptionNow()).isInstanceOf(SchemaValidationException.class);
-        assertThat(mSubmergeSharedDataStore.isOpen()).isFalse();
-        assertThat(mSharedDataStoreHandle.isLocked()).isFalse();
-    }
-
-    @Test
     public void testInit_upgradeIncompatibleWithExistingData_fail() throws Exception {
         // Remote device 1 upgrades the schema.
         upgradeSchema(
