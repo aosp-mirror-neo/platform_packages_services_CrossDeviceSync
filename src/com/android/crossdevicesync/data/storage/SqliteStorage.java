@@ -154,6 +154,7 @@ public class SqliteStorage implements IStorage {
             transactionApplier.acceptOrThrow(this);
             mDatabase.setTransactionSuccessful();
         } catch (Exception e) {
+            Log.e(TAG, "Failed database transaction!", e);
             throw new StorageException();
         } finally {
             mDatabase.endTransaction();

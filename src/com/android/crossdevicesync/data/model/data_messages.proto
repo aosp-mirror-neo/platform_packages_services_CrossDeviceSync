@@ -38,6 +38,9 @@ message NetworkMessageProto {
 message DocumentMetadataProto {
     optional int32 schema_version = 1;
     repeated RecordMetadataProto record_metadata_list = 2;
+    // The version vector of a document, extracted from submerge and used for accessing doc version
+    // without loading submerge.
+    optional bytes doc_version = 3;
 
     message RecordMetadataProto {
         optional string path = 1;

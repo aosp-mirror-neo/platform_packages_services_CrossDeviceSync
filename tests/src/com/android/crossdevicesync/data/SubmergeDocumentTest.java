@@ -526,19 +526,19 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
         mDocument.addUnmergedSchema("/vector");
         mDocument.addSetSchema("/set");
 
-        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(3);
-        for (RecordMetadata recordMetadata : mDocument.getMetaData().recordMetadataList()) {
+        assertThat(mDocument.getAllRecordMetaData().size()).isEqualTo(3);
+        for (RecordMetadata recordMetadata : mDocument.getAllRecordMetaData()) {
             assertThat(recordMetadata.lastModifiedByLocalDevice()).isTrue();
         }
 
         mDocument.removePath("/set");
 
-        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(2);
+        assertThat(mDocument.getAllRecordMetaData().size()).isEqualTo(2);
 
         mDocument.removePath("/");
 
         // Assert that metadata is cleared.
-        assertThat(mDocument.getMetaData().recordMetadataList().size()).isEqualTo(0);
+        assertThat(mDocument.getAllRecordMetaData().size()).isEqualTo(0);
     }
 
     @Test
@@ -648,7 +648,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                         DOC_ID,
                         mMockTransaction,
                         mDeviceNodeId,
-                        new DocumentMetadata(0, new ArrayList<>()));
+                        new DocumentMetadata(0, new ArrayList<>(), new byte[0]));
         byte[] update = new byte[0];
         doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
 
@@ -665,7 +665,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                         DOC_ID,
                         mMockTransaction,
                         mDeviceNodeId,
-                        new DocumentMetadata(0, new ArrayList<>()));
+                        new DocumentMetadata(0, new ArrayList<>(), new byte[0]));
         byte[] update = new byte[0];
         doThrow(mock(MergeException.class)).when(mMockTransaction).mergeNetworkUpdate(update);
 
@@ -702,7 +702,7 @@ public class SubmergeDocumentTest extends SharedDataStoreTestBase {
                 DOC_ID,
                 mSubmergeDataStore.newDocumentTransaction(DOC_ID),
                 nodeId,
-                new DocumentMetadata(0, new ArrayList<>()));
+                new DocumentMetadata(0, new ArrayList<>(), new byte[0]));
     }
 
     private void validateRawGetOrInsertRegisterNode(String path) throws Exception {

@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
@@ -35,7 +36,7 @@ public class DocumentMetadataTest {
                 List.of(
                         new DocumentMetadata.RecordMetadata("/path/1", true),
                         new DocumentMetadata.RecordMetadata("/path/2", false));
-        DocumentMetadata original = new DocumentMetadata(5, records);
+        DocumentMetadata original = new DocumentMetadata(5, records, new byte[] {1, 2, 3});
 
         byte[] serialized = original.toByteArray();
         DocumentMetadata parsed = DocumentMetadata.parseFrom(serialized);
@@ -45,11 +46,12 @@ public class DocumentMetadataTest {
         assertThat(parsed.recordMetadataList()).hasSize(2);
         assertThat(parsed.recordMetadataList().get(0).path()).isEqualTo("/path/1");
         assertThat(parsed.recordMetadataList().get(0).lastModifiedByLocalDevice()).isTrue();
+        assertThat(Arrays.equals(parsed.docVersion(), original.docVersion())).isTrue();
     }
 
     @Test
     public void emptyRecords_serializationSymmetrical() throws IOException {
-        DocumentMetadata original = new DocumentMetadata(0, List.of());
+        DocumentMetadata original = new DocumentMetadata(0, List.of(), new byte[0]);
 
         byte[] serialized = original.toByteArray();
         DocumentMetadata parsed = DocumentMetadata.parseFrom(serialized);
@@ -73,5 +75,18 @@ public class DocumentMetadataTest {
 
         assertThat(parsed.schemaVersion()).isEqualTo(0);
         assertThat(parsed.recordMetadataList()).isEmpty();
+    }
+
+    @Test
+    public void hashCode_consistentWithEquals() {
+        List<DocumentMetadata.RecordMetadata> records1 =
+                List.of(new DocumentMetadata.RecordMetadata("/path/1", true));
+        List<DocumentMetadata.RecordMetadata> records2 =
+                List.of(new DocumentMetadata.RecordMetadata("/path/1", true));
+        DocumentMetadata metadata1 = new DocumentMetadata(5, records1, new byte[] {1, 2, 3});
+        DocumentMetadata metadata2 = new DocumentMetadata(5, records2, new byte[] {1, 2, 3});
+
+        assertThat(metadata1).isEqualTo(metadata2);
+        assertThat(metadata1.hashCode()).isEqualTo(metadata2.hashCode());
     }
 }

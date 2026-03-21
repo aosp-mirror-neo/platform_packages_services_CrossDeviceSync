@@ -23,12 +23,13 @@ import android.util.proto.ProtoOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /** Metadata of a document and its records. */
 public record DocumentMetadata(
-        int schemaVersion, @NonNull List<RecordMetadata> recordMetadataList) {
-    private static final String TAG = "DocumentMetadata";
+        int schemaVersion, @NonNull List<RecordMetadata> recordMetadataList, byte[] docVersion) {
 
     /** Metadata of a data record in a document. */
     public record RecordMetadata(@NonNull String path, boolean lastModifiedByLocalDevice) {
@@ -78,6 +79,7 @@ public record DocumentMetadata(
         for (RecordMetadata metadata : recordMetadataList) {
             metadata.writeTo(proto, DocumentMetadataProto.RECORD_METADATA_LIST);
         }
+        proto.write(DocumentMetadataProto.DOC_VERSION, docVersion);
         proto.flush();
         return baos.toByteArray();
     }
@@ -87,6 +89,7 @@ public record DocumentMetadata(
         ProtoInputStream proto = new ProtoInputStream(data);
         int schemaVersion = 0;
         List<RecordMetadata> recordMetadataList = new ArrayList<>();
+        byte[] docVersion = new byte[0];
 
         try {
             while (proto.nextField() != ProtoInputStream.NO_MORE_FIELDS) {
@@ -98,11 +101,33 @@ public record DocumentMetadata(
                         recordMetadataList.add(RecordMetadata.parseFrom(proto));
                         proto.end(token);
                     }
+                    case (int) DocumentMetadataProto.DOC_VERSION ->
+                            docVersion = proto.readBytes(DocumentMetadataProto.DOC_VERSION);
                 }
             }
         } catch (Exception e) {
             throw new IOException("Failed to parse DocumentMetadata from proto", e);
         }
-        return new DocumentMetadata(schemaVersion, recordMetadataList);
+        return new DocumentMetadata(schemaVersion, recordMetadataList, docVersion);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof DocumentMetadata that)) {
+            return false;
+        }
+        return schemaVersion == that.schemaVersion
+                && Objects.equals(recordMetadataList, that.recordMetadataList)
+                && Arrays.equals(docVersion, that.docVersion);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(schemaVersion, recordMetadataList);
+        result = 31 * result + Arrays.hashCode(docVersion);
+        return result;
     }
 }
